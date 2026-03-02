@@ -2,14 +2,16 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getAuthSession } from '@/lib/auth'
 import { isAdminLogin } from '@/lib/admin/permissions'
+import { AdminGitHubSignInButton } from '@/components/admin/admin-github-signin-button'
 
 type LoginPageProps = {
-  searchParams: Promise<{ callbackUrl?: string }>
+  searchParams: Promise<{ callbackUrl?: string; error?: string }>
 }
 
 export default async function AdminLoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams
   const callbackUrl = params.callbackUrl || '/admin'
+  const authError = params.error
   const session = await getAuthSession()
 
   if (session?.user?.login && isAdminLogin(session.user.login)) {
@@ -29,12 +31,16 @@ export default async function AdminLoginPage({ searchParams }: LoginPageProps) {
         </p>
       )}
 
+      {authError && (
+        <p className='mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700'>
+          GitHub 登录失败，请重试。若持续失败，请检查 OAuth App 的回调地址是否为
+          {' '}
+          <code>https://blog.20031104.xyz/api/auth/callback/github</code>。
+        </p>
+      )}
+
       <div className='mt-6 flex flex-wrap gap-3'>
-        <a
-          href={`/api/auth/signin/github?callbackUrl=${encodeURIComponent(callbackUrl)}`}
-          className='rounded-xl bg-[var(--color-brand)] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-brand-strong)]'>
-          使用 GitHub 登录
-        </a>
+        <AdminGitHubSignInButton callbackUrl={callbackUrl} />
 
         <Link
           href='/'
