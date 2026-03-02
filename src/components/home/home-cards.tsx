@@ -1,0 +1,130 @@
+'use client'
+
+import Link from 'next/link'
+import { motion, type Variants } from 'framer-motion'
+import type { Locale } from '@/i18n/config'
+import { getDictionary } from '@/i18n/dictionaries'
+import type { Post } from '@/types/content'
+import { GlassCard } from '@/components/ui/glass-card'
+import { SectionTitle } from '@/components/ui/section-title'
+import { TagChip } from '@/components/ui/tag-chip'
+import { formatDate } from '@/lib/date'
+
+type HomeCardsProps = {
+  locale: Locale
+  latestPost: Post | null
+  categories: Array<{ name: string; count: number }>
+}
+
+const container: Variants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.1
+    }
+  }
+}
+
+const item: Variants = {
+  hidden: { opacity: 0, y: 20, scale: 0.97 },
+  show: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: {
+      type: 'spring',
+      stiffness: 180,
+      damping: 18
+    }
+  }
+}
+
+export function HomeCards({ locale, latestPost, categories }: HomeCardsProps) {
+  const dict = getDictionary(locale)
+
+  return (
+    <motion.div
+      variants={container}
+      initial='hidden'
+      animate='show'
+      className='mx-auto grid w-full max-w-6xl grid-cols-1 gap-5 px-5 pt-5 sm:grid-cols-12 sm:px-8'>
+      <motion.div variants={item} className='sm:col-span-7'>
+        <GlassCard className='h-full'>
+          <SectionTitle>{dict.home.introTitle}</SectionTitle>
+          <p className='mt-4 max-w-xl text-base leading-7 text-[var(--color-ink-soft)]'>{dict.home.introBody}</p>
+          <div className='mt-7 flex flex-wrap gap-2'>
+            <TagChip>Next.js 16</TagChip>
+            <TagChip>Tailwind v4</TagChip>
+            <TagChip>Glassmorphism</TagChip>
+          </div>
+        </GlassCard>
+      </motion.div>
+
+      <motion.div variants={item} className='sm:col-span-5'>
+        <GlassCard className='h-full'>
+          <SectionTitle>{dict.home.latestPost}</SectionTitle>
+
+          {latestPost ? (
+            <div className='mt-4'>
+              <h3 className='font-title text-2xl leading-tight text-[var(--color-ink)]'>{latestPost.frontmatter.title}</h3>
+              <p className='mt-3 line-clamp-3 text-sm leading-6 text-[var(--color-ink-soft)]'>{latestPost.frontmatter.summary}</p>
+              <div className='mt-5 text-sm text-[var(--color-ink-soft)]'>{formatDate(latestPost.frontmatter.date, locale)}</div>
+              <Link
+                href={`/${locale}/blog/${latestPost.slug}`}
+                className='mt-5 inline-flex rounded-full bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-brand-strong)]'>
+                {dict.home.readMore}
+              </Link>
+            </div>
+          ) : (
+            <p className='mt-4 text-sm text-[var(--color-ink-soft)]'>No posts yet.</p>
+          )}
+        </GlassCard>
+      </motion.div>
+
+      <motion.div variants={item} className='sm:col-span-4'>
+        <GlassCard className='h-full'>
+          <SectionTitle>{dict.home.browseByCategory}</SectionTitle>
+          <ul className='mt-4 space-y-2'>
+            {categories.slice(0, 5).map(category => (
+              <li key={category.name}>
+                <Link
+                  href={`/${locale}/blog?category=${encodeURIComponent(category.name)}`}
+                  className='flex items-center justify-between rounded-xl border border-white/70 bg-white/45 px-3 py-2 text-sm text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
+                  <span>{category.name}</span>
+                  <span className='text-[var(--color-ink-soft)]'>{category.count}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      </motion.div>
+
+      <motion.div variants={item} className='sm:col-span-8'>
+        <GlassCard className='h-full'>
+          <SectionTitle>{dict.home.quickLinks}</SectionTitle>
+          <div className='mt-4 flex flex-wrap gap-3'>
+            <Link
+              href={`/${locale}/blog`}
+              className='rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
+              {dict.nav.blog}
+            </Link>
+            <Link
+              href={`/${locale}/rss.xml`}
+              className='rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
+              {dict.common.rss}
+            </Link>
+            <a
+              href='https://github.com/'
+              target='_blank'
+              rel='noreferrer'
+              className='rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
+              GitHub
+            </a>
+          </div>
+        </GlassCard>
+      </motion.div>
+    </motion.div>
+  )
+}

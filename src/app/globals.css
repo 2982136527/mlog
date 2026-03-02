@@ -1,0 +1,198 @@
+@import '@fontsource/cormorant-garamond/600.css';
+@import '@fontsource/cormorant-garamond/700.css';
+@import '@fontsource-variable/plus-jakarta-sans';
+@import 'tailwindcss';
+@import 'highlight.js/styles/github.css';
+
+:root {
+  --color-bg: #f8e3cf;
+  --color-ink: #3e2a22;
+  --color-ink-soft: #705449;
+  --color-brand: #d46634;
+  --color-brand-strong: #bb5122;
+  --color-border-strong: #f0cdb2;
+
+  --radius-xl: 1.5rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--color-ink);
+  background: var(--color-bg);
+}
+
+[data-locale='zh'] {
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Source Han Sans SC', 'Microsoft YaHei', sans-serif;
+}
+
+[data-locale='en'] {
+  font-family: 'Plus Jakarta Sans Variable', 'Avenir Next', 'Segoe UI', sans-serif;
+}
+
+.font-title {
+  font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.prose-wrap .prose {
+  font-size: 1rem;
+  line-height: 1.9;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.prose-wrap .prose h1,
+.prose-wrap .prose h2,
+.prose-wrap .prose h3,
+.prose-wrap .prose h4 {
+  font-family: 'Cormorant Garamond', serif;
+  color: var(--color-ink);
+  line-height: 1.2;
+  scroll-margin-top: 6rem;
+}
+
+.prose-wrap .prose h2 {
+  font-size: 1.95rem;
+  margin-top: 2.2em;
+  margin-bottom: 0.7em;
+}
+
+.prose-wrap .prose h3 {
+  font-size: 1.4rem;
+  margin-top: 1.8em;
+  margin-bottom: 0.55em;
+}
+
+.prose-wrap .prose p {
+  margin: 1.1em 0;
+}
+
+.prose-wrap .prose strong {
+  color: var(--color-brand-strong);
+}
+
+.prose-wrap .prose a {
+  color: var(--color-brand);
+  text-decoration: underline;
+  text-underline-offset: 0.18rem;
+}
+
+.prose-wrap .prose ul,
+.prose-wrap .prose ol {
+  margin: 1em 0;
+  padding-left: 1.4em;
+}
+
+.prose-wrap .prose li {
+  margin: 0.45em 0;
+}
+
+.prose-wrap .prose blockquote {
+  margin: 1.2em 0;
+  padding: 0.8em 1em;
+  border-left: 3px solid var(--color-brand);
+  background: #fff2e6;
+  border-radius: 0.8rem;
+}
+
+.prose-wrap .prose code {
+  font-size: 0.9em;
+  background: #fff4ea;
+  border: 1px solid var(--color-border-strong);
+  padding: 0.1em 0.36em;
+  border-radius: 0.4rem;
+}
+
+.prose-wrap .prose pre {
+  margin: 1.3em 0;
+  border-radius: 1rem;
+  border: 1px solid #eed4c2;
+  overflow-x: auto;
+  background: #fffaf4;
+}
+
+.prose-wrap .prose pre code {
+  background: transparent;
+  border: 0;
+  font-size: 0.92em;
+}
+
+.prose-wrap .prose img {
+  width: min(100%, 40rem);
+  height: auto;
+  display: block;
+  margin: 1.4em auto;
+  border-radius: 1rem;
+  border: 1px solid #f0d8c7;
+}
+
+.prose-wrap .prose table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.prose-wrap .prose th,
+.prose-wrap .prose td {
+  border-bottom: 1px solid #f0d8c7;
+  text-align: left;
+  padding: 0.5em 0.4em;
+}
+
+@keyframes drift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, 20px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes drift-reverse {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -24px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-drift {
+  animation: drift 11s ease-in-out infinite;
+}
+
+.animate-drift-reverse {
+  animation: drift-reverse 13s ease-in-out infinite;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 9s ease-in-out infinite;
+}
