@@ -35,7 +35,17 @@ export default async function LocaleHomePage({ params }: LocaleHomeProps) {
   }
 
   const latestPost = getLatestPost(locale)
+  const latestPostCard = latestPost
+    ? {
+        slug: latestPost.slug,
+        frontmatter: {
+          title: latestPost.frontmatter.title,
+          summary: latestPost.frontmatter.summary,
+          date: latestPost.frontmatter.date
+        }
+      }
+    : null
   const categories = getCategoryCounts(locale)
 
-  return <HomeCards locale={locale as Locale} latestPost={latestPost} categories={categories} />
+  return <HomeCards locale={locale as Locale} latestPost={latestPostCard} categories={categories} />
 }
