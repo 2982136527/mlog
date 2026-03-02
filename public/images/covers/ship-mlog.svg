@@ -1,0 +1,15 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FAD9B6"/>
+      <stop offset="0.5" stop-color="#F6BE94"/>
+      <stop offset="1" stop-color="#E68A5E"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#g1)"/>
+  <circle cx="960" cy="100" r="180" fill="white" fill-opacity="0.25"/>
+  <circle cx="240" cy="550" r="220" fill="white" fill-opacity="0.2"/>
+  <rect x="130" y="135" width="940" height="360" rx="44" fill="white" fill-opacity="0.42"/>
+  <text x="180" y="290" fill="#5A2A1A" font-size="64" font-family="Georgia, serif">MLog Build Log</text>
+  <text x="180" y="360" fill="#7D4632" font-size="34" font-family="system-ui, -apple-system, sans-serif">From Empty Repo to Bilingual Blog</text>
+</svg>
