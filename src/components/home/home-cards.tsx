@@ -4,15 +4,20 @@ import Link from 'next/link'
 import { motion, type Variants } from 'framer-motion'
 import type { Locale } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
-import type { Post } from '@/types/content'
+import type { PostFrontmatter } from '@/types/content'
 import { GlassCard } from '@/components/ui/glass-card'
 import { SectionTitle } from '@/components/ui/section-title'
 import { TagChip } from '@/components/ui/tag-chip'
 import { formatDate } from '@/lib/date'
 
+type HomeLatestPost = {
+  slug: string
+  frontmatter: Pick<PostFrontmatter, 'title' | 'summary' | 'date'>
+}
+
 type HomeCardsProps = {
   locale: Locale
-  latestPost: Post | null
+  latestPost: HomeLatestPost | null
   categories: Array<{ name: string; count: number }>
 }
 
