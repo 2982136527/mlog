@@ -65,10 +65,10 @@ export function getContentGithubReadEnv(): GithubRepoEnv {
 
 export function getPublicGithubWriteEnv(): GithubRepoEnv {
   return readRepoEnv({
-    owner: process.env.PUBLIC_GITHUB_OWNER,
-    repo: process.env.PUBLIC_GITHUB_REPO,
-    baseBranch: process.env.PUBLIC_GITHUB_BASE_BRANCH || 'main',
-    token: process.env.PUBLIC_GITHUB_WRITE_TOKEN,
+    owner: process.env.PUBLIC_GITHUB_OWNER || process.env.GITHUB_OWNER || process.env.CONTENT_GITHUB_OWNER,
+    repo: process.env.PUBLIC_GITHUB_REPO || process.env.GITHUB_REPO || process.env.CONTENT_GITHUB_REPO,
+    baseBranch: process.env.PUBLIC_GITHUB_BASE_BRANCH || process.env.GITHUB_BASE_BRANCH || process.env.CONTENT_GITHUB_BASE_BRANCH || 'main',
+    token: process.env.PUBLIC_GITHUB_WRITE_TOKEN || process.env.GITHUB_WRITE_TOKEN || process.env.CONTENT_GITHUB_WRITE_TOKEN,
     label: 'public(write)'
   })
 }
