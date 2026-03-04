@@ -38,9 +38,9 @@ yarn-error.log*
 content/posts/**
 content/system/**
 public/images/uploads/**
-!content/posts/mlog-open-source-deploy-guide/
-!content/posts/mlog-open-source-deploy-guide/zh.md
-!content/posts/mlog-open-source-deploy-guide/en.md
+!content/posts/.gitkeep
+!content/system/.gitkeep
+!public/images/uploads/.gitkeep
 
 # vercel
 .vercel

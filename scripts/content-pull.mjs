@@ -5,12 +5,12 @@ import path from 'node:path'
 const owner = (process.env.CONTENT_GITHUB_OWNER || '').trim()
 const repo = (process.env.CONTENT_GITHUB_REPO || '').trim()
 const baseBranch = (process.env.CONTENT_GITHUB_BASE_BRANCH || 'main').trim().replace(/^refs\/heads\//, '')
-const token = (process.env.CONTENT_GITHUB_READ_TOKEN || process.env.CONTENT_GITHUB_WRITE_TOKEN || process.env.GITHUB_WRITE_TOKEN || '').trim()
+const token = (process.env.CONTENT_GITHUB_READ_TOKEN || process.env.CONTENT_GITHUB_WRITE_TOKEN || '').trim()
 
 const includePrefixes = ['content/posts/', 'content/system/', 'public/images/uploads/']
 
 if (!owner || !repo || !token) {
-  console.log('[content:pull] skipped (missing CONTENT_GITHUB_OWNER/CONTENT_GITHUB_REPO/CONTENT_GITHUB_READ_TOKEN)')
+  console.log('[content:pull] skipped (missing CONTENT_GITHUB_OWNER/CONTENT_GITHUB_REPO/CONTENT_GITHUB_READ_TOKEN or CONTENT_GITHUB_WRITE_TOKEN)')
   process.exit(0)
 }
 

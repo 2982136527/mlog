@@ -97,10 +97,6 @@ If required fields are missing, build fails with the source file path.
 | `PUBLIC_GITHUB_REPO` | public code/docs repository name |
 | `PUBLIC_GITHUB_BASE_BRANCH` | public repo base branch, default `main` |
 | `PUBLIC_GITHUB_WRITE_TOKEN` | public repo write token (tutorial mirror) |
-| `GITHUB_OWNER` | fallback owner (compatibility only) |
-| `GITHUB_REPO` | fallback repo (compatibility only) |
-| `GITHUB_BASE_BRANCH` | fallback base branch (compatibility only) |
-| `GITHUB_WRITE_TOKEN` | fallback write token (compatibility only) |
 | `ADMIN_AUTO_MERGE` | auto-merge PR after create, default `true` |
 | `CRON_SECRET` | bearer secret for cron route `/api/cron/github-hot-daily` |
 | `TUTORIAL_SYNC_ENABLED` | enable tutorial sync cron, default `true` |
@@ -246,12 +242,13 @@ If required fields are missing, build fails with the source file path.
 1. Import the GitHub repo in Vercel.
 2. Ensure framework is detected as Next.js and package manager is `pnpm`.
 3. Configure env vars for all environments (Production/Preview/Development) using `.env.example`.
-4. Add `CRON_SECRET` to Production environment.
-5. Keep `vercel.json` committed so cron schedules are registered.
-6. Set production domain to `https://blog.<your-domain>`:
+4. Strict dual-repo mode requires `CONTENT_GITHUB_*` and `PUBLIC_GITHUB_*` to be fully configured.
+5. Add `CRON_SECRET` to Production environment.
+6. Keep `vercel.json` committed so cron schedules are registered.
+7. Set production domain to `https://blog.<your-domain>`:
    - add domain in Vercel
    - add DNS records in your DNS provider (usually CNAME)
-7. Trigger first production deployment from `main`.
+8. Trigger first production deployment from `main`.
 
 ### 4) Publish flow
 
@@ -289,4 +286,4 @@ If required fields are missing, build fails with the source file path.
 2. Rollback content:
    - Revert the corresponding Git commit/PR in GitHub and redeploy.
 3. Rollback secrets:
-   - Rotate `AUTH_SECRET`, `AUTH_GITHUB_SECRET`, and `GITHUB_WRITE_TOKEN` if leakage is suspected.
+   - Rotate `AUTH_SECRET`, `AUTH_GITHUB_SECRET`, `CONTENT_GITHUB_WRITE_TOKEN`, and `PUBLIC_GITHUB_WRITE_TOKEN` if leakage is suspected.
