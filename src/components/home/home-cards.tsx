@@ -150,7 +150,7 @@ export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCar
               {dict.common.rss}
             </Link>
             <a
-              href='https://github.com/qiuhu'
+              href='https://github.com/2982136527'
               target='_blank'
               rel='noreferrer'
               className='rounded-xl border border-white/70 bg-white/70 px-3 py-2 text-center text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
