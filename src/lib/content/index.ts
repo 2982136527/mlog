@@ -180,6 +180,19 @@ export function getCategoryCounts(locale: Locale): Array<{ name: string; count: 
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 }
 
+export function getTagCounts(locale: Locale): Array<{ name: string; count: number }> {
+  const counts = new Map<string, number>()
+  for (const post of getPostsByLocale(locale)) {
+    for (const tag of post.frontmatter.tags) {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1)
+    }
+  }
+
+  return Array.from(counts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+}
+
 export function getAllLocalizedRouteParams(): Array<{ locale: Locale; slug: string }> {
   const slugs = getAllSlugs()
   return locales.flatMap(locale => slugs.map(slug => ({ locale, slug })))

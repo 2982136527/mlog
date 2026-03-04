@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import type { Locale } from '@/i18n/config'
 import { isLocale } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
-import { getCategoryCounts, getLatestPost } from '@/lib/content'
+import { getCategoryCounts, getLatestPost, getTagCounts } from '@/lib/content'
 import { createLocaleMetadata } from '@/lib/metadata'
 import { HomeCards } from '@/components/home/home-cards'
 
@@ -46,6 +46,7 @@ export default async function LocaleHomePage({ params }: LocaleHomeProps) {
       }
     : null
   const categories = getCategoryCounts(locale)
+  const tagCounts = getTagCounts(locale)
 
-  return <HomeCards locale={locale as Locale} latestPost={latestPostCard} categories={categories} />
+  return <HomeCards locale={locale as Locale} latestPost={latestPostCard} categories={categories} tagCounts={tagCounts} />
 }

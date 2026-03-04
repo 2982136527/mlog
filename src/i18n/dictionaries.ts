@@ -14,6 +14,8 @@ export type Dictionary = {
     latestPost: string
     browseByCategory: string
     quickLinks: string
+    tagCloud: string
+    tagCloudEmpty: string
     readMore: string
   }
   blog: {
@@ -75,6 +77,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       latestPost: '最新文章',
       browseByCategory: '按分类浏览',
       quickLinks: '快速入口',
+      tagCloud: '热门标签',
+      tagCloudEmpty: '暂无标签内容',
       readMore: '继续阅读'
     },
     blog: {
@@ -134,6 +138,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       latestPost: 'Latest Post',
       browseByCategory: 'Browse by Category',
       quickLinks: 'Quick Links',
+      tagCloud: 'Tag Cloud',
+      tagCloudEmpty: 'No tags yet.',
       readMore: 'Read More'
     },
     blog: {

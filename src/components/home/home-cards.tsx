@@ -19,6 +19,22 @@ type HomeCardsProps = {
   locale: Locale
   latestPost: HomeLatestPost | null
   categories: Array<{ name: string; count: number }>
+  tagCounts: Array<{ name: string; count: number }>
+}
+
+function getTagToneClass(count: number, maxCount: number): string {
+  if (maxCount <= 0) {
+    return 'text-xs border-white/70 bg-white/60'
+  }
+
+  const ratio = count / maxCount
+  if (ratio >= 0.67) {
+    return 'text-sm font-semibold border-[#f7c36b]/80 bg-[#fff1d6]/95'
+  }
+  if (ratio >= 0.34) {
+    return 'text-sm font-medium border-white/75 bg-white/75'
+  }
+  return 'text-xs font-medium border-white/65 bg-white/60'
 }
 
 const container: Variants = {
@@ -46,8 +62,10 @@ const item: Variants = {
   }
 }
 
-export function HomeCards({ locale, latestPost, categories }: HomeCardsProps) {
+export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCardsProps) {
   const dict = getDictionary(locale)
+  const topTags = tagCounts.slice(0, 12)
+  const maxTagCount = topTags[0]?.count ?? 0
 
   return (
     <motion.div
@@ -106,7 +124,7 @@ export function HomeCards({ locale, latestPost, categories }: HomeCardsProps) {
         </GlassCard>
       </motion.div>
 
-      <motion.div variants={item} className='sm:col-span-8'>
+      <motion.div variants={item} className='sm:col-span-4'>
         <GlassCard className='h-full'>
           <SectionTitle>{dict.home.quickLinks}</SectionTitle>
           <div className='mt-4 flex flex-wrap gap-3'>
@@ -133,6 +151,28 @@ export function HomeCards({ locale, latestPost, categories }: HomeCardsProps) {
               GitHub
             </a>
           </div>
+        </GlassCard>
+      </motion.div>
+
+      <motion.div variants={item} className='sm:col-span-4'>
+        <GlassCard className='h-full'>
+          <SectionTitle>{dict.home.tagCloud}</SectionTitle>
+          {topTags.length > 0 ? (
+            <ul className='mt-4 flex flex-wrap gap-2'>
+              {topTags.map(tag => (
+                <li key={tag.name}>
+                  <Link
+                    href={`/${locale}/blog?tag=${encodeURIComponent(tag.name)}`}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[var(--color-ink)] transition hover:border-[var(--color-brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)] ${getTagToneClass(tag.count, maxTagCount)}`}>
+                    <span>{tag.name}</span>
+                    <span className='text-xs text-[var(--color-ink-soft)]'>{tag.count}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className='mt-4 text-sm text-[var(--color-ink-soft)]'>{dict.home.tagCloudEmpty}</p>
+          )}
         </GlassCard>
       </motion.div>
     </motion.div>
