@@ -111,6 +111,11 @@ export function HomeCards({ locale, latestPost, categories }: HomeCardsProps) {
           <SectionTitle>{dict.home.quickLinks}</SectionTitle>
           <div className='mt-4 flex flex-wrap gap-3'>
             <Link
+              href={`/${locale}/about`}
+              className='rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
+              {dict.common.about}
+            </Link>
+            <Link
               href={`/${locale}/blog`}
               className='rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
               {dict.nav.blog}

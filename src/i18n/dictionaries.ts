@@ -6,6 +6,7 @@ export type Dictionary = {
   nav: {
     home: string
     blog: string
+    about: string
   }
   home: {
     introTitle: string
@@ -33,10 +34,22 @@ export type Dictionary = {
   common: {
     language: string
     rss: string
+    about: string
     categories: string
     tags: string
     backToBlog: string
     noTranslation: string
+  }
+  about: {
+    title: string
+    description: string
+    eyebrow: string
+    sectionTitles: {
+      tech: string
+      features: string
+      highlights: string
+      innovation: string
+    }
   }
   footer: {
     visitors: string
@@ -53,7 +66,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     siteTagline: '属于我们的双语博客实验场',
     nav: {
       home: '首页',
-      blog: '博客'
+      blog: '博客',
+      about: '介绍'
     },
     home: {
       introTitle: '暖色玻璃态博客',
@@ -81,10 +95,22 @@ const dictionaries: Record<Locale, Dictionary> = {
     common: {
       language: '语言',
       rss: 'RSS',
+      about: '介绍',
       categories: '分类',
       tags: '标签',
       backToBlog: '返回文章列表',
       noTranslation: '该语言版本暂未提供'
+    },
+    about: {
+      title: '关于 MLog',
+      description: '了解 MLog 使用的技术、核心功能、工程亮点与 AI 无服务器创新能力。',
+      eyebrow: 'PROJECT OVERVIEW',
+      sectionTitles: {
+        tech: '技术栈与架构',
+        features: '核心功能矩阵',
+        highlights: '产品亮点',
+        innovation: '创新能力'
+      }
     },
     footer: {
       visitors: '累计访客 UV',
@@ -99,7 +125,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     siteTagline: 'A bilingual blog crafted for our own voice',
     nav: {
       home: 'Home',
-      blog: 'Blog'
+      blog: 'Blog',
+      about: 'About'
     },
     home: {
       introTitle: 'Warm Glassmorphism Blog',
@@ -127,10 +154,22 @@ const dictionaries: Record<Locale, Dictionary> = {
     common: {
       language: 'Language',
       rss: 'RSS',
+      about: 'About',
       categories: 'Categories',
       tags: 'Tags',
       backToBlog: 'Back to posts',
       noTranslation: 'Translation unavailable'
+    },
+    about: {
+      title: 'About MLog',
+      description: 'Explore the MLog stack, feature matrix, engineering highlights, and AI-powered serverless capabilities.',
+      eyebrow: 'PROJECT OVERVIEW',
+      sectionTitles: {
+        tech: 'Tech Stack & Architecture',
+        features: 'Core Feature Matrix',
+        highlights: 'Product Highlights',
+        innovation: 'Innovation Layer'
+      }
     },
     footer: {
       visitors: 'Total Visitors UV',
