@@ -30,7 +30,8 @@ export function parseMarkdownFile(raw: string, fileLabel: string): { frontmatter
 export function serializeMarkdownFile(frontmatter: PostFrontmatter, markdown: string): string {
   const validated = postFrontmatterSchema.parse(frontmatter)
   const body = markdown.trimEnd()
-  return `${matter.stringify(body ? `${body}\n` : '', validated).trimEnd()}\n`
+  const serializable = Object.fromEntries(Object.entries(validated).filter(([, value]) => value !== undefined))
+  return `${matter.stringify(body ? `${body}\n` : '', serializable).trimEnd()}\n`
 }
 
 export const adminPostFrontmatterInputSchema = z.object({
