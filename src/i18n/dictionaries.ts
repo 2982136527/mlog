@@ -14,6 +14,13 @@ export type Dictionary = {
     latestPost: string
     browseByCategory: string
     quickLinks: string
+    quickHubSubtitle: string
+    quickStatsTitle: string
+    quickStatPosts: string
+    quickStatCategories: string
+    quickStatTags: string
+    quickPicksTitle: string
+    latestUpdate: string
     tagCloud: string
     tagCloudEmpty: string
     readMore: string
@@ -77,6 +84,13 @@ const dictionaries: Record<Locale, Dictionary> = {
       latestPost: '最新文章',
       browseByCategory: '按分类浏览',
       quickLinks: '快速入口',
+      quickHubSubtitle: '常用入口 + 内容速览，快速开始阅读或订阅。',
+      quickStatsTitle: '站点速览',
+      quickStatPosts: '文章',
+      quickStatCategories: '分类',
+      quickStatTags: '标签',
+      quickPicksTitle: '今日推荐标签',
+      latestUpdate: '最近更新',
       tagCloud: '热门标签',
       tagCloudEmpty: '暂无标签内容',
       readMore: '继续阅读'
@@ -138,6 +152,13 @@ const dictionaries: Record<Locale, Dictionary> = {
       latestPost: 'Latest Post',
       browseByCategory: 'Browse by Category',
       quickLinks: 'Quick Links',
+      quickHubSubtitle: 'Jump to core actions and scan site activity at a glance.',
+      quickStatsTitle: 'Site Snapshot',
+      quickStatPosts: 'Posts',
+      quickStatCategories: 'Categories',
+      quickStatTags: 'Tags',
+      quickPicksTitle: 'Today Picks',
+      latestUpdate: 'Latest Update',
       tagCloud: 'Tag Cloud',
       tagCloudEmpty: 'No tags yet.',
       readMore: 'Read More'

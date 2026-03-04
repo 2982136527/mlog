@@ -65,7 +65,11 @@ const item: Variants = {
 export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCardsProps) {
   const dict = getDictionary(locale)
   const topTags = tagCounts.slice(0, 12)
+  const quickPickTags = tagCounts.slice(0, 3)
   const maxTagCount = topTags[0]?.count ?? 0
+  const postCount = categories.reduce((sum, category) => sum + category.count, 0)
+  const categoryCount = categories.length
+  const tagCount = tagCounts.length
 
   return (
     <motion.div
@@ -125,32 +129,76 @@ export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCar
       </motion.div>
 
       <motion.div variants={item} className='sm:col-span-4'>
-        <GlassCard className='h-full'>
+        <GlassCard className='flex h-full flex-col'>
           <SectionTitle>{dict.home.quickLinks}</SectionTitle>
-          <div className='mt-4 flex flex-wrap gap-3'>
+          <p className='mt-2 text-sm leading-6 text-[var(--color-ink-soft)]'>{dict.home.quickHubSubtitle}</p>
+
+          <div className='mt-4 grid grid-cols-2 gap-2'>
             <Link
               href={`/${locale}/about`}
-              className='rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
+              className='rounded-xl border border-white/70 bg-white/70 px-3 py-2 text-center text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
               {dict.common.about}
             </Link>
             <Link
               href={`/${locale}/blog`}
-              className='rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
+              className='rounded-xl border border-white/70 bg-white/70 px-3 py-2 text-center text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
               {dict.nav.blog}
             </Link>
             <Link
               href={`/${locale}/rss.xml`}
-              className='rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
+              className='rounded-xl border border-white/70 bg-white/70 px-3 py-2 text-center text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
               {dict.common.rss}
             </Link>
             <a
               href='https://github.com/qiuhu'
               target='_blank'
               rel='noreferrer'
-              className='rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
+              className='rounded-xl border border-white/70 bg-white/70 px-3 py-2 text-center text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
               GitHub
             </a>
           </div>
+
+          <div className='mt-5'>
+            <p className='text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-ink-soft)]'>{dict.home.quickStatsTitle}</p>
+            <div className='mt-2 flex flex-wrap gap-2'>
+              <span className='inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/55 px-3 py-1 text-xs text-[var(--color-ink)]'>
+                <span>{dict.home.quickStatPosts}</span>
+                <strong>{postCount}</strong>
+              </span>
+              <span className='inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/55 px-3 py-1 text-xs text-[var(--color-ink)]'>
+                <span>{dict.home.quickStatCategories}</span>
+                <strong>{categoryCount}</strong>
+              </span>
+              <span className='inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/55 px-3 py-1 text-xs text-[var(--color-ink)]'>
+                <span>{dict.home.quickStatTags}</span>
+                <strong>{tagCount}</strong>
+              </span>
+            </div>
+          </div>
+
+          <div className='mt-5'>
+            <p className='text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-ink-soft)]'>{dict.home.quickPicksTitle}</p>
+            {quickPickTags.length > 0 ? (
+              <div className='mt-2 flex flex-wrap gap-2'>
+                {quickPickTags.map(tag => (
+                  <Link
+                    key={tag.name}
+                    href={`/${locale}/blog?tag=${encodeURIComponent(tag.name)}`}
+                    className='rounded-full border border-white/70 bg-white/65 px-3 py-1 text-xs font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]'>
+                    {tag.name}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className='mt-2 text-xs text-[var(--color-ink-soft)]'>{dict.home.tagCloudEmpty}</p>
+            )}
+          </div>
+
+          {latestPost ? (
+            <p className='mt-auto pt-5 text-xs text-[var(--color-ink-soft)]'>
+              {dict.home.latestUpdate}: {formatDate(latestPost.frontmatter.date, locale)}
+            </p>
+          ) : null}
         </GlassCard>
       </motion.div>
 
