@@ -5,8 +5,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { AdminPostDetail, AdminPostLocaleData, AdminLocale } from '@/types/admin'
-import type { PostFrontmatter } from '@/types/content'
+import type { AdminLocale, AdminPostDetail, AdminPostFrontmatterInput, AdminPostLocaleData, AdminPostPayload, AdminSubmitMode, AiExecutionStep } from '@/types/admin'
 
 type AdminPostEditorProps = {
   mode: 'new' | 'edit'
@@ -16,7 +15,7 @@ type AdminPostEditorProps = {
 type LocaleDraftState = {
   exists: boolean
   sha: string | null
-  frontmatter: PostFrontmatter
+  frontmatter: AdminPostFrontmatterInput
   markdown: string
 }
 
@@ -26,7 +25,7 @@ function todayDate() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function defaultFrontmatter(): PostFrontmatter {
+function defaultFrontmatter(): AdminPostFrontmatterInput {
   const now = todayDate()
   return {
     title: '',
@@ -58,27 +57,47 @@ function normalizeSlug(input: string): string {
     .replace(/^-|-$/g, '')
 }
 
-function ensureFrontmatter(frontmatter: PostFrontmatter): PostFrontmatter {
-  const tags = frontmatter.tags.map(tag => tag.trim()).filter(Boolean)
+function ensureFrontmatter(frontmatter: AdminPostFrontmatterInput): AdminPostFrontmatterInput {
+  const tags = (frontmatter.tags || []).map(tag => tag.trim()).filter(Boolean)
 
   return {
     ...frontmatter,
     title: frontmatter.title.trim(),
-    summary: frontmatter.summary.trim(),
+    date: frontmatter.date.trim(),
+    summary: (frontmatter.summary || '').trim(),
     tags,
-    category: frontmatter.category.trim(),
+    category: (frontmatter.category || '').trim(),
     cover: (frontmatter.cover || '').trim(),
-    updated: (frontmatter.updated || todayDate()).trim(),
-    draft: Boolean(frontmatter.draft)
+    updated: (frontmatter.updated || todayDate()).trim()
   }
 }
 
-function validateLocale(frontmatter: PostFrontmatter, markdown: string, locale: AdminLocale) {
+function validateLocale(frontmatter: AdminPostFrontmatterInput, markdown: string, locale: AdminLocale) {
   if (!frontmatter.title.trim()) throw new Error(`${locale.toUpperCase()} 标题不能为空`)
-  if (!frontmatter.summary.trim()) throw new Error(`${locale.toUpperCase()} 摘要不能为空`)
-  if (!frontmatter.category.trim()) throw new Error(`${locale.toUpperCase()} 分类不能为空`)
-  if (!frontmatter.tags.length) throw new Error(`${locale.toUpperCase()} 标签不能为空`)
+  if (!frontmatter.date.trim()) throw new Error(`${locale.toUpperCase()} 日期不能为空`)
   if (!markdown.trim()) throw new Error(`${locale.toUpperCase()} 正文不能为空`)
+}
+
+function summarizeAiSteps(steps: AiExecutionStep[]): string {
+  const successes = steps.filter(step => step.status === 'success')
+  if (successes.length === 0) {
+    return 'AI 未执行或未生成内容。'
+  }
+
+  const translated = successes.filter(step => step.task === 'translate')
+  const enriched = successes.filter(step => step.task === 'frontmatter_enrich')
+  const fragments: string[] = []
+
+  if (translated.length > 0) {
+    const locales = Array.from(new Set(translated.map(step => step.locale.toUpperCase()))).join('/')
+    fragments.push(`自动翻译：${locales}`)
+  }
+  if (enriched.length > 0) {
+    const locales = Array.from(new Set(enriched.map(step => step.locale.toUpperCase()))).join('/')
+    fragments.push(`补齐摘要/标签/分类：${locales}`)
+  }
+
+  return fragments.join('；')
 }
 
 export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
@@ -96,7 +115,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
   const current = state[activeLocale]
   const normalizedSlug = useMemo(() => normalizeSlug(slug), [slug])
 
-  const updateFrontmatter = (patch: Partial<PostFrontmatter>) => {
+  const updateFrontmatter = (patch: Partial<AdminPostFrontmatterInput>) => {
     setState(prev => ({
       ...prev,
       [activeLocale]: {
@@ -119,7 +138,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
     }))
   }
 
-  const buildChange = (locale: AdminLocale, forceDraft?: boolean) => {
+  const buildChange = (locale: AdminLocale, forceDraft?: boolean): AdminPostPayload => {
     const localeState = state[locale]
     const frontmatter = ensureFrontmatter({
       ...localeState.frontmatter,
@@ -131,7 +150,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
     return {
       locale,
       frontmatter,
-      markdown: localeState.markdown,
+      markdown: localeState.markdown.trim(),
       baseSha: localeState.sha
     }
   }
@@ -142,7 +161,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
       return
     }
 
-    const changes: Array<ReturnType<typeof buildChange>> = []
+    const changes: AdminPostPayload[] = []
 
     try {
       ;(['zh', 'en'] as AdminLocale[]).forEach(locale => {
@@ -161,7 +180,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
       return
     }
 
-    await submitChanges(changes)
+    await submitChanges(changes, 'publish')
   }
 
   const saveDraft = async () => {
@@ -172,13 +191,13 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
 
     try {
       const draftChange = buildChange(activeLocale, true)
-      await submitChanges([draftChange])
+      await submitChanges([draftChange], 'draft')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存草稿失败')
     }
   }
 
-  const submitChanges = async (changes: Array<ReturnType<typeof buildChange>>) => {
+  const submitChanges = async (changes: AdminPostPayload[], submitMode: AdminSubmitMode) => {
     setSaving(true)
     setMessage(null)
 
@@ -190,20 +209,24 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
         },
         body: JSON.stringify({
           slug: normalizedSlug,
+          mode: submitMode,
           changes
         })
       })
 
       const data = (await response.json()) as {
-        error?: { message?: string }
+        error?: { message?: string; ai?: { steps?: AiExecutionStep[] } }
         publish?: { merged: boolean; prUrl: string }
+        ai?: { steps?: AiExecutionStep[] }
       }
 
       if (!response.ok) {
         throw new Error(data.error?.message || '发布失败')
       }
 
-      setMessage(data.publish?.merged ? '发布成功，PR 已自动合并' : `已创建 PR，待处理：${data.publish?.prUrl || ''}`)
+      const actionLabel = submitMode === 'draft' ? '草稿保存成功' : data.publish?.merged ? '发布成功，PR 已自动合并' : `已创建 PR，待处理：${data.publish?.prUrl || ''}`
+      const aiSummary = summarizeAiSteps(data.ai?.steps || [])
+      setMessage(`${actionLabel}\n${aiSummary}`)
 
       if (mode === 'new') {
         router.replace(`/admin/edit/${encodeURIComponent(normalizedSlug)}`)
@@ -211,7 +234,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
         window.location.assign(`/admin/edit/${encodeURIComponent(normalizedSlug)}`)
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '发布失败')
+      setMessage(error instanceof Error ? error.message : submitMode === 'draft' ? '保存草稿失败' : '发布失败')
     } finally {
       setSaving(false)
     }
@@ -310,7 +333,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
     }
   }
 
-  const tagsValue = current.frontmatter.tags.join(', ')
+  const tagsValue = (current.frontmatter.tags || []).join(', ')
 
   return (
     <div className='space-y-5'>
@@ -344,6 +367,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
       </div>
 
       <div className='grid gap-4 rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur lg:grid-cols-2'>
+        <p className='text-xs text-[var(--color-ink-soft)] lg:col-span-2'>提示：摘要、标签、分类可暂时留空，系统会在保存草稿/发布时通过 AI 自动补齐。</p>
         <label className='text-xs text-[var(--color-ink-soft)]'>
           标题 / Title
           <input
@@ -364,7 +388,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
         <label className='text-xs text-[var(--color-ink-soft)]'>
           分类 / Category
           <input
-            value={current.frontmatter.category}
+            value={current.frontmatter.category || ''}
             onChange={event => updateFrontmatter({ category: event.target.value })}
             className='mt-1 w-full rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-ink)] outline-none'
           />
@@ -387,7 +411,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
         <label className='text-xs text-[var(--color-ink-soft)] lg:col-span-2'>
           摘要 / Summary
           <textarea
-            value={current.frontmatter.summary}
+            value={current.frontmatter.summary || ''}
             onChange={event => updateFrontmatter({ summary: event.target.value })}
             rows={3}
             className='mt-1 w-full rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-ink)] outline-none'
@@ -456,7 +480,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
               onClick={saveDraft}
               disabled={saving}
               className='w-full rounded-xl border border-[var(--color-border-strong)] bg-white px-4 py-2 text-sm text-[var(--color-ink)] transition hover:border-[var(--color-brand)] disabled:cursor-not-allowed disabled:opacity-60'>
-              {saving ? '处理中...' : `保存草稿（${activeLocale.toUpperCase()}）`}
+              {saving ? '处理中...' : `保存草稿（AI 自动补齐当前语言）`}
             </button>
 
             <button
@@ -464,7 +488,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
               onClick={publish}
               disabled={saving}
               className='w-full rounded-xl bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-brand-strong)] disabled:cursor-not-allowed disabled:opacity-60'>
-              {saving ? '处理中...' : '发布（自动 PR + 自动合并）'}
+              {saving ? '处理中...' : '发布（AI 自动补齐 + 双语翻译 + 自动 PR）'}
             </button>
 
             {mode === 'edit' && (

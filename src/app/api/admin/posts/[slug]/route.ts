@@ -16,7 +16,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ slug: 
     return ok(requestId, detail)
   } catch (error) {
     if (error instanceof AdminHttpError) {
-      return fail(requestId, error.status, error.code, error.message)
+      return fail(requestId, error.status, error.code, error.message, error.extra)
     }
 
     console.error('[admin][post][GET]', requestId, error)
@@ -58,7 +58,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     })
   } catch (error) {
     if (error instanceof AdminHttpError) {
-      return fail(requestId, error.status, error.code, error.message)
+      return fail(requestId, error.status, error.code, error.message, error.extra)
     }
 
     console.error('[admin][post][DELETE]', requestId, error)

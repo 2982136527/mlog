@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     if (error instanceof AdminHttpError) {
-      return fail(requestId, error.status, error.code, error.message)
+      return fail(requestId, error.status, error.code, error.message, error.extra)
     }
 
     console.error('[admin][media][POST]', requestId, error)

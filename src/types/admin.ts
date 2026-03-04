@@ -2,11 +2,45 @@ import type { PostFrontmatter } from '@/types/content'
 
 export type AdminLocale = 'zh' | 'en'
 
+export type AdminSubmitMode = 'publish' | 'draft'
+
+export type AiTask = 'translate' | 'frontmatter_enrich'
+
+export type AiProvider = 'gemini' | 'openai' | 'deepseek' | 'qwen'
+
+export type AiExecutionStep = {
+  task: AiTask
+  locale: AdminLocale
+  sourceLocale?: AdminLocale
+  provider: AiProvider
+  model: string
+  attempt: number
+  status: 'success' | 'failed' | 'skipped'
+  reason?: string
+}
+
+export type AdminPostFrontmatterInput = {
+  title: string
+  date: string
+  summary?: string
+  tags?: string[]
+  category?: string
+  cover?: string
+  draft?: boolean
+  updated?: string
+}
+
 export type AdminPostPayload = {
   locale: AdminLocale
-  frontmatter: PostFrontmatter
+  frontmatter: AdminPostFrontmatterInput
   markdown: string
   baseSha?: string | null
+}
+
+export type AdminPostSubmitRequest = {
+  slug: string
+  mode: AdminSubmitMode
+  changes: Array<AdminPostPayload>
 }
 
 export type PublishResult = {
@@ -15,6 +49,23 @@ export type PublishResult = {
   prUrl: string
   merged: boolean
   mergeMessage?: string
+}
+
+export type AdminAiResult = {
+  triggered: boolean
+  mode: AdminSubmitMode
+  steps: AiExecutionStep[]
+}
+
+export type FrontmatterEnrichPayload = {
+  summary: string
+  tags: string[]
+  category: string
+}
+
+export type TranslatedLocalePayload = FrontmatterEnrichPayload & {
+  title: string
+  markdown: string
 }
 
 export type AdminPostLocaleData = {

@@ -89,6 +89,21 @@ If required fields are missing, build fails with the source file path.
 | `GITHUB_BASE_BRANCH` | base branch, default `main` |
 | `GITHUB_WRITE_TOKEN` | GitHub token with repo write permissions |
 | `ADMIN_AUTO_MERGE` | auto-merge PR after create, default `true` |
+| `AI_ENABLE` | enable server-side AI generation, default `true` |
+| `AI_PROVIDER_CHAIN` | provider fallback chain, default `gemini,openai,deepseek,qwen` |
+| `AI_TIMEOUT_MS` | total AI timeout budget, default `60000` |
+| `AI_RETRY_COUNT` | full-chain retry rounds, default `1` |
+| `AI_GEMINI_API_KEY` | Gemini API key |
+| `AI_GEMINI_MODEL` | Gemini model name |
+| `AI_OPENAI_API_KEY` | OpenAI-compatible API key |
+| `AI_OPENAI_BASE_URL` | OpenAI-compatible base URL |
+| `AI_OPENAI_MODEL` | OpenAI-compatible model name |
+| `AI_DEEPSEEK_API_KEY` | DeepSeek API key |
+| `AI_DEEPSEEK_BASE_URL` | DeepSeek base URL (optional override) |
+| `AI_DEEPSEEK_MODEL` | DeepSeek model name |
+| `AI_QWEN_API_KEY` | Qwen API key |
+| `AI_QWEN_BASE_URL` | Qwen base URL (optional override) |
+| `AI_QWEN_MODEL` | Qwen model name |
 
 ## Admin Backend
 
@@ -114,6 +129,20 @@ If required fields are missing, build fails with the source file path.
 - `403 FORBIDDEN`: signed in account is not in `ADMIN_GITHUB_ALLOWLIST`.
 - `409 SHA_CONFLICT`: remote file changed after editor loaded; refresh editor and retry.
 - `GITHUB_API_ERROR` with merge failure message: PR created but auto-merge blocked.
+- `AI_CONFIG_ERROR`: AI required for this submission but provider config is missing or disabled.
+- `AI_PROVIDER_UNAVAILABLE`: no configured provider found in runtime chain.
+- `AI_OUTPUT_INVALID`: provider responded, but structured JSON output is invalid.
+- `AI_GENERATION_FAILED`: all providers failed to generate valid output.
+- `AI_TIMEOUT`: AI execution exceeded the timeout budget.
+
+## AI Writing Flow
+
+- AI runs on server side only (`/api/admin/posts`), never in browser.
+- Submit mode:
+  - `mode=publish`: auto-translate missing locale (`zh <-> en`) and fill empty `summary/tags/category`.
+  - `mode=draft`: fill empty `summary/tags/category` for submitted locale only, no cross-locale translation.
+- Overwrite policy: only fill empty fields, never overwrite non-empty manual values.
+- Failure policy: if an AI-required step fails, submit is blocked (no partial publish).
 
 ## Deploy (Vercel, Full Launch)
 

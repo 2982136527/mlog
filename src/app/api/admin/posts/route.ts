@@ -4,6 +4,7 @@ import { listAdminPosts } from '@/lib/admin/posts-service'
 import { publishPostChanges } from '@/lib/admin/publish-service'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
+import type { AdminPostSubmitRequest, AdminSubmitMode } from '@/types/admin'
 
 export async function GET(request: NextRequest) {
   const requestId = createRequestId()
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     return ok(requestId, { items })
   } catch (error) {
     if (error instanceof AdminHttpError) {
-      return fail(requestId, error.status, error.code, error.message)
+      return fail(requestId, error.status, error.code, error.message, error.extra)
     }
 
     console.error('[admin][posts][GET]', requestId, error)
@@ -40,27 +41,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const { login } = await requireAdminSession()
-    const payload = (await request.json()) as {
-      slug: string
-      changes: Array<{
-        locale: 'zh' | 'en'
-        frontmatter: {
-          title: string
-          date: string
-          summary: string
-          tags: string[]
-          category: string
-          cover?: string
-          draft?: boolean
-          updated?: string
-        }
-        markdown: string
-        baseSha?: string | null
-      }>
-    }
+    const payload = (await request.json()) as AdminPostSubmitRequest
+    const mode: AdminSubmitMode = payload.mode === 'draft' ? 'draft' : 'publish'
 
     const result = await publishPostChanges({
       slug: payload.slug,
+      mode,
       changes: payload.changes,
       actor: login,
       requestId
@@ -70,19 +56,23 @@ export async function POST(request: NextRequest) {
       requestId,
       actor: login,
       slug: payload.slug,
+      mode,
       changedPaths: result.changedPaths,
       prUrl: result.result.prUrl,
-      merged: result.result.merged
+      merged: result.result.merged,
+      aiTriggered: result.ai.triggered
     })
 
     return ok(requestId, {
       slug: payload.slug,
+      mode,
       changedPaths: result.changedPaths,
-      publish: result.result
+      publish: result.result,
+      ai: result.ai
     })
   } catch (error) {
     if (error instanceof AdminHttpError) {
-      return fail(requestId, error.status, error.code, error.message)
+      return fail(requestId, error.status, error.code, error.message, error.extra)
     }
 
     console.error('[admin][posts][POST]', requestId, error)

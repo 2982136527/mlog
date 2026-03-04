@@ -1,5 +1,13 @@
 import path from 'node:path'
-import type { AdminLocale, AdminPostPayload, PublishResult } from '@/types/admin'
+import type {
+  AdminAiResult,
+  AdminLocale,
+  AdminPostFrontmatterInput,
+  AdminPostPayload,
+  AdminSubmitMode,
+  FrontmatterEnrichPayload,
+  PublishResult
+} from '@/types/admin'
 import { getAdminGithubEnv } from '@/lib/admin/env'
 import { AdminHttpError } from '@/lib/admin/errors'
 import {
@@ -14,7 +22,14 @@ import {
   mergePullRequest,
   upsertFile
 } from '@/lib/admin/github-client'
-import { adminPostWriteSchema, buildPostMarkdownPath, serializeMarkdownFile } from '@/lib/admin/post-serializer'
+import {
+  adminPostWriteSchema,
+  buildPostMarkdownPath,
+  normalizeAdminFrontmatterInput,
+  parseMarkdownFile,
+  serializeMarkdownFile
+} from '@/lib/admin/post-serializer'
+import { AiRunnerError, runAiFrontmatterEnrich, runAiTranslate } from '@/lib/ai/runner'
 import { slugSchema } from '@/lib/content/schema'
 
 function buildPrBody(input: {
@@ -67,24 +82,214 @@ async function createAndMaybeMergePR(params: {
   }
 }
 
+function oppositeLocale(locale: AdminLocale): AdminLocale {
+  return locale === 'zh' ? 'en' : 'zh'
+}
+
+function normalizeText(value: string | undefined): string | undefined {
+  const trimmed = (value || '').trim()
+  return trimmed || undefined
+}
+
+function normalizeTags(tags: string[] | undefined): string[] {
+  return Array.from(new Set((tags || []).map(tag => tag.trim()).filter(Boolean)))
+}
+
+function hasMissingFrontmatterFields(frontmatter: AdminPostFrontmatterInput): boolean {
+  if (!normalizeText(frontmatter.summary)) {
+    return true
+  }
+  if (!normalizeText(frontmatter.category)) {
+    return true
+  }
+  if (normalizeTags(frontmatter.tags).length === 0) {
+    return true
+  }
+  return false
+}
+
+function applyFrontmatterSuggestion(frontmatter: AdminPostFrontmatterInput, suggestion: FrontmatterEnrichPayload): AdminPostFrontmatterInput {
+  const summary = normalizeText(frontmatter.summary)
+  const category = normalizeText(frontmatter.category)
+  const tags = normalizeTags(frontmatter.tags)
+
+  return {
+    ...frontmatter,
+    summary: summary || suggestion.summary,
+    category: category || suggestion.category,
+    tags: tags.length > 0 ? tags : normalizeTags(suggestion.tags)
+  }
+}
+
+function toSerializableFrontmatter(locale: AdminLocale, frontmatter: AdminPostFrontmatterInput): {
+  title: string
+  date: string
+  summary: string
+  tags: string[]
+  category: string
+  cover?: string
+  draft?: boolean
+  updated?: string
+} {
+  const normalized = normalizeAdminFrontmatterInput(frontmatter)
+  const summary = normalizeText(normalized.summary)
+  const tags = normalizeTags(normalized.tags)
+  const category = normalizeText(normalized.category)
+
+  if (!summary || !category || tags.length === 0) {
+    throw new AdminHttpError(400, 'AI_GENERATION_FAILED', `${locale.toUpperCase()} frontmatter is incomplete after AI generation.`)
+  }
+
+  return {
+    title: normalized.title,
+    date: normalized.date,
+    summary,
+    tags,
+    category,
+    cover: normalizeText(normalized.cover),
+    draft: normalized.draft,
+    updated: normalizeText(normalized.updated)
+  }
+}
+
+function parseExistingMarkdownOrNull(raw: string | undefined): { markdown: string } | null {
+  if (!raw) {
+    return null
+  }
+
+  try {
+    return parseMarkdownFile(raw, 'existing')
+  } catch {
+    return null
+  }
+}
+
+function mapAiError(error: AiRunnerError, mode: AdminSubmitMode, previousSteps: AdminAiResult['steps']): AdminHttpError {
+  const statusByCode: Record<AiRunnerError['code'], number> = {
+    AI_CONFIG_ERROR: 500,
+    AI_PROVIDER_UNAVAILABLE: 503,
+    AI_OUTPUT_INVALID: 502,
+    AI_GENERATION_FAILED: 502,
+    AI_TIMEOUT: 504
+  }
+
+  return new AdminHttpError(statusByCode[error.code], error.code, error.message, {
+    ai: {
+      triggered: true,
+      mode,
+      steps: [...previousSteps, ...error.steps]
+    }
+  })
+}
+
 export async function publishPostChanges(input: {
   slug: string
+  mode: AdminSubmitMode
   changes: Array<AdminPostPayload>
   actor: string
   requestId: string
-}): Promise<{ result: PublishResult; changedPaths: string[] }> {
+}): Promise<{ result: PublishResult; changedPaths: string[]; ai: AdminAiResult }> {
   const parsed = adminPostWriteSchema.parse({
     slug: input.slug,
+    mode: input.mode,
     changes: input.changes
   })
 
   const uniqueChanges = new Map<AdminLocale, AdminPostPayload>()
   for (const change of parsed.changes) {
-    uniqueChanges.set(change.locale, change)
+    const normalizedFrontmatter = normalizeAdminFrontmatterInput(change.frontmatter)
+    if (!normalizedFrontmatter.title || !normalizedFrontmatter.date) {
+      throw new AdminHttpError(400, 'INVALID_INPUT', `${change.locale.toUpperCase()} title/date is required.`)
+    }
+    if (!change.markdown.trim()) {
+      throw new AdminHttpError(400, 'INVALID_INPUT', `${change.locale.toUpperCase()} markdown is required.`)
+    }
+
+    uniqueChanges.set(change.locale, {
+      ...change,
+      frontmatter: normalizedFrontmatter,
+      markdown: change.markdown.trim()
+    })
+  }
+
+  const env = getAdminGithubEnv()
+  const aiSteps: AdminAiResult['steps'] = []
+
+  const enrichLocaleChange = async (change: AdminPostPayload) => {
+    if (!hasMissingFrontmatterFields(change.frontmatter)) {
+      return
+    }
+
+    try {
+      const enrich = await runAiFrontmatterEnrich({
+        locale: change.locale,
+        title: change.frontmatter.title,
+        markdown: change.markdown,
+        summary: change.frontmatter.summary,
+        tags: change.frontmatter.tags,
+        category: change.frontmatter.category
+      })
+
+      aiSteps.push(...enrich.steps)
+      change.frontmatter = applyFrontmatterSuggestion(change.frontmatter, enrich.payload)
+    } catch (error) {
+      if (error instanceof AiRunnerError) {
+        throw mapAiError(error, parsed.mode, aiSteps)
+      }
+      throw new AdminHttpError(502, 'AI_GENERATION_FAILED', error instanceof Error ? error.message : 'AI frontmatter enrichment failed.')
+    }
+  }
+
+  for (const change of uniqueChanges.values()) {
+    await enrichLocaleChange(change)
+  }
+
+  if (parsed.mode === 'publish' && uniqueChanges.size === 1) {
+    const source = Array.from(uniqueChanges.values())[0]
+    const targetLocale = oppositeLocale(source.locale)
+    const targetPath = buildPostMarkdownPath(parsed.slug, targetLocale)
+    const existingTarget = await getRepoTextFile(targetPath, env.baseBranch)
+    const parsedExisting = parseExistingMarkdownOrNull(existingTarget?.content)
+    const targetMissing = !existingTarget || !parsedExisting?.markdown.trim()
+
+    if (targetMissing) {
+      try {
+        const translation = await runAiTranslate({
+          sourceLocale: source.locale,
+          targetLocale,
+          title: source.frontmatter.title,
+          summary: source.frontmatter.summary,
+          tags: source.frontmatter.tags,
+          category: source.frontmatter.category,
+          markdown: source.markdown
+        })
+
+        aiSteps.push(...translation.steps)
+        uniqueChanges.set(targetLocale, {
+          locale: targetLocale,
+          baseSha: existingTarget?.sha || null,
+          markdown: translation.payload.markdown,
+          frontmatter: {
+            title: translation.payload.title,
+            date: source.frontmatter.date,
+            summary: translation.payload.summary,
+            tags: translation.payload.tags,
+            category: translation.payload.category,
+            cover: source.frontmatter.cover,
+            draft: source.frontmatter.draft,
+            updated: source.frontmatter.updated
+          }
+        })
+      } catch (error) {
+        if (error instanceof AiRunnerError) {
+          throw mapAiError(error, parsed.mode, aiSteps)
+        }
+        throw new AdminHttpError(502, 'AI_GENERATION_FAILED', error instanceof Error ? error.message : 'AI translation failed.')
+      }
+    }
   }
 
   const changes = Array.from(uniqueChanges.values())
-  const env = getAdminGithubEnv()
 
   const existingStates = await Promise.all(
     changes.map(async change => {
@@ -106,7 +311,7 @@ export async function publishPostChanges(input: {
 
   const changedPaths: string[] = []
   for (const state of existingStates) {
-    const serialized = serializeMarkdownFile(state.change.frontmatter, state.change.markdown)
+    const serialized = serializeMarkdownFile(toSerializableFrontmatter(state.change.locale, state.change.frontmatter), state.change.markdown)
 
     if (state.existing && state.existing.content === serialized) {
       continue
@@ -144,7 +349,12 @@ export async function publishPostChanges(input: {
 
   return {
     result,
-    changedPaths
+    changedPaths,
+    ai: {
+      triggered: aiSteps.length > 0,
+      mode: parsed.mode,
+      steps: aiSteps
+    }
   }
 }
 

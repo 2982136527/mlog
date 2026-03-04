@@ -1,6 +1,7 @@
 import matter from 'gray-matter'
 import { z } from 'zod'
 import type { AdminLocale } from '@/types/admin'
+import type { AdminPostFrontmatterInput } from '@/types/admin'
 import type { PostFrontmatter } from '@/types/content'
 import { postFrontmatterSchema, slugSchema } from '@/lib/content/schema'
 
@@ -32,14 +33,46 @@ export function serializeMarkdownFile(frontmatter: PostFrontmatter, markdown: st
   return `${matter.stringify(body ? `${body}\n` : '', validated).trimEnd()}\n`
 }
 
+export const adminPostFrontmatterInputSchema = z.object({
+  title: z.string().trim().min(1),
+  date: z
+    .string()
+    .trim()
+    .refine(value => !Number.isNaN(Date.parse(value)), 'date must be a valid ISO 8601 date string'),
+  summary: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  category: z.string().optional(),
+  cover: z.string().trim().optional(),
+  draft: z.boolean().optional(),
+  updated: z
+    .string()
+    .trim()
+    .refine(value => !Number.isNaN(Date.parse(value)), 'updated must be a valid ISO 8601 date string')
+    .optional()
+})
+
 export const adminPostChangeSchema = z.object({
   locale: adminLocaleSchema,
-  frontmatter: postFrontmatterSchema,
+  frontmatter: adminPostFrontmatterInputSchema,
   markdown: z.string(),
   baseSha: z.string().trim().optional().nullable()
 })
 
 export const adminPostWriteSchema = z.object({
   slug: slugSchema,
+  mode: z.enum(['publish', 'draft']),
   changes: z.array(adminPostChangeSchema).min(1)
 })
+
+export function normalizeAdminFrontmatterInput(frontmatter: AdminPostFrontmatterInput): AdminPostFrontmatterInput {
+  return {
+    title: frontmatter.title.trim(),
+    date: frontmatter.date.trim(),
+    summary: frontmatter.summary?.trim(),
+    tags: frontmatter.tags?.map(tag => tag.trim()).filter(Boolean),
+    category: frontmatter.category?.trim(),
+    cover: frontmatter.cover?.trim(),
+    draft: frontmatter.draft,
+    updated: frontmatter.updated?.trim()
+  }
+}
