@@ -2,7 +2,22 @@ import type { AdminAiResult, PublishResult } from '@/types/admin'
 
 export type GithubHotDailySource = 'github_trending_daily'
 
-export type InterestPreset = 'mixed' | 'ai_fun' | 'dev_tools' | 'creative_coding' | 'hardcore_engineering'
+export type InterestPreset =
+  | 'mixed'
+  | 'ai_fun'
+  | 'dev_tools'
+  | 'creative_coding'
+  | 'hardcore_engineering'
+  | 'security'
+  | 'data_ai'
+  | 'mobile_dev'
+  | 'game_dev'
+  | 'design_ux'
+  | 'hardware_iot'
+  | 'browser_extension'
+  | 'productivity'
+
+export type CandidateSelectionMode = 'scored_keyword' | 'theme_random_seeded'
 
 export type GithubHotDailyConfig = {
   enabled: boolean
@@ -56,6 +71,11 @@ export type GithubHotDailyRunResult = {
   dateStamp: string
   dateIso: string
   usedTopicFallback: boolean
+  selectionMode: CandidateSelectionMode
+  presetKeywords: string[]
+  overlayKeywords: string[]
+  effectiveKeywords: string[]
+  randomSeedDate: string | null
   selectedScore?: GithubHotCandidateScore
   selectedRepo?: GithubHotRepoCandidate
   slug?: string
@@ -69,7 +89,11 @@ export type GithubHotCandidatesPreviewResult = {
   dateStamp: string
   dateIso: string
   usedTopicFallback: boolean
-  keywords: string[]
+  selectionMode: CandidateSelectionMode
+  presetKeywords: string[]
+  overlayKeywords: string[]
+  effectiveKeywords: string[]
+  randomSeedDate: string | null
   excludeKeywords: string[]
   candidates: Array<GithubHotRepoCandidate & { scoreInfo: GithubHotCandidateScore }>
 }

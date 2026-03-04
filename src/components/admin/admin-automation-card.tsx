@@ -20,19 +20,47 @@ const INTEREST_PRESET_OPTIONS: Array<{ value: InterestPreset; label: string }> =
   { value: 'ai_fun', label: 'AI / Agent / LLM' },
   { value: 'dev_tools', label: '开发工具 / CLI' },
   { value: 'creative_coding', label: '创意编程 / WebGL' },
-  { value: 'hardcore_engineering', label: '硬核工程 / 基础设施' }
+  { value: 'hardcore_engineering', label: '硬核工程 / 基础设施' },
+  { value: 'security', label: '安全攻防 / Security' },
+  { value: 'data_ai', label: '数据工程 / Data + AI' },
+  { value: 'mobile_dev', label: '移动开发 / Mobile' },
+  { value: 'game_dev', label: '游戏开发 / Game Dev' },
+  { value: 'design_ux', label: '设计体验 / UX' },
+  { value: 'hardware_iot', label: '硬件物联 / IoT' },
+  { value: 'browser_extension', label: '浏览器扩展 / Extension' },
+  { value: 'productivity', label: '效率工具 / Productivity' }
 ]
+
+const PRESET_KEYWORDS: Record<InterestPreset, string[]> = {
+  mixed: ['ai', 'agent', 'llm', 'demo', 'toy', 'creative-coding', 'webgl', 'cli', 'automation', 'open-source'],
+  ai_fun: ['ai', 'agent', 'llm', 'multimodal', 'rag', 'workflow', 'copilot'],
+  dev_tools: ['cli', 'sdk', 'devtool', 'terminal', 'productivity', 'testing'],
+  creative_coding: ['webgl', '3d', 'animation', 'design', 'video', 'image', 'shader'],
+  hardcore_engineering: ['database', 'compiler', 'rust', 'kernel', 'infra', 'distributed'],
+  security: ['security', 'pentest', 'vulnerability', 'cve', 'auth', 'reverse', 'forensics', 'sandbox'],
+  data_ai: ['data', 'dataset', 'etl', 'analytics', 'mlops', 'pipeline', 'vector', 'dbt'],
+  mobile_dev: ['ios', 'android', 'flutter', 'react-native', 'swift', 'kotlin', 'mobile', 'xcode'],
+  game_dev: ['game', 'gamedev', 'unity', 'unreal', 'godot', 'graphics', 'shader', 'physics'],
+  design_ux: ['design', 'design-system', 'figma', 'ux', 'ui', 'typography', 'animation', 'a11y'],
+  hardware_iot: ['iot', 'embedded', 'firmware', 'esp32', 'arduino', 'robotics', 'sensor', 'edge'],
+  browser_extension: ['extension', 'webextension', 'chrome-extension', 'firefox', 'userscript', 'browser'],
+  productivity: ['productivity', 'workflow', 'task', 'note', 'automation', 'template', 'cli', 'tool']
+}
+
+function formatSelectionMode(mode: 'scored_keyword' | 'theme_random_seeded'): string {
+  return mode === 'theme_random_seeded' ? '主题池随机（同日固定）' : '关键词评分'
+}
 
 function summarizeRunResult(result: GithubHotDailyRunResult): string {
   if (result.status === 'PUBLISHED') {
     const repoText = result.selectedRepo?.fullName ? `仓库：${result.selectedRepo.fullName}` : '仓库：-'
     const slugText = result.slug ? `Slug：${result.slug}` : 'Slug：-'
     const prText = result.publish?.prUrl ? `PR：${result.publish.prUrl}` : 'PR：-'
-    return `已发布。${repoText}；${slugText}；${prText}`
+    return `已发布。${repoText}；${slugText}；${prText}；策略：${formatSelectionMode(result.selectionMode)}`
   }
 
   const reason = result.reason || '-'
-  return `未发布（${result.status}）：${reason}`
+  return `未发布（${result.status}）：${reason}；策略：${formatSelectionMode(result.selectionMode)}`
 }
 
 type ConfigResponse = {
@@ -78,6 +106,12 @@ export function AdminAutomationCard() {
 
   const keywords = useMemo(() => splitKeywords(topicInput), [topicInput])
   const excludeKeywords = useMemo(() => splitKeywords(excludeInput), [excludeInput])
+  const presetKeywords = useMemo(() => PRESET_KEYWORDS[interestPreset] || [], [interestPreset])
+  const effectiveKeywords = useMemo(
+    () => (keywords.length > 0 ? splitKeywords([...presetKeywords, ...keywords].join(',')) : presetKeywords),
+    [keywords, presetKeywords]
+  )
+  const selectionModeLabel = keywords.length > 0 ? '关键词评分' : '主题池随机（同日固定）'
 
   const loadConfig = async () => {
     setLoading(true)
@@ -278,9 +312,16 @@ export function AdminAutomationCard() {
         启用语言多样性惩罚（避免连续同语言仓库）
       </label>
 
-      <p className='text-xs text-[var(--color-ink-soft)]'>
-        生效关键词：{keywords.length > 0 ? keywords.join(', ') : '（无）'}；排除词：{excludeKeywords.length > 0 ? excludeKeywords.join(', ') : '（无）'}
-      </p>
+      <div className='space-y-1 text-xs text-[var(--color-ink-soft)]'>
+        <p>预设关键词：{presetKeywords.length > 0 ? presetKeywords.join(', ') : '（无）'}</p>
+        <p>叠加关键词：{keywords.length > 0 ? keywords.join(', ') : '（无）'}</p>
+        <p>生效关键词：{effectiveKeywords.length > 0 ? effectiveKeywords.join(', ') : '（无）'}</p>
+        <p>
+          生效策略：{selectionModeLabel}
+          {keywords.length === 0 ? '（空叠加词触发）' : ''}
+          ；排除词：{excludeKeywords.length > 0 ? excludeKeywords.join(', ') : '（无）'}
+        </p>
+      </div>
 
       <div className='flex flex-wrap gap-2'>
         <button
@@ -312,6 +353,11 @@ export function AdminAutomationCard() {
         <div className='rounded-xl border border-[var(--color-border-strong)] bg-white/80 px-3 py-3 text-xs text-[var(--color-ink-soft)]'>
           <p>requestId：{lastRun.requestId}</p>
           <p>状态：{lastRun.result.status}</p>
+          <p>选题策略：{formatSelectionMode(lastRun.result.selectionMode)}</p>
+          <p>随机种子日期：{lastRun.result.randomSeedDate || '（无）'}</p>
+          <p>预设关键词：{lastRun.result.presetKeywords.length > 0 ? lastRun.result.presetKeywords.join(', ') : '（无）'}</p>
+          <p>叠加关键词：{lastRun.result.overlayKeywords.length > 0 ? lastRun.result.overlayKeywords.join(', ') : '（无）'}</p>
+          <p>生效关键词：{lastRun.result.effectiveKeywords.length > 0 ? lastRun.result.effectiveKeywords.join(', ') : '（无）'}</p>
           <p>候选仓库：{lastRun.result.selectedRepo?.fullName || '-'}</p>
           <p>生成 slug：{lastRun.result.slug || '-'}</p>
           <p>
@@ -332,8 +378,12 @@ export function AdminAutomationCard() {
         <div className='rounded-xl border border-[var(--color-border-strong)] bg-white/80 px-3 py-3 text-xs text-[var(--color-ink-soft)]'>
           <p>候选预览 requestId：{preview.requestId}</p>
           <p>日期：{preview.data.dateIso}</p>
+          <p>选题策略：{formatSelectionMode(preview.data.selectionMode)}</p>
+          <p>随机种子日期：{preview.data.randomSeedDate || '（无）'}</p>
           <p>主题回退：{preview.data.usedTopicFallback ? '是' : '否'}</p>
-          <p>关键词：{preview.data.keywords.length > 0 ? preview.data.keywords.join(', ') : '（无）'}</p>
+          <p>预设关键词：{preview.data.presetKeywords.length > 0 ? preview.data.presetKeywords.join(', ') : '（无）'}</p>
+          <p>叠加关键词：{preview.data.overlayKeywords.length > 0 ? preview.data.overlayKeywords.join(', ') : '（无）'}</p>
+          <p>生效关键词：{preview.data.effectiveKeywords.length > 0 ? preview.data.effectiveKeywords.join(', ') : '（无）'}</p>
           <p>排除词：{preview.data.excludeKeywords.length > 0 ? preview.data.excludeKeywords.join(', ') : '（无）'}</p>
           {preview.data.candidates.length > 0 ? (
             <div className='mt-2 space-y-2'>

@@ -181,11 +181,13 @@ If required fields are missing, build fails with the source file path.
 - Trigger schedule: every day at `Asia/Shanghai 08:00` (Vercel cron schedule `0 0 * * *` in UTC).
 - Source: GitHub Trending Daily.
 - Interest strategy:
-  - preset + manual keywords (OR matching)
+  - preset themes (13 presets total) + optional manual overlay keywords (OR matching)
   - exclude keywords
   - minimum stars
   - candidate window and optional language diversity penalty
-  - if no topic hit, fallback to whole trending list
+  - when overlay keywords are provided: `scored_keyword` mode (`effective = preset + overlay`)
+  - when overlay keywords are empty: `theme_random_seeded` mode (theme-pool random with same-day stable seed)
+  - if theme pool has no hit, fallback to whole filtered trending pool
 - De-duplication:
   - never repeat the same repository across history
   - publish at most one auto post per day
@@ -205,9 +207,13 @@ If required fields are missing, build fails with the source file path.
   - enable/disable auto publish
   - interest preset
   - manual keywords / exclude keywords
+  - strategy visibility: preset keywords / overlay keywords / effective keywords / selection mode
   - minimum stars / candidate window / language diversification
   - candidate preview with score reasons
   - run now (manual one-shot, bypasses `enabled` switch)
+- Presets:
+  - `mixed`, `ai_fun`, `dev_tools`, `creative_coding`, `hardcore_engineering`
+  - `security`, `data_ai`, `mobile_dev`, `game_dev`, `design_ux`, `hardware_iot`, `browser_extension`, `productivity`
 - Config file written to repo:
   - `content/system/automation/github-hot-daily.json`
 
