@@ -1,23 +1,43 @@
 import { z } from 'zod'
-import type { GithubHotDailyConfig } from '@/types/automation'
+import type { GithubHotDailyConfig, InterestPreset } from '@/types/automation'
 
 export const GITHUB_HOT_DAILY_CONFIG_PATH = 'content/system/automation/github-hot-daily.json'
 export const SHANGHAI_TIMEZONE = 'Asia/Shanghai'
 export const DAILY_SCHEDULE_HOUR = 8 as const
+export const DEFAULT_CANDIDATE_WINDOW = 30
+export const DEFAULT_MIN_STARS = 500
+
+export const INTEREST_PRESET_KEYWORDS: Record<InterestPreset, string[]> = {
+  mixed: ['ai', 'agent', 'llm', 'demo', 'toy', 'creative-coding', 'webgl', 'cli', 'automation', 'open-source'],
+  ai_fun: ['ai', 'agent', 'llm', 'multimodal', 'rag', 'workflow', 'copilot'],
+  dev_tools: ['cli', 'sdk', 'devtool', 'terminal', 'productivity', 'testing'],
+  creative_coding: ['webgl', '3d', 'animation', 'design', 'video', 'image', 'shader'],
+  hardcore_engineering: ['database', 'compiler', 'rust', 'kernel', 'infra', 'distributed']
+}
 
 const githubHotDailyConfigSchema = z.object({
   enabled: z.boolean(),
+  interestPreset: z.enum(['mixed', 'ai_fun', 'dev_tools', 'creative_coding', 'hardcore_engineering']),
   topicKeywords: z.array(z.string()),
+  excludeKeywords: z.array(z.string()),
+  minStars: z.number().int().min(0).max(10000000),
+  candidateWindow: z.number().int().min(10).max(50),
+  diversifyByLanguage: z.boolean(),
   source: z.literal('github_trending_daily'),
   timezone: z.literal('Asia/Shanghai'),
   scheduleLocalHour: z.literal(8),
   updatedAt: z.string().trim().min(1),
-  updatedBy: z.string().trim().min(1)
+  updatedBy: z.enum(['admin', 'system'])
 })
 
 const githubHotDailyConfigUpdateSchema = z.object({
   enabled: z.boolean(),
-  topicKeywords: z.array(z.string()).optional()
+  interestPreset: z.enum(['mixed', 'ai_fun', 'dev_tools', 'creative_coding', 'hardcore_engineering']).optional(),
+  topicKeywords: z.array(z.string()).optional(),
+  excludeKeywords: z.array(z.string()).optional(),
+  minStars: z.number().int().min(0).max(10000000).optional(),
+  candidateWindow: z.number().int().min(10).max(50).optional(),
+  diversifyByLanguage: z.boolean().optional()
 })
 
 function normalizeKeywords(topicKeywords: string[]): string[] {
@@ -26,7 +46,7 @@ function normalizeKeywords(topicKeywords: string[]): string[] {
       topicKeywords
         .map(keyword => keyword.trim().toLowerCase())
         .filter(Boolean)
-        .slice(0, 20)
+        .slice(0, 40)
     )
   )
 }
@@ -34,35 +54,59 @@ function normalizeKeywords(topicKeywords: string[]): string[] {
 export function buildDefaultGithubHotDailyConfig(actor = 'system'): GithubHotDailyConfig {
   return {
     enabled: false,
+    interestPreset: 'mixed',
     topicKeywords: [],
+    excludeKeywords: [],
+    minStars: DEFAULT_MIN_STARS,
+    candidateWindow: DEFAULT_CANDIDATE_WINDOW,
+    diversifyByLanguage: true,
     source: 'github_trending_daily',
     timezone: SHANGHAI_TIMEZONE,
     scheduleLocalHour: DAILY_SCHEDULE_HOUR,
     updatedAt: new Date().toISOString(),
-    updatedBy: actor
+    updatedBy: actor === 'system' ? 'system' : 'admin'
   }
 }
 
 export function parseGithubHotDailyConfig(raw: unknown): GithubHotDailyConfig {
-  const parsed = githubHotDailyConfigSchema.parse(raw)
+  const compatibility = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const patched = {
+    ...buildDefaultGithubHotDailyConfig('system'),
+    ...compatibility
+  }
+  const parsed = githubHotDailyConfigSchema.parse(patched)
   return {
     ...parsed,
-    topicKeywords: normalizeKeywords(parsed.topicKeywords)
+    topicKeywords: normalizeKeywords(parsed.topicKeywords),
+    excludeKeywords: normalizeKeywords(parsed.excludeKeywords)
   }
 }
 
-export function parseGithubHotDailyConfigUpdate(raw: unknown): Pick<GithubHotDailyConfig, 'enabled' | 'topicKeywords'> {
+export function parseGithubHotDailyConfigUpdate(
+  raw: unknown,
+  current: GithubHotDailyConfig
+): Pick<GithubHotDailyConfig, 'enabled' | 'interestPreset' | 'topicKeywords' | 'excludeKeywords' | 'minStars' | 'candidateWindow' | 'diversifyByLanguage'> {
   const parsed = githubHotDailyConfigUpdateSchema.parse(raw)
   return {
     enabled: parsed.enabled,
-    topicKeywords: normalizeKeywords(parsed.topicKeywords || [])
+    interestPreset: parsed.interestPreset || current.interestPreset,
+    topicKeywords: normalizeKeywords(parsed.topicKeywords || current.topicKeywords),
+    excludeKeywords: normalizeKeywords(parsed.excludeKeywords || current.excludeKeywords),
+    minStars: parsed.minStars ?? current.minStars,
+    candidateWindow: parsed.candidateWindow ?? current.candidateWindow,
+    diversifyByLanguage: parsed.diversifyByLanguage ?? current.diversifyByLanguage
   }
 }
 
 export function serializeGithubHotDailyConfig(config: GithubHotDailyConfig): string {
   const normalized: GithubHotDailyConfig = {
     enabled: Boolean(config.enabled),
+    interestPreset: config.interestPreset,
     topicKeywords: normalizeKeywords(config.topicKeywords),
+    excludeKeywords: normalizeKeywords(config.excludeKeywords),
+    minStars: Math.max(0, Math.floor(config.minStars)),
+    candidateWindow: Math.min(50, Math.max(10, Math.floor(config.candidateWindow))),
+    diversifyByLanguage: Boolean(config.diversifyByLanguage),
     source: 'github_trending_daily',
     timezone: SHANGHAI_TIMEZONE,
     scheduleLocalHour: DAILY_SCHEDULE_HOUR,
@@ -72,4 +116,3 @@ export function serializeGithubHotDailyConfig(config: GithubHotDailyConfig): str
 
   return `${JSON.stringify(normalized, null, 2)}\n`
 }
-

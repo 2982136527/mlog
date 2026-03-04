@@ -1,8 +1,11 @@
-export type AdminGithubEnv = {
+export type GithubRepoEnv = {
   owner: string
   repo: string
   baseBranch: string
   token: string
+}
+
+export type AdminGithubEnv = GithubRepoEnv & {
   autoMerge: boolean
 }
 
@@ -16,22 +19,66 @@ function normalizeBranch(value: string): string {
   return withoutPrefix || 'main'
 }
 
-export function getAdminGithubEnv(): AdminGithubEnv {
-  const owner = trimEnv(process.env.GITHUB_OWNER)
-  const repo = trimEnv(process.env.GITHUB_REPO)
-  const baseBranch = normalizeBranch(process.env.GITHUB_BASE_BRANCH || 'main')
-  const token = trimEnv(process.env.GITHUB_WRITE_TOKEN)
-  const autoMerge = trimEnv(process.env.ADMIN_AUTO_MERGE || 'true').toLowerCase() !== 'false'
+function readRepoEnv(input: {
+  owner: string | undefined
+  repo: string | undefined
+  baseBranch: string | undefined
+  token: string | undefined
+  label: string
+}): GithubRepoEnv {
+  const owner = trimEnv(input.owner)
+  const repo = trimEnv(input.repo)
+  const baseBranch = normalizeBranch(input.baseBranch || 'main')
+  const token = trimEnv(input.token)
 
   if (!owner || !repo || !token) {
-    throw new Error('Missing GitHub admin env vars: GITHUB_OWNER, GITHUB_REPO, GITHUB_WRITE_TOKEN are required.')
+    throw new Error(`Missing ${input.label} GitHub env vars: owner/repo/token are required.`)
   }
 
   return {
     owner,
     repo,
     baseBranch,
-    token,
+    token
+  }
+}
+
+export function getContentGithubWriteEnv(): GithubRepoEnv {
+  return readRepoEnv({
+    owner: process.env.CONTENT_GITHUB_OWNER || process.env.GITHUB_OWNER,
+    repo: process.env.CONTENT_GITHUB_REPO || process.env.GITHUB_REPO,
+    baseBranch: process.env.CONTENT_GITHUB_BASE_BRANCH || process.env.GITHUB_BASE_BRANCH || 'main',
+    token: process.env.CONTENT_GITHUB_WRITE_TOKEN || process.env.GITHUB_WRITE_TOKEN,
+    label: 'content(write)'
+  })
+}
+
+export function getContentGithubReadEnv(): GithubRepoEnv {
+  return readRepoEnv({
+    owner: process.env.CONTENT_GITHUB_OWNER || process.env.GITHUB_OWNER,
+    repo: process.env.CONTENT_GITHUB_REPO || process.env.GITHUB_REPO,
+    baseBranch: process.env.CONTENT_GITHUB_BASE_BRANCH || process.env.GITHUB_BASE_BRANCH || 'main',
+    token: process.env.CONTENT_GITHUB_READ_TOKEN || process.env.CONTENT_GITHUB_WRITE_TOKEN || process.env.GITHUB_WRITE_TOKEN,
+    label: 'content(read)'
+  })
+}
+
+export function getPublicGithubWriteEnv(): GithubRepoEnv {
+  return readRepoEnv({
+    owner: process.env.PUBLIC_GITHUB_OWNER,
+    repo: process.env.PUBLIC_GITHUB_REPO,
+    baseBranch: process.env.PUBLIC_GITHUB_BASE_BRANCH || 'main',
+    token: process.env.PUBLIC_GITHUB_WRITE_TOKEN,
+    label: 'public(write)'
+  })
+}
+
+export function getAdminGithubEnv(): AdminGithubEnv {
+  const repoEnv = getContentGithubWriteEnv()
+  const autoMerge = trimEnv(process.env.ADMIN_AUTO_MERGE || 'true').toLowerCase() !== 'false'
+
+  return {
+    ...repoEnv,
     autoMerge
   }
 }

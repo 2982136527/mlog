@@ -26,6 +26,8 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000), it redirects to `/zh`.
 
+For production builds, `pnpm build` runs `pnpm content:pull` first to sync private content (if content repo env vars are configured).
+
 ## Routes
 
 - `/` -> redirect to `/zh`
@@ -38,6 +40,7 @@ Open [http://localhost:3000](http://localhost:3000), it redirects to `/zh`.
 - `/admin/new`
 - `/admin/edit/[slug]`
 - `/api/cron/github-hot-daily` (Vercel cron entry, bearer protected)
+- `/api/cron/tutorial-sync` (Vercel cron entry, bearer protected)
 
 ## Content Contract
 
@@ -85,12 +88,23 @@ If required fields are missing, build fails with the source file path.
 | `AUTH_GITHUB_ID` | GitHub OAuth App client id |
 | `AUTH_GITHUB_SECRET` | GitHub OAuth App client secret |
 | `ADMIN_GITHUB_ALLOWLIST` | comma-separated GitHub logins with admin access |
-| `GITHUB_OWNER` | target repository owner for admin publish |
-| `GITHUB_REPO` | target repository name for admin publish |
-| `GITHUB_BASE_BRANCH` | base branch, default `main` |
-| `GITHUB_WRITE_TOKEN` | GitHub token with repo write permissions |
+| `CONTENT_GITHUB_OWNER` | private content repository owner |
+| `CONTENT_GITHUB_REPO` | private content repository name |
+| `CONTENT_GITHUB_BASE_BRANCH` | private content base branch, default `main` |
+| `CONTENT_GITHUB_WRITE_TOKEN` | private content repo write token |
+| `CONTENT_GITHUB_READ_TOKEN` | private content repo read token |
+| `PUBLIC_GITHUB_OWNER` | public code/docs repository owner |
+| `PUBLIC_GITHUB_REPO` | public code/docs repository name |
+| `PUBLIC_GITHUB_BASE_BRANCH` | public repo base branch, default `main` |
+| `PUBLIC_GITHUB_WRITE_TOKEN` | public repo write token (tutorial mirror) |
+| `GITHUB_OWNER` | fallback owner (compatibility only) |
+| `GITHUB_REPO` | fallback repo (compatibility only) |
+| `GITHUB_BASE_BRANCH` | fallback base branch (compatibility only) |
+| `GITHUB_WRITE_TOKEN` | fallback write token (compatibility only) |
 | `ADMIN_AUTO_MERGE` | auto-merge PR after create, default `true` |
 | `CRON_SECRET` | bearer secret for cron route `/api/cron/github-hot-daily` |
+| `TUTORIAL_SYNC_ENABLED` | enable tutorial sync cron, default `true` |
+| `PRIVACY_BLOCKLIST` | comma-separated sensitive words/domains for tutorial mirror blocking |
 | `AI_ENABLE` | enable server-side AI generation, default `true` |
 | `AI_PROVIDER_CHAIN` | provider fallback chain, default `gemini,openai,deepseek,qwen` |
 | `AI_TIMEOUT_MS` | total AI timeout budget, default `60000` |
@@ -127,6 +141,8 @@ If required fields are missing, build fails with the source file path.
 - `GET /api/admin/automation/github-hot-daily`
 - `PUT /api/admin/automation/github-hot-daily`
 - `POST /api/admin/automation/github-hot-daily/run`
+- `GET /api/admin/automation/github-hot-daily/candidates`
+- `POST /api/admin/tutorials/mlog-open-source/sync`
 
 ### Common Admin Failures
 
@@ -155,9 +171,12 @@ If required fields are missing, build fails with the source file path.
 
 - Trigger schedule: every day at `Asia/Shanghai 08:00` (Vercel cron schedule `0 0 * * *` in UTC).
 - Source: GitHub Trending Daily.
-- Topic strategy:
-  - first pass by OR-matching configured keywords against repo name/description/language/topics
-  - if no keyword match, fallback to whole trending list
+- Interest strategy:
+  - preset + manual keywords (OR matching)
+  - exclude keywords
+  - minimum stars
+  - candidate window and optional language diversity penalty
+  - if no topic hit, fallback to whole trending list
 - De-duplication:
   - never repeat the same repository across history
   - publish at most one auto post per day
@@ -175,18 +194,38 @@ If required fields are missing, build fails with the source file path.
 - Location: top card in `/admin`.
 - Controls:
   - enable/disable auto publish
-  - topic keywords (comma-separated)
+  - interest preset
+  - manual keywords / exclude keywords
+  - minimum stars / candidate window / language diversification
+  - candidate preview with score reasons
   - run now (manual one-shot, bypasses `enabled` switch)
 - Config file written to repo:
   - `content/system/automation/github-hot-daily.json`
+
+## Tutorial Mirror (Whitelist Only)
+
+- Whitelist slug: `mlog-open-source-deploy-guide` (fixed single item)
+- Source of truth: blog content in private content repo
+- Mirror targets in public repo:
+  - `docs/tutorials/mlog-open-source-deploy-guide.zh.md`
+  - `docs/tutorials/mlog-open-source-deploy-guide.en.md`
+- Manual trigger:
+  - `POST /api/admin/tutorials/mlog-open-source/sync`
+- Cron trigger:
+  - `GET/POST /api/cron/tutorial-sync` (bearer auth with `CRON_SECRET`)
+- Guard rails:
+  - `PRIVACY_BLOCKLIST` hit => sync blocked with `PRIVACY_VIOLATION`
+  - only allowlisted tutorial slug can be mirrored
+  - other articles are never mirrored to public docs
 
 ## Deploy (Vercel, Full Launch)
 
 ### 1) Repository bootstrap
 
-1. Create a public GitHub repository (recommended name: `mlog`).
-2. Push this project to `main`.
-3. Enable repository Discussions (required by Giscus).
+1. Create a public GitHub code repository (recommended name: `mlog`).
+2. Create a private content repository for posts/system/uploads.
+3. Push this project to `main`.
+4. Enable Discussions in the public repository (required by Giscus).
 
 ### 2) Third-party setup
 
@@ -208,7 +247,7 @@ If required fields are missing, build fails with the source file path.
 2. Ensure framework is detected as Next.js and package manager is `pnpm`.
 3. Configure env vars for all environments (Production/Preview/Development) using `.env.example`.
 4. Add `CRON_SECRET` to Production environment.
-5. Keep `vercel.json` committed so cron schedule is registered.
+5. Keep `vercel.json` committed so cron schedules are registered.
 6. Set production domain to `https://blog.<your-domain>`:
    - add domain in Vercel
    - add DNS records in your DNS provider (usually CNAME)
@@ -241,6 +280,7 @@ If required fields are missing, build fails with the source file path.
 4. Verify Giscus renders on post detail pages.
 5. Verify Umami script is present only in production.
 6. Trigger `/admin` -> auto publish card -> `立即执行` once and verify one new `gh-hot-*` post appears.
+7. Trigger `/admin` -> `立即同步教程` once and verify docs mirror PR is created.
 
 ## Rollback
 

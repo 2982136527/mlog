@@ -30,14 +30,19 @@ export async function PUT(request: NextRequest) {
   try {
     const { login } = await requireAdminSession()
     const payload = await request.json()
-    const update = parseGithubHotDailyConfigUpdate(payload)
     const loaded = await loadGithubHotDailyConfig()
+    const update = parseGithubHotDailyConfigUpdate(payload, loaded.config)
     const nextConfig = {
       ...loaded.config,
       enabled: update.enabled,
+      interestPreset: update.interestPreset,
       topicKeywords: update.topicKeywords,
+      excludeKeywords: update.excludeKeywords,
+      minStars: update.minStars,
+      candidateWindow: update.candidateWindow,
+      diversifyByLanguage: update.diversifyByLanguage,
       updatedAt: new Date().toISOString(),
-      updatedBy: login
+      updatedBy: 'admin' as const
     }
 
     const saved = await saveGithubHotDailyConfig({
@@ -48,9 +53,13 @@ export async function PUT(request: NextRequest) {
 
     console.info('[admin][automation][github-hot-daily][PUT]', {
       requestId,
-      actor: login,
       enabled: saved.config.enabled,
+      interestPreset: saved.config.interestPreset,
       topicKeywords: saved.config.topicKeywords,
+      excludeKeywords: saved.config.excludeKeywords,
+      minStars: saved.config.minStars,
+      candidateWindow: saved.config.candidateWindow,
+      diversifyByLanguage: saved.config.diversifyByLanguage,
       changed: saved.changed,
       prUrl: saved.publish?.prUrl,
       merged: saved.publish?.merged
@@ -70,4 +79,3 @@ export async function PUT(request: NextRequest) {
     return fail(requestId, 500, 'INTERNAL_ERROR', 'Failed to update automation config')
   }
 }
-

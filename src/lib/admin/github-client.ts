@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { getAdminGithubEnv } from '@/lib/admin/env'
+import { getAdminGithubEnv, type GithubRepoEnv } from '@/lib/admin/env'
 import { AdminHttpError } from '@/lib/admin/errors'
 
 const API_BASE = 'https://api.github.com'
@@ -56,6 +56,8 @@ type RequestOptions = {
   allowStatuses?: number[]
 }
 
+export type GithubRepoTarget = GithubRepoEnv
+
 function encodeSegments(input: string): string {
   return input
     .split('/')
@@ -64,15 +66,27 @@ function encodeSegments(input: string): string {
     .join('/')
 }
 
-async function githubRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<{ data: T; status: number }> {
-  const { owner, repo, token } = getAdminGithubEnv()
-  const url = `${API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}${endpoint}`
+function resolveRepoTarget(target?: GithubRepoTarget): GithubRepoTarget {
+  if (target) {
+    return target
+  }
+  const env = getAdminGithubEnv()
+  return {
+    owner: env.owner,
+    repo: env.repo,
+    baseBranch: env.baseBranch,
+    token: env.token
+  }
+}
+
+async function githubRequestForTarget<T>(target: GithubRepoTarget, endpoint: string, options: RequestOptions = {}): Promise<{ data: T; status: number }> {
+  const url = `${API_BASE}/repos/${encodeURIComponent(target.owner)}/${encodeURIComponent(target.repo)}${endpoint}`
 
   const response = await fetch(url, {
     method: options.method || 'GET',
     headers: {
       Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${target.token}`,
       'X-GitHub-Api-Version': '2022-11-28',
       ...(options.body ? { 'Content-Type': 'application/json' } : {})
     },
@@ -111,9 +125,11 @@ export function hashBuffer(buffer: Buffer): string {
   return createHash('sha1').update(buffer).digest('hex').slice(0, 10)
 }
 
-export async function getBranchHeadSha(branch: string): Promise<string> {
+export async function getBranchHeadSha(branch: string, target?: GithubRepoTarget): Promise<string> {
+  const repoTarget = resolveRepoTarget(target)
+
   try {
-    const { data } = await githubRequest<GitHubRefResponse>(`/git/ref/heads/${encodeSegments(branch)}`)
+    const { data } = await githubRequestForTarget<GitHubRefResponse>(repoTarget, `/git/ref/heads/${encodeSegments(branch)}`)
     return data.object.sha
   } catch (error) {
     if (!(error instanceof AdminHttpError) || error.status !== 404) {
@@ -121,16 +137,16 @@ export async function getBranchHeadSha(branch: string): Promise<string> {
     }
 
     // Fallback for repositories that do not resolve the ref endpoint as expected.
-    const { data } = await githubRequest<GitHubBranchResponse>(`/branches/${encodeSegments(branch)}`)
+    const { data } = await githubRequestForTarget<GitHubBranchResponse>(repoTarget, `/branches/${encodeSegments(branch)}`)
     return data.commit.sha
   }
 }
 
-export async function createBranch(branch: string): Promise<void> {
-  const { baseBranch } = getAdminGithubEnv()
-  const baseSha = await getBranchHeadSha(baseBranch)
+export async function createBranch(branch: string, target?: GithubRepoTarget): Promise<void> {
+  const repoTarget = resolveRepoTarget(target)
+  const baseSha = await getBranchHeadSha(repoTarget.baseBranch, repoTarget)
 
-  await githubRequest('/git/refs', {
+  await githubRequestForTarget(repoTarget, '/git/refs', {
     method: 'POST',
     body: {
       ref: `refs/heads/${branch}`,
@@ -139,10 +155,11 @@ export async function createBranch(branch: string): Promise<void> {
   })
 }
 
-export async function getRepoTextFile(path: string, ref?: string): Promise<{ path: string; sha: string; content: string } | null> {
-  const branch = ref || getAdminGithubEnv().baseBranch
+export async function getRepoTextFile(path: string, ref?: string, target?: GithubRepoTarget): Promise<{ path: string; sha: string; content: string } | null> {
+  const repoTarget = resolveRepoTarget(target)
+  const branch = ref || repoTarget.baseBranch
   const endpoint = `/contents/${encodeSegments(path)}?ref=${encodeURIComponent(branch)}`
-  const { data, status } = await githubRequest<GitHubContentResponse | GitHubContentResponse[]>(endpoint, {
+  const { data, status } = await githubRequestForTarget<GitHubContentResponse | GitHubContentResponse[]>(repoTarget, endpoint, {
     allowStatuses: [404]
   })
 
@@ -167,8 +184,9 @@ export async function upsertFile(params: {
   branch: string
   message: string
   sha?: string
-}): Promise<void> {
-  await githubRequest(`/contents/${encodeSegments(params.path)}`, {
+}, target?: GithubRepoTarget): Promise<void> {
+  const repoTarget = resolveRepoTarget(target)
+  await githubRequestForTarget(repoTarget, `/contents/${encodeSegments(params.path)}`, {
     method: 'PUT',
     body: {
       message: params.message,
@@ -184,8 +202,9 @@ export async function deleteFile(params: {
   branch: string
   sha: string
   message: string
-}): Promise<void> {
-  await githubRequest(`/contents/${encodeSegments(params.path)}`, {
+}, target?: GithubRepoTarget): Promise<void> {
+  const repoTarget = resolveRepoTarget(target)
+  await githubRequestForTarget(repoTarget, `/contents/${encodeSegments(params.path)}`, {
     method: 'DELETE',
     body: {
       message: params.message,
@@ -200,8 +219,9 @@ export async function createPullRequest(params: {
   body: string
   head: string
   base: string
-}): Promise<GitHubPullResponse> {
-  const { data } = await githubRequest<GitHubPullResponse>('/pulls', {
+}, target?: GithubRepoTarget): Promise<GitHubPullResponse> {
+  const repoTarget = resolveRepoTarget(target)
+  const { data } = await githubRequestForTarget<GitHubPullResponse>(repoTarget, '/pulls', {
     method: 'POST',
     body: {
       title: params.title,
@@ -214,8 +234,9 @@ export async function createPullRequest(params: {
   return data
 }
 
-export async function mergePullRequest(prNumber: number): Promise<GitHubMergeResponse> {
-  const { data } = await githubRequest<GitHubMergeResponse>(`/pulls/${prNumber}/merge`, {
+export async function mergePullRequest(prNumber: number, target?: GithubRepoTarget): Promise<GitHubMergeResponse> {
+  const repoTarget = resolveRepoTarget(target)
+  const { data } = await githubRequestForTarget<GitHubMergeResponse>(repoTarget, `/pulls/${prNumber}/merge`, {
     method: 'PUT',
     body: {
       merge_method: 'squash'
@@ -229,14 +250,15 @@ export async function mergePullRequest(prNumber: number): Promise<GitHubMergeRes
   }
 }
 
-export async function listContentMarkdownPaths(branch?: string): Promise<string[]> {
-  const targetBranch = branch || getAdminGithubEnv().baseBranch
-  const refSha = await getBranchHeadSha(targetBranch)
+export async function listContentMarkdownPaths(branch?: string, target?: GithubRepoTarget): Promise<string[]> {
+  const repoTarget = resolveRepoTarget(target)
+  const targetBranch = branch || repoTarget.baseBranch
+  const refSha = await getBranchHeadSha(targetBranch, repoTarget)
 
-  const { data: commit } = await githubRequest<GitHubCommitResponse>(`/git/commits/${encodeURIComponent(refSha)}`)
+  const { data: commit } = await githubRequestForTarget<GitHubCommitResponse>(repoTarget, `/git/commits/${encodeURIComponent(refSha)}`)
   const treeSha = commit.tree.sha
 
-  const { data: tree } = await githubRequest<GitHubTreeResponse>(`/git/trees/${encodeURIComponent(treeSha)}?recursive=1`)
+  const { data: tree } = await githubRequestForTarget<GitHubTreeResponse>(repoTarget, `/git/trees/${encodeURIComponent(treeSha)}?recursive=1`)
 
   return tree.tree
     .filter(item => item.type === 'blob')
@@ -245,7 +267,21 @@ export async function listContentMarkdownPaths(branch?: string): Promise<string[
     .sort((a, b) => a.localeCompare(b))
 }
 
-export function buildBranchName(action: 'create' | 'update' | 'delete' | 'media' | 'automation', slug: string): string {
+export async function listPathsByPrefix(prefix: string, branch?: string, target?: GithubRepoTarget): Promise<string[]> {
+  const repoTarget = resolveRepoTarget(target)
+  const targetBranch = branch || repoTarget.baseBranch
+  const refSha = await getBranchHeadSha(targetBranch, repoTarget)
+  const { data: commit } = await githubRequestForTarget<GitHubCommitResponse>(repoTarget, `/git/commits/${encodeURIComponent(refSha)}`)
+  const treeSha = commit.tree.sha
+  const { data: tree } = await githubRequestForTarget<GitHubTreeResponse>(repoTarget, `/git/trees/${encodeURIComponent(treeSha)}?recursive=1`)
+
+  return tree.tree
+    .filter(item => item.type === 'blob' && item.path.startsWith(prefix))
+    .map(item => item.path)
+    .sort((a, b) => a.localeCompare(b))
+}
+
+export function buildBranchName(action: 'create' | 'update' | 'delete' | 'media' | 'automation' | 'tutorial' | 'mirror', slug: string): string {
   const stamp = Date.now().toString().slice(-8)
   const safeSlug = slug.replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-') || 'post'
   return `admin/${action}/${safeSlug}-${stamp}`

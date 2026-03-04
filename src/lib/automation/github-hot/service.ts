@@ -1,8 +1,15 @@
 import { createHash } from 'node:crypto'
 import type { AdminPostPayload } from '@/types/admin'
-import type { GithubHotDailyConfig, GithubHotDailyRunResult, GithubHotRepoCandidate } from '@/types/automation'
+import type {
+  GithubHotCandidateScore,
+  GithubHotCandidatesPreviewResult,
+  GithubHotDailyConfig,
+  GithubHotDailyRunResult,
+  GithubHotRepoCandidate
+} from '@/types/automation'
 import { listContentMarkdownPaths } from '@/lib/admin/github-client'
 import { publishPostChanges } from '@/lib/admin/publish-service'
+import { INTEREST_PRESET_KEYWORDS } from '@/lib/automation/github-hot/config'
 import { loadGithubHotDailyConfig } from '@/lib/automation/github-hot/config-store'
 import { fetchGithubTrendingCandidates } from '@/lib/automation/github-hot/trending'
 import { runAiGithubHotPostGenerate } from '@/lib/ai/runner'
@@ -57,30 +64,149 @@ function extractRepoHashes(slugs: Iterable<string>): Set<string> {
   return hashes
 }
 
-function applyTopicFilter(candidates: GithubHotRepoCandidate[], config: GithubHotDailyConfig): { selectedPool: GithubHotRepoCandidate[]; usedTopicFallback: boolean } {
-  const keywords = config.topicKeywords.map(item => item.trim().toLowerCase()).filter(Boolean)
-  if (keywords.length === 0) {
+function normalizeKeywords(items: string[]): string[] {
+  return Array.from(new Set(items.map(item => item.trim().toLowerCase()).filter(Boolean)))
+}
+
+function getSearchSpace(candidate: GithubHotRepoCandidate): string {
+  return [candidate.fullName, candidate.repo, candidate.description, candidate.language, ...candidate.topics].join(' ').toLowerCase()
+}
+
+function buildEffectiveKeywords(config: GithubHotDailyConfig): string[] {
+  const presetKeywords = INTEREST_PRESET_KEYWORDS[config.interestPreset] || []
+  return normalizeKeywords([...presetKeywords, ...config.topicKeywords])
+}
+
+function applyTopicFilter(
+  candidates: GithubHotRepoCandidate[],
+  config: GithubHotDailyConfig
+): { selectedPool: GithubHotRepoCandidate[]; usedTopicFallback: boolean; keywords: string[]; excludeKeywords: string[] } {
+  const keywords = buildEffectiveKeywords(config)
+  const excludeKeywords = normalizeKeywords(config.excludeKeywords)
+  const minStars = Math.max(0, config.minStars)
+
+  const narrowedByStars = candidates.filter(candidate => candidate.stars >= minStars)
+  const basePool = narrowedByStars.length > 0 ? narrowedByStars : candidates
+  const withoutExcluded = basePool.filter(candidate => {
+    const searchSpace = getSearchSpace(candidate)
+    return !excludeKeywords.some(keyword => searchSpace.includes(keyword))
+  })
+
+  if (withoutExcluded.length === 0) {
     return {
-      selectedPool: candidates,
-      usedTopicFallback: false
+      selectedPool: [],
+      usedTopicFallback: false,
+      keywords,
+      excludeKeywords
     }
   }
 
-  const matched = candidates.filter(candidate => {
-    const searchSpace = [candidate.fullName, candidate.repo, candidate.description, candidate.language, ...candidate.topics].join(' ').toLowerCase()
+  if (keywords.length === 0) {
+    return {
+      selectedPool: withoutExcluded,
+      usedTopicFallback: false,
+      keywords,
+      excludeKeywords
+    }
+  }
+
+  const matched = withoutExcluded.filter(candidate => {
+    const searchSpace = getSearchSpace(candidate)
     return keywords.some(keyword => searchSpace.includes(keyword))
   })
 
   if (matched.length > 0) {
     return {
       selectedPool: matched,
-      usedTopicFallback: false
+      usedTopicFallback: false,
+      keywords,
+      excludeKeywords
     }
   }
 
   return {
-    selectedPool: candidates,
-    usedTopicFallback: true
+    selectedPool: withoutExcluded,
+    usedTopicFallback: true,
+    keywords,
+    excludeKeywords
+  }
+}
+
+function buildCandidateScores(
+  candidates: GithubHotRepoCandidate[],
+  config: GithubHotDailyConfig,
+  keywords: string[],
+  excludeKeywords: string[],
+  usedTopicFallback: boolean
+): Array<GithubHotRepoCandidate & { scoreInfo: GithubHotCandidateScore }> {
+  const languageFrequency = new Map<string, number>()
+  for (const candidate of candidates) {
+    const key = candidate.language.trim().toLowerCase() || 'unknown'
+    languageFrequency.set(key, (languageFrequency.get(key) || 0) + 1)
+  }
+
+  return candidates
+    .map(candidate => {
+      const searchSpace = getSearchSpace(candidate)
+      const matchedKeywords = keywords.filter(keyword => searchSpace.includes(keyword))
+      const hitExcludeKeywords = excludeKeywords.filter(keyword => searchSpace.includes(keyword))
+      const languageKey = candidate.language.trim().toLowerCase() || 'unknown'
+
+      const rankScore = Math.max(0, config.candidateWindow - candidate.rank + 1) * 3
+      const starsScore = Math.log10(candidate.stars + 1) * 10
+      const keywordScore = matchedKeywords.length * 8
+      const fallbackPenalty = usedTopicFallback ? 4 : 0
+      const languagePenalty = config.diversifyByLanguage ? Math.max(0, (languageFrequency.get(languageKey) || 0) - 1) * 2 : 0
+      const finalScore = Number((rankScore + starsScore + keywordScore - fallbackPenalty - languagePenalty).toFixed(2))
+
+      const reason: string[] = [
+        `rank+${rankScore.toFixed(1)}`,
+        `stars+${starsScore.toFixed(1)}`,
+        `keyword+${keywordScore.toFixed(1)}`
+      ]
+      if (fallbackPenalty > 0) {
+        reason.push(`fallback-${fallbackPenalty.toFixed(1)}`)
+      }
+      if (languagePenalty > 0) {
+        reason.push(`lang-diversity-${languagePenalty.toFixed(1)}`)
+      }
+      if (hitExcludeKeywords.length > 0) {
+        reason.push(`exclude-hit:${hitExcludeKeywords.join('|')}`)
+      }
+
+      return {
+        ...candidate,
+        scoreInfo: {
+          fullName: candidate.fullName,
+          rank: candidate.rank,
+          stars: candidate.stars,
+          language: candidate.language,
+          matchedKeywords,
+          hitExcludeKeywords,
+          score: finalScore,
+          reason
+        }
+      }
+    })
+    .sort((a, b) => b.scoreInfo.score - a.scoreInfo.score || a.rank - b.rank)
+}
+
+export async function previewGithubHotCandidates(input?: {
+  overrideConfig?: GithubHotDailyConfig
+}): Promise<GithubHotCandidatesPreviewResult> {
+  const { dateStamp, dateIso } = getShanghaiDateParts()
+  const config = input?.overrideConfig || (await loadGithubHotDailyConfig()).config
+  const candidates = await fetchGithubTrendingCandidates(config.candidateWindow)
+  const { selectedPool, usedTopicFallback, keywords, excludeKeywords } = applyTopicFilter(candidates, config)
+  const scored = buildCandidateScores(selectedPool, config, keywords, excludeKeywords, usedTopicFallback)
+
+  return {
+    dateStamp,
+    dateIso,
+    usedTopicFallback,
+    keywords,
+    excludeKeywords,
+    candidates: scored
   }
 }
 
@@ -124,9 +250,11 @@ export async function runGithubHotDailyAutomation(input: {
     }
   }
 
-  let candidates: GithubHotRepoCandidate[]
+  let preview: GithubHotCandidatesPreviewResult
   try {
-    candidates = await fetchGithubTrendingCandidates(30)
+    preview = await previewGithubHotCandidates({
+      overrideConfig: config
+    })
   } catch (error) {
     return {
       status: 'SKIPPED_FETCH_FAILED',
@@ -137,20 +265,20 @@ export async function runGithubHotDailyAutomation(input: {
     }
   }
 
-  if (candidates.length === 0) {
+  if (preview.candidates.length === 0) {
     return {
       status: 'SKIPPED_NO_CANDIDATE',
       dateStamp,
       dateIso,
-      usedTopicFallback: false,
+      usedTopicFallback: preview.usedTopicFallback,
       reason: 'no trending candidates'
     }
   }
 
-  const { selectedPool, usedTopicFallback } = applyTopicFilter(candidates, config)
+  const usedTopicFallback = preview.usedTopicFallback
   const usedHashes = extractRepoHashes(slugSet)
 
-  for (const candidate of selectedPool) {
+  for (const candidate of preview.candidates) {
     const { slug, repoHash } = buildAutoSlug({
       dateStamp,
       fullName: candidate.fullName,
@@ -165,7 +293,7 @@ export async function runGithubHotDailyAutomation(input: {
     const generated = await runAiGithubHotPostGenerate({
       locale: 'zh',
       dateIso,
-      topicKeywords: config.topicKeywords,
+      topicKeywords: preview.keywords,
       candidate
     })
 
@@ -199,6 +327,7 @@ export async function runGithubHotDailyAutomation(input: {
       dateStamp,
       dateIso,
       usedTopicFallback,
+      selectedScore: candidate.scoreInfo,
       selectedRepo: candidate,
       slug,
       changedPaths: published.changedPaths,
@@ -219,4 +348,3 @@ export async function runGithubHotDailyAutomation(input: {
     reason: 'all candidates are already used'
   }
 }
-

@@ -2,14 +2,21 @@ import type { AdminAiResult, PublishResult } from '@/types/admin'
 
 export type GithubHotDailySource = 'github_trending_daily'
 
+export type InterestPreset = 'mixed' | 'ai_fun' | 'dev_tools' | 'creative_coding' | 'hardcore_engineering'
+
 export type GithubHotDailyConfig = {
   enabled: boolean
+  interestPreset: InterestPreset
   topicKeywords: string[]
+  excludeKeywords: string[]
+  minStars: number
+  candidateWindow: number
+  diversifyByLanguage: boolean
   source: GithubHotDailySource
   timezone: 'Asia/Shanghai'
   scheduleLocalHour: 8
   updatedAt: string
-  updatedBy: string
+  updatedBy: 'admin' | 'system'
 }
 
 export type GithubHotRepoCandidate = {
@@ -26,6 +33,17 @@ export type GithubHotRepoCandidate = {
   updatedAt: string
 }
 
+export type GithubHotCandidateScore = {
+  fullName: string
+  rank: number
+  stars: number
+  language: string
+  matchedKeywords: string[]
+  hitExcludeKeywords: string[]
+  score: number
+  reason: string[]
+}
+
 export type GithubHotRunStatus =
   | 'PUBLISHED'
   | 'SKIPPED_DISABLED'
@@ -38,12 +56,22 @@ export type GithubHotDailyRunResult = {
   dateStamp: string
   dateIso: string
   usedTopicFallback: boolean
+  selectedScore?: GithubHotCandidateScore
   selectedRepo?: GithubHotRepoCandidate
   slug?: string
   reason?: string
   changedPaths?: string[]
   publish?: PublishResult
   ai?: AdminAiResult
+}
+
+export type GithubHotCandidatesPreviewResult = {
+  dateStamp: string
+  dateIso: string
+  usedTopicFallback: boolean
+  keywords: string[]
+  excludeKeywords: string[]
+  candidates: Array<GithubHotRepoCandidate & { scoreInfo: GithubHotCandidateScore }>
 }
 
 export type GithubHotGeneratedPost = {
@@ -53,4 +81,3 @@ export type GithubHotGeneratedPost = {
   category: string
   markdown: string
 }
-

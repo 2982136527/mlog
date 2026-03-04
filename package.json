@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "content:pull": "node scripts/content-pull.mjs",
+    "build": "pnpm content:pull && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit"
