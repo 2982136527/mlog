@@ -4,6 +4,7 @@ import { getAuthSession } from '@/lib/auth'
 import { isAdminLogin } from '@/lib/admin/permissions'
 import { listAdminPosts } from '@/lib/admin/posts-service'
 import { AdminDeleteButton } from '@/components/admin/admin-delete-button'
+import { AdminAutomationCard } from '@/components/admin/admin-automation-card'
 import { AdminHttpError } from '@/lib/admin/errors'
 import type { AdminPostSummary } from '@/types/admin'
 
@@ -63,6 +64,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           </Link>
         </div>
       </section>
+
+      <AdminAutomationCard />
 
       <form className='grid gap-3 rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur sm:grid-cols-4'>
         <label className='text-xs text-[var(--color-ink-soft)] sm:col-span-2'>

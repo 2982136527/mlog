@@ -245,7 +245,7 @@ export async function listContentMarkdownPaths(branch?: string): Promise<string[
     .sort((a, b) => a.localeCompare(b))
 }
 
-export function buildBranchName(action: 'create' | 'update' | 'delete' | 'media', slug: string): string {
+export function buildBranchName(action: 'create' | 'update' | 'delete' | 'media' | 'automation', slug: string): string {
   const stamp = Date.now().toString().slice(-8)
   const safeSlug = slug.replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-') || 'post'
   return `admin/${action}/${safeSlug}-${stamp}`
