@@ -57,7 +57,7 @@ function parseTrendingRepoNames(html: string, limit: number): TrendingRepoName[]
 }
 
 function buildGitHubHeaders(): HeadersInit {
-  const token = (process.env.GITHUB_WRITE_TOKEN || '').trim()
+  const token = (process.env.CONTENT_GITHUB_READ_TOKEN || process.env.CONTENT_GITHUB_WRITE_TOKEN || process.env.GITHUB_WRITE_TOKEN || '').trim()
   return {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
@@ -114,4 +114,3 @@ export async function fetchGithubTrendingCandidates(limit = 30): Promise<GithubH
   const details = await Promise.all(baseRepos.map(item => fetchRepoDetails(item.owner, item.repo)))
   return baseRepos.map((item, index) => toCandidate(item, details[index] || null))
 }
-

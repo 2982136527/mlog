@@ -4,7 +4,10 @@
     {
       "path": "/api/cron/github-hot-daily",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/tutorial-sync",
+      "schedule": "10 0 * * *"
     }
   ]
 }
-

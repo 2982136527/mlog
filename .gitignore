@@ -34,6 +34,14 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# private content sync (for public code repository workflow)
+content/posts/**
+content/system/**
+public/images/uploads/**
+!content/posts/mlog-open-source-deploy-guide/
+!content/posts/mlog-open-source-deploy-guide/zh.md
+!content/posts/mlog-open-source-deploy-guide/en.md
+
 # vercel
 .vercel
 
