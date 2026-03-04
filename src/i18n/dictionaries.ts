@@ -38,6 +38,13 @@ export type Dictionary = {
     backToBlog: string
     noTranslation: string
   }
+  footer: {
+    visitors: string
+    pageviews: string
+    avgReadTime: string
+    siteSince: string
+    statsFallbackSiteWide: string
+  }
 }
 
 const dictionaries: Record<Locale, Dictionary> = {
@@ -78,6 +85,13 @@ const dictionaries: Record<Locale, Dictionary> = {
       tags: '标签',
       backToBlog: '返回文章列表',
       noTranslation: '该语言版本暂未提供'
+    },
+    footer: {
+      visitors: '累计访客 UV',
+      pageviews: '累计浏览 PV',
+      avgReadTime: '平均阅读时长',
+      siteSince: '建站于',
+      statsFallbackSiteWide: '当前为全站统计口径（博客页面过滤不可用时自动降级）'
     }
   },
   en: {
@@ -117,6 +131,13 @@ const dictionaries: Record<Locale, Dictionary> = {
       tags: 'Tags',
       backToBlog: 'Back to posts',
       noTranslation: 'Translation unavailable'
+    },
+    footer: {
+      visitors: 'Total Visitors UV',
+      pageviews: 'Total Pageviews PV',
+      avgReadTime: 'Avg Read Time',
+      siteSince: 'Site Since',
+      statsFallbackSiteWide: 'Currently using site-wide scope (auto fallback when blog-page filtering is unavailable).'
     }
   }
 }

@@ -84,6 +84,9 @@ If required fields are missing, build fails with the source file path.
 | `NEXT_PUBLIC_GISCUS_MAPPING` | giscus mapping, default `pathname` |
 | `NEXT_PUBLIC_UMAMI_SCRIPT_URL` | umami script URL |
 | `NEXT_PUBLIC_UMAMI_WEBSITE_ID` | umami website ID |
+| `UMAMI_API_TOKEN` | server-side token for Umami API (footer stats) |
+| `UMAMI_API_BASE_URL` | optional Umami API base URL (for example `https://api.umami.is/v1`); if empty, derived from script URL origin + `/api` |
+| `SITE_START_DATE` | site launch date shown in footer (`YYYY-MM-DD`) |
 | `AUTH_SECRET` | auth session secret |
 | `AUTH_GITHUB_ID` | GitHub OAuth App client id |
 | `AUTH_GITHUB_SECRET` | GitHub OAuth App client secret |
@@ -116,6 +119,16 @@ If required fields are missing, build fails with the source file path.
 | `AI_QWEN_API_KEY` | Qwen API key |
 | `AI_QWEN_BASE_URL` | Qwen base URL (optional override) |
 | `AI_QWEN_MODEL` | Qwen model name |
+
+### Footer Stats
+
+- Footer shows:
+  - total UV
+  - total PV
+  - average read duration (`totaltime / visits`)
+  - site start date (`SITE_START_DATE`)
+- Stats scope prefers blog routes (`/zh/blog/*`, `/en/blog/*`) by aggregating Umami path metrics.
+- If blog-route aggregation is unavailable, it automatically falls back to site-wide stats and shows a small scope hint in footer.
 
 ## Admin Backend
 
