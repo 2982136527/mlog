@@ -10,6 +10,12 @@ type GitHubRefResponse = {
   }
 }
 
+type GitHubBranchResponse = {
+  commit: {
+    sha: string
+  }
+}
+
 type GitHubCommitResponse = {
   tree: {
     sha: string
@@ -106,8 +112,18 @@ export function hashBuffer(buffer: Buffer): string {
 }
 
 export async function getBranchHeadSha(branch: string): Promise<string> {
-  const { data } = await githubRequest<GitHubRefResponse>(`/git/ref/heads/${encodeSegments(branch)}`)
-  return data.object.sha
+  try {
+    const { data } = await githubRequest<GitHubRefResponse>(`/git/ref/heads/${encodeSegments(branch)}`)
+    return data.object.sha
+  } catch (error) {
+    if (!(error instanceof AdminHttpError) || error.status !== 404) {
+      throw error
+    }
+
+    // Fallback for repositories that do not resolve the ref endpoint as expected.
+    const { data } = await githubRequest<GitHubBranchResponse>(`/branches/${encodeSegments(branch)}`)
+    return data.commit.sha
+  }
 }
 
 export async function createBranch(branch: string): Promise<void> {
