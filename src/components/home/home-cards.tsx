@@ -121,7 +121,7 @@ export function HomeCards({ locale, latestPost, categories }: HomeCardsProps) {
               {dict.common.rss}
             </Link>
             <a
-              href='https://github.com/'
+              href='https://github.com/qiuhu'
               target='_blank'
               rel='noreferrer'
               className='rounded-full border border-white/70 bg-white/70 px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>

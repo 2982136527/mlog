@@ -7,6 +7,7 @@ import type {
   FrontmatterEnrichPayload,
   TranslatedLocalePayload
 } from '@/types/admin'
+import type { GithubHotGeneratedPost, GithubHotRepoCandidate } from '@/types/automation'
 import { getAiRuntimeConfig, type AiRuntimeConfig } from '@/lib/ai/config'
 import { runDeepseekProvider } from '@/lib/ai/provider-deepseek'
 import { runGeminiProvider } from '@/lib/ai/provider-gemini'
@@ -23,6 +24,14 @@ const translateSchema = z.object({
   title: z.string().trim().min(1),
   summary: z.string().trim().min(1),
   tags: z.array(z.string().trim().min(1)).min(1),
+  category: z.string().trim().min(1),
+  markdown: z.string().trim().min(1)
+})
+
+const githubHotPostSchema = z.object({
+  title: z.string().trim().min(1),
+  summary: z.string().trim().min(1),
+  tags: z.array(z.string().trim().min(1)).min(3).max(8),
   category: z.string().trim().min(1),
   markdown: z.string().trim().min(1)
 })
@@ -297,6 +306,50 @@ function buildTranslatePrompt(input: {
   }
 }
 
+function buildGithubHotPostPrompt(input: {
+  locale: AdminLocale
+  dateIso: string
+  topicKeywords: string[]
+  candidate: GithubHotRepoCandidate
+}): { systemPrompt: string; userPrompt: string } {
+  return {
+    systemPrompt:
+      'You are a senior Chinese tech editor. Return strict JSON only. Never wrap output in markdown fences. Output language must be Simplified Chinese.',
+    userPrompt: [
+      `Task: write a daily hot GitHub project introduction article in locale=${input.locale}.`,
+      'Output JSON schema:',
+      '{"title":"string","summary":"string","tags":["string"],"category":"string","markdown":"string"}',
+      'Hard requirements:',
+      '- summary: about 70-140 Chinese characters.',
+      '- tags: 3-6 concise searchable tags.',
+      '- category: one concise Chinese category phrase.',
+      '- markdown must include at least 3 sections with H2 headings.',
+      '- Preserve facts and avoid fabricating benchmark numbers.',
+      '- Include repository URL explicitly in markdown.',
+      '',
+      `Publish date: ${input.dateIso}`,
+      `Topic keywords: ${input.topicKeywords.join(', ') || '<none>'}`,
+      '',
+      'Candidate repository:',
+      `- full_name: ${input.candidate.fullName}`,
+      `- url: ${input.candidate.url}`,
+      `- description: ${input.candidate.description || '<empty>'}`,
+      `- language: ${input.candidate.language || '<empty>'}`,
+      `- topics: ${input.candidate.topics.join(', ') || '<empty>'}`,
+      `- stars: ${input.candidate.stars}`,
+      `- forks: ${input.candidate.forks}`,
+      `- updated_at: ${input.candidate.updatedAt || '<empty>'}`,
+      '',
+      'Writing outline requirements:',
+      '- 开头说明为什么这个仓库最近爆火（结合定位、趋势、社区关注点）',
+      '- 中间给出核心能力与适用人群',
+      '- 最后给出快速上手建议与关注风险',
+      '',
+      'Output JSON only.'
+    ].join('\n')
+  }
+}
+
 export async function runAiFrontmatterEnrich(input: {
   locale: AdminLocale
   title: string
@@ -372,3 +425,35 @@ export async function runAiTranslate(input: {
   }
 }
 
+export async function runAiGithubHotPostGenerate(input: {
+  locale: AdminLocale
+  dateIso: string
+  topicKeywords: string[]
+  candidate: GithubHotRepoCandidate
+}): Promise<{ payload: GithubHotGeneratedPost; steps: AiExecutionStep[] }> {
+  const prompts = buildGithubHotPostPrompt({
+    locale: input.locale,
+    dateIso: input.dateIso,
+    topicKeywords: input.topicKeywords,
+    candidate: input.candidate
+  })
+
+  const result = await runAiTaskWithFallback({
+    task: 'github_hot_post_generate',
+    locale: input.locale,
+    schema: githubHotPostSchema,
+    systemPrompt: prompts.systemPrompt,
+    userPrompt: prompts.userPrompt
+  })
+
+  return {
+    payload: {
+      title: result.data.title.trim(),
+      summary: result.data.summary.trim(),
+      tags: normalizeTags(result.data.tags).slice(0, 6),
+      category: result.data.category.trim(),
+      markdown: result.data.markdown.trim()
+    },
+    steps: result.steps
+  }
+}

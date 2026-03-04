@@ -4,7 +4,7 @@ export type AdminLocale = 'zh' | 'en'
 
 export type AdminSubmitMode = 'publish' | 'draft'
 
-export type AiTask = 'translate' | 'frontmatter_enrich'
+export type AiTask = 'translate' | 'frontmatter_enrich' | 'github_hot_post_generate'
 
 export type AiProvider = 'gemini' | 'openai' | 'deepseek' | 'qwen'
 
