@@ -35,8 +35,10 @@ export function AdminTutorialSyncCard() {
 
       if (data.result.status === 'SKIPPED_NO_SOURCE_CHANGE') {
         setMessage(`无需镜像更新（requestId: ${data.requestId}）`)
+      } else if (data.result.deploy?.success) {
+        setMessage(`教程已同步并触发部署（requestId: ${data.requestId}）`)
       } else {
-        setMessage(`教程已同步并刷新日期（requestId: ${data.requestId}）`)
+        setMessage(`教程已同步并刷新日期（requestId: ${data.requestId}，部署触发未成功）`)
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '教程同步失败')
@@ -71,6 +73,14 @@ export function AdminTutorialSyncCard() {
           <p>sourceHash：{result.data.sourceHash}</p>
           <p>应用日期：{result.data.updatedDateApplied || '-'}</p>
           <p>日期刷新：{result.data.updatedDateChanged ? '是' : '否'}</p>
+          <p>
+            部署触发：
+            {result.data.deploy
+              ? result.data.deploy.success
+                ? ' 已触发'
+                : ` 未成功（${result.data.deploy.message || '未知原因'}）`
+              : ' -'}
+          </p>
           <p>
             公开 PR：{result.data.publicMirrorPublish?.prUrl ? (
               <a href={result.data.publicMirrorPublish.prUrl} target='_blank' rel='noreferrer' className='text-[var(--color-brand)] underline'>

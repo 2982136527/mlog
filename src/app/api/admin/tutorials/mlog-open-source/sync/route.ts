@@ -21,7 +21,10 @@ export async function POST() {
       updatedDateApplied: result.updatedDateApplied,
       updatedDateChanged: result.updatedDateChanged,
       docsPaths: result.docsPaths,
-      prUrl: result.publicMirrorPublish?.prUrl
+      prUrl: result.publicMirrorPublish?.prUrl,
+      deployTriggered: result.deploy?.triggered,
+      deploySuccess: result.deploy?.success,
+      deployStatus: result.deploy?.status
     })
 
     return ok(requestId, {

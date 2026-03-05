@@ -1,4 +1,4 @@
-import type { AiExecutionStep, PublishResult } from '@/types/admin'
+import type { AiExecutionStep, DeployTriggerResult, PublishResult } from '@/types/admin'
 
 export const TUTORIAL_SLUG = 'mlog-open-source-deploy-guide'
 
@@ -23,5 +23,6 @@ export type TutorialSyncResult = {
   contentPublish?: PublishResult
   publicMirrorPublish?: PublishResult
   statePublish?: PublishResult
+  deploy?: DeployTriggerResult
   aiSteps?: AiExecutionStep[]
 }

@@ -17,6 +17,7 @@ import {
 } from '@/lib/admin/github-client'
 import { parseMarkdownFile, serializeMarkdownFile } from '@/lib/admin/post-serializer'
 import { publishPostChanges } from '@/lib/admin/publish-service'
+import { triggerVercelDeployHook } from '@/lib/deploy/vercel-hook'
 import { applyPrivacyGuard } from '@/lib/tutorial/privacy-guard'
 
 const TUTORIAL_SYNC_STATE_PATH = 'content/system/tutorial-sync.json'
@@ -108,6 +109,10 @@ async function createAndMaybeMergePR(input: {
     merged,
     mergeMessage
   }
+}
+
+function isMergedOrMissing(result: PublishResult | undefined): boolean {
+  return !result || result.merged
 }
 
 async function ensureTutorialLocales(input: {
@@ -437,6 +442,8 @@ export async function runTutorialSync(input: {
   })
 
   const state = await loadTutorialSyncState(contentRead)
+  const sourcePublish = refreshed.contentPublish || ensured.contentPublish
+
   if (!input.force && state?.sourceHash === sourceHash) {
     return {
       status: 'SKIPPED_NO_SOURCE_CHANGE',
@@ -446,7 +453,7 @@ export async function runTutorialSync(input: {
       docsPaths: [MIRROR_ZH_PATH, MIRROR_EN_PATH],
       updatedDateApplied: refreshed.updatedDateApplied,
       updatedDateChanged: refreshed.updatedDateChanged,
-      contentPublish: refreshed.contentPublish || ensured.contentPublish,
+      contentPublish: sourcePublish,
       aiSteps: ensured.aiSteps
     }
   }
@@ -483,6 +490,19 @@ export async function runTutorialSync(input: {
     contentWrite
   })
 
+  const deploy =
+    isMergedOrMissing(ensured.contentPublish) && isMergedOrMissing(refreshed.contentPublish)
+      ? await triggerVercelDeployHook({
+          requestId: input.requestId,
+          reason: 'tutorial-sync',
+          changedPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH]
+        })
+      : {
+          triggered: false,
+          success: false,
+          message: 'Tutorial source PR is not merged; deploy skipped.'
+        }
+
   return {
     status: 'SYNCED',
     slug: TUTORIAL_SLUG,
@@ -491,9 +511,10 @@ export async function runTutorialSync(input: {
     docsPaths: mirrorResult.docsPaths,
     updatedDateApplied: refreshed.updatedDateApplied,
     updatedDateChanged: refreshed.updatedDateChanged,
-    contentPublish: refreshed.contentPublish || ensured.contentPublish,
+    contentPublish: sourcePublish,
     publicMirrorPublish: mirrorResult.publish,
     statePublish,
+    deploy,
     aiSteps: ensured.aiSteps
   }
 }
