@@ -21,11 +21,6 @@
   --chip-bg: rgba(255, 255, 255, 0.7);
   --chip-border: var(--color-border-strong);
   --chip-text: var(--color-ink-soft);
-  --chip-shadow: 0 10px 26px -18px rgba(112, 55, 30, 0.42);
-
-  --card-gloss: linear-gradient(140deg, rgb(255 255 255 / 0.34) 0%, rgb(255 255 255 / 0) 48%, rgb(255 255 255 / 0.18) 100%);
-  --card-edge: rgb(255 255 255 / 25%);
-  --card-depth-overlay: inset 0 -24px 34px -34px rgb(183 92 44 / 20%);
 
   --bg-gradient-main: radial-gradient(circle_at_10%_10%, #f7c36b 0%, #f7c36b00 45%),
     radial-gradient(circle_at_90%_15%, #f08f58 0%, #f08f5800 45%),
@@ -35,8 +30,6 @@
   --bg-blob-b: rgb(249 181 143 / 55%);
   --bg-blob-c: rgb(255 240 210 / 85%);
   --bg-blob-d: rgb(255 255 255 / 0%);
-  --bg-ribbon-a: linear-gradient(95deg, #ffffff00 0%, #ffffff3f 45%, #ffffff00 100%);
-  --bg-ribbon-b: linear-gradient(95deg, #ffffff00 0%, #ffd9bb66 45%, #ffffff00 100%);
   --bg-glint-overlay: linear-gradient(130deg, #ffffff00 0%, #ffffff40 22%, #ffffff00 38%, #ffffff00 100%);
   --bg-glint-opacity: 0.2;
 
@@ -75,11 +68,6 @@ html[data-theme='ornate'] [data-theme-scope='public'] {
   --chip-bg: linear-gradient(130deg, rgb(255 252 247 / 0.85) 0%, rgb(255 240 219 / 0.78) 100%);
   --chip-border: rgb(245 202 172 / 95%);
   --chip-text: #644235;
-  --chip-shadow: 0 14px 32px -20px rgba(139, 64, 30, 0.58), inset 0 1px 0 0 rgba(255, 255, 255, 0.62);
-
-  --card-gloss: linear-gradient(120deg, #ffffff00 0%, #ffffff73 16%, #ffffff00 30%, #ffffff00 58%, #ffe8cd63 74%, #ffffff00 100%);
-  --card-edge: rgb(255 249 239 / 58%);
-  --card-depth-overlay: inset 0 18px 22px -16px rgb(255 255 255 / 40%), inset 0 -28px 36px -30px rgb(189 83 38 / 28%);
 
   --bg-gradient-main: radial-gradient(circle_at_8%_8%, #f7bc64 0%, #f7bc6400 44%),
     radial-gradient(circle_at_82%_12%, #ee8450 0%, #ee845000 42%),
@@ -89,11 +77,9 @@ html[data-theme='ornate'] [data-theme-scope='public'] {
   --bg-blob-a: rgb(255 227 183 / 88%);
   --bg-blob-b: rgb(241 155 98 / 60%);
   --bg-blob-c: rgb(255 243 220 / 88%);
-  --bg-blob-d: rgb(255 189 134 / 56%);
-  --bg-ribbon-a: linear-gradient(95deg, #ffffff00 0%, #ffffff99 46%, #ffffff00 100%);
-  --bg-ribbon-b: linear-gradient(95deg, #ffffff00 0%, #ffcfa87f 44%, #ffffff00 100%);
-  --bg-glint-overlay: linear-gradient(120deg, #ffffff00 0%, #ffffff80 14%, #ffffff00 30%, #ffffff00 58%, #ffd6b485 74%, #ffffff00 100%);
-  --bg-glint-opacity: 0.62;
+  --bg-blob-d: rgb(255 211 176 / 46%);
+  --bg-glint-overlay: linear-gradient(120deg, #ffffff00 0%, #ffffff66 16%, #ffffff00 30%, #ffffff00 64%, #ffe8cc4d 78%, #ffffff00 100%);
+  --bg-glint-opacity: 0.45;
 
   --prose-quote-bg: #ffefdf;
   --prose-inline-code-bg: #fff0e0;
@@ -102,13 +88,13 @@ html[data-theme='ornate'] [data-theme-scope='public'] {
   --prose-image-border: #ebc5a8;
   --prose-table-border: #edc8ad;
 
-  --motion-drift-y: 34px;
-  --motion-drift-reverse-y: -38px;
-  --motion-pulse-min: 0.58;
+  --motion-drift-y: 28px;
+  --motion-drift-reverse-y: -32px;
+  --motion-pulse-min: 0.64;
   --motion-pulse-max: 1;
-  --motion-drift-duration: 8.4s;
-  --motion-drift-reverse-duration: 10.2s;
-  --motion-pulse-duration: 6.4s;
+  --motion-drift-duration: 9.8s;
+  --motion-drift-reverse-duration: 11.8s;
+  --motion-pulse-duration: 7.6s;
 }
 
 * {

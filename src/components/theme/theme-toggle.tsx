@@ -73,12 +73,9 @@ export function ThemeToggle({ locale }: ThemeToggleProps) {
       aria-label={`${dict.common.theme}: ${themeLabel}`}
       aria-pressed={theme === 'ornate'}
       title={`${dict.common.theme}: ${themeLabel}`}
-      className='inline-flex items-center gap-2 rounded-full border border-[var(--glass-border-strong)] bg-[var(--glass-bg-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink-soft)] shadow-[0_10px_24px_-18px_rgba(120,45,20,0.52)] transition hover:border-[var(--color-brand)] hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]'>
+      className='inline-flex items-center gap-2 rounded-full border border-[var(--glass-border-strong)] bg-[var(--glass-bg-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink-soft)] shadow-sm transition hover:border-[var(--color-brand)] hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)]'>
       <span className='text-[10px] uppercase tracking-[0.08em]'>{dict.common.theme}</span>
-      <span className='inline-flex items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[11px] text-[var(--color-ink)]'>
-        <span className='text-[10px]'>{theme === 'ornate' ? '*' : 'o'}</span>
-        <span>{themeLabel}</span>
-      </span>
+      <span className='rounded-full bg-white/70 px-2 py-0.5 text-[11px] text-[var(--color-ink)]'>{themeLabel}</span>
     </button>
   )
 }
