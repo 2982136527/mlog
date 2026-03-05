@@ -11,7 +11,12 @@ import { PostToc } from '@/components/blog/post-toc'
 import { PostFallbackNotice } from '@/components/blog/post-fallback-notice'
 import { GiscusComments } from '@/components/blog/giscus-comments'
 import { getRepoCardsConfigFromLocal } from '@/lib/blog/repo-cards-config'
-import { extractHotDailyStaticSnapshot, isHotDailyTags, toPostStaticSnapshotFromRepoCards } from '@/lib/blog/static-snapshot'
+import {
+  extractHotDailyStaticSnapshot,
+  isHotDailyTags,
+  stripConfirmedFactsSection,
+  toPostStaticSnapshotFromRepoCards
+} from '@/lib/blog/static-snapshot'
 
 type BlogDetailProps = {
   params: Promise<{ locale: string; slug: string }>
@@ -74,7 +79,8 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
     return extractHotDailyStaticSnapshot(sourcePost.content, sourcePost.frontmatter.updated || sourcePost.frontmatter.date)
   })()
 
-  const { html, toc } = await renderMarkdown(post.content)
+  const renderInput = showRepoCards ? stripConfirmedFactsSection(post.content).markdown : post.content
+  const { html, toc } = await renderMarkdown(renderInput)
   const neighbors = getPostNeighbors(post.locale, post.slug)
 
   return (

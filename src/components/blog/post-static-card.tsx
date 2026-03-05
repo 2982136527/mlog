@@ -50,12 +50,22 @@ export function PostStaticCard({ locale, snapshot }: PostStaticCardProps) {
       </div>
 
       {snapshot?.repoUrl ? (
-        <p className='mt-2 break-all text-sm text-[var(--color-ink-soft)]'>
-          {dict.blog.staticCardRepo}:{' '}
-          <a href={snapshot.repoUrl} target='_blank' rel='noreferrer' className='transition hover:text-[var(--color-brand)]'>
-            {snapshot.repoFullName || snapshot.repoUrl}
+        <div className='mt-2'>
+          <p className='break-all text-sm text-[var(--color-ink-soft)]'>
+            {dict.blog.staticCardRepo}:{' '}
+            <a href={snapshot.repoUrl} target='_blank' rel='noreferrer' className='transition hover:text-[var(--color-brand)]'>
+              {snapshot.repoFullName || snapshot.repoUrl}
+            </a>
+          </p>
+          <a
+            href={snapshot.repoUrl}
+            target='_blank'
+            rel='noreferrer'
+            className='mt-3 inline-flex items-center rounded-full border border-white/70 bg-white/70 px-3 py-1.5 text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]'
+          >
+            {dict.blog.staticCardVisitRepo}
           </a>
-        </p>
+        </div>
       ) : (
         <p className='mt-2 text-sm text-[var(--color-ink-soft)]'>{dict.blog.staticCardUnavailable}</p>
       )}

@@ -233,8 +233,8 @@ If required fields are missing, build fails with the source file path.
 
 - Scope: only for auto hot-daily posts tagged with both `ai-auto` and `github-hot`.
 - Behavior on post detail:
-  - keep the static markdown fact card as publish-time snapshot
-  - render an additional runtime "Live Snapshot" card above the article body
+  - show two cards below summary: `Published Snapshot` + `Live Snapshot`
+  - keep markdown source unchanged, but hide the markdown section `已确认事实（数据卡）` in frontend when cards are shown (to avoid duplicate content)
 - Data source:
   - GitHub repo API (`owner/repo` extracted from post markdown)
   - cached for 10 minutes (`600s`) on server side
@@ -250,6 +250,7 @@ If required fields are missing, build fails with the source file path.
   - page shows two cards below summary:
     - `Published Snapshot` (static baseline)
     - `Live Snapshot` (10-minute cache)
+  - markdown source is not rewritten; if `已确认事实（数据卡）` exists in body, frontend hides that section while cards are enabled
 - Static baseline lock rule:
   - first publish captures baseline from GitHub API
   - re-publish with same repo keeps baseline unchanged

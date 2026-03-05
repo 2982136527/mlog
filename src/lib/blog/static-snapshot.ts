@@ -40,6 +40,32 @@ function extractH2Section(markdown: string, titleCandidates: string[]): string {
   return lines.slice(startIndex + 1, endIndex).join('\n').trim()
 }
 
+function findH2SectionRange(markdown: string, titleCandidates: string[]): { startLine: number; endLine: number } | null {
+  const lines = markdown.split('\n')
+  const normalizedCandidates = new Set(titleCandidates.map(normalizeHeading))
+  const startLine = lines.findIndex(line => {
+    const trimmed = line.trim()
+    if (!trimmed.startsWith('## ')) {
+      return false
+    }
+    return normalizedCandidates.has(normalizeHeading(trimmed.slice(3)))
+  })
+
+  if (startLine < 0) {
+    return null
+  }
+
+  let endLine = lines.length
+  for (let index = startLine + 1; index < lines.length; index += 1) {
+    if (lines[index].trim().startsWith('## ')) {
+      endLine = index
+      break
+    }
+  }
+
+  return { startLine, endLine }
+}
+
 function parseMetric(input: string, keys: string[]): number | null {
   for (const key of keys) {
     const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -137,5 +163,23 @@ export function extractHotDailyStaticSnapshot(markdown: string, fallbackDate?: s
     license: null,
     pushedAt: null,
     updatedAt: null
+  }
+}
+
+export function stripConfirmedFactsSection(markdown: string): { markdown: string; removed: boolean } {
+  const range = findH2SectionRange(markdown, HOT_DAILY_SECTION_TITLES)
+  if (!range) {
+    return {
+      markdown,
+      removed: false
+    }
+  }
+
+  const lines = markdown.split('\n')
+  const stripped = lines.slice(0, range.startLine).concat(lines.slice(range.endLine)).join('\n').replace(/\n{3,}/g, '\n\n').trim()
+
+  return {
+    markdown: stripped ? `${stripped}\n` : '',
+    removed: true
   }
 }

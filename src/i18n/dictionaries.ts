@@ -56,6 +56,7 @@ export type Dictionary = {
     staticCardOpenIssues: string
     staticCardUnavailable: string
     staticCardRepo: string
+    staticCardVisitRepo: string
   }
   common: {
     language: string
@@ -142,7 +143,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       staticCardForks: 'Forks',
       staticCardOpenIssues: 'Open Issues',
       staticCardUnavailable: '当前没有可用的发布快照数据',
-      staticCardRepo: '仓库'
+      staticCardRepo: '仓库',
+      staticCardVisitRepo: '访问仓库'
     },
     common: {
       language: '语言',
@@ -227,7 +229,8 @@ const dictionaries: Record<Locale, Dictionary> = {
       staticCardForks: 'Forks',
       staticCardOpenIssues: 'Open Issues',
       staticCardUnavailable: 'No published snapshot is available yet.',
-      staticCardRepo: 'Repository'
+      staticCardRepo: 'Repository',
+      staticCardVisitRepo: 'Open Repo'
     },
     common: {
       language: 'Language',
