@@ -7,7 +7,7 @@ import type {
   FrontmatterEnrichPayload,
   TranslatedLocalePayload
 } from '@/types/admin'
-import type { GithubHotGeneratedPost, GithubHotRepoCandidate } from '@/types/automation'
+import type { GithubHotGeneratedPost, GithubRepoEvidence } from '@/types/automation'
 import { getAiRuntimeConfig, type AiRuntimeConfig } from '@/lib/ai/config'
 import { runDeepseekProvider } from '@/lib/ai/provider-deepseek'
 import { runGeminiProvider } from '@/lib/ai/provider-gemini'
@@ -310,41 +310,72 @@ function buildGithubHotPostPrompt(input: {
   locale: AdminLocale
   dateIso: string
   topicKeywords: string[]
-  candidate: GithubHotRepoCandidate
+  evidence: GithubRepoEvidence
+  qualityFeedback?: string[]
 }): { systemPrompt: string; userPrompt: string } {
+  const evidenceCard = {
+    fullName: input.evidence.fullName,
+    url: input.evidence.url,
+    description: input.evidence.description,
+    language: input.evidence.language,
+    stars: input.evidence.stars,
+    forks: input.evidence.forks,
+    openIssues: input.evidence.openIssues,
+    license: input.evidence.license,
+    createdAt: input.evidence.createdAt,
+    pushedAt: input.evidence.pushedAt,
+    defaultBranch: input.evidence.defaultBranch,
+    latestReleaseTag: input.evidence.latestReleaseTag,
+    latestReleaseAt: input.evidence.latestReleaseAt,
+    readmeHighlights: input.evidence.readmeHighlights.slice(0, 10),
+    sourceUrls: input.evidence.sourceUrls,
+    fetchedAt: input.evidence.fetchedAt
+  }
+
   return {
     systemPrompt:
-      'You are a senior Chinese tech editor. Return strict JSON only. Never wrap output in markdown fences. Output language must be Simplified Chinese.',
+      'You are a senior Chinese technical analyst and editor. Return strict JSON only. Never wrap output in markdown fences. Output language must be Simplified Chinese.',
     userPrompt: [
       `Task: write a daily hot GitHub project introduction article in locale=${input.locale}.`,
       'Output JSON schema:',
       '{"title":"string","summary":"string","tags":["string"],"category":"string","markdown":"string"}',
       'Hard requirements:',
-      '- summary: about 70-140 Chinese characters.',
+      '- summary: about 90-160 Chinese characters.',
       '- tags: 3-6 concise searchable tags.',
       '- category: one concise Chinese category phrase.',
-      '- markdown must include at least 3 sections with H2 headings.',
-      '- Preserve facts and avoid fabricating benchmark numbers.',
+      '- markdown must be 1200-1800 Chinese characters and include all required H2 sections.',
+      '- Facts and inference must be separated. Inference is allowed only in section `观点与推断`.',
+      '- Do not fabricate any hard numbers not present in evidence JSON.',
+      '- In `已确认事实（数据卡）`, use exact integers for Stars/Forks/Open Issues from evidence.',
       '- Include repository URL explicitly in markdown.',
+      '- Add `证据来源` section with source URLs and fetched time.',
+      '',
+      'Required H2 sections (exact text):',
+      '- 项目概览',
+      '- 已确认事实（数据卡）',
+      '- 核心能力与适用边界',
+      '- 观点与推断',
+      '- 30分钟上手路径',
+      '- 风险与限制',
+      '- 证据来源',
       '',
       `Publish date: ${input.dateIso}`,
       `Topic keywords: ${input.topicKeywords.join(', ') || '<none>'}`,
       '',
-      'Candidate repository:',
-      `- full_name: ${input.candidate.fullName}`,
-      `- url: ${input.candidate.url}`,
-      `- description: ${input.candidate.description || '<empty>'}`,
-      `- language: ${input.candidate.language || '<empty>'}`,
-      `- topics: ${input.candidate.topics.join(', ') || '<empty>'}`,
-      `- stars: ${input.candidate.stars}`,
-      `- forks: ${input.candidate.forks}`,
-      `- updated_at: ${input.candidate.updatedAt || '<empty>'}`,
+      'Evidence JSON (single source of truth for hard facts):',
+      JSON.stringify(evidenceCard, null, 2),
       '',
-      'Writing outline requirements:',
-      '- 开头说明为什么这个仓库最近爆火（结合定位、趋势、社区关注点）',
-      '- 中间给出核心能力与适用人群',
-      '- 最后给出快速上手建议与关注风险',
+      'Writing constraints:',
+      '- `项目概览` should explain why it is trending now with context.',
+      '- `核心能力与适用边界` should include who should and should not use it.',
+      '- `30分钟上手路径` must include concrete actions for first use.',
+      '- `风险与限制` must include data privacy/compliance/cost/maintenance points.',
+      '- `证据来源` must contain bullet list URLs and fetched time in YYYY-MM-DD format.',
+      '- Keep tone objective and evidence-first. Avoid marketing language.',
       '',
+      ...(input.qualityFeedback && input.qualityFeedback.length > 0
+        ? ['Previous draft failed checks. You MUST fix all items below:', ...input.qualityFeedback.map(item => `- ${item}`), '']
+        : []),
       'Output JSON only.'
     ].join('\n')
   }
@@ -429,13 +460,15 @@ export async function runAiGithubHotPostGenerate(input: {
   locale: AdminLocale
   dateIso: string
   topicKeywords: string[]
-  candidate: GithubHotRepoCandidate
+  evidence: GithubRepoEvidence
+  qualityFeedback?: string[]
 }): Promise<{ payload: GithubHotGeneratedPost; steps: AiExecutionStep[] }> {
   const prompts = buildGithubHotPostPrompt({
     locale: input.locale,
     dateIso: input.dateIso,
     topicKeywords: input.topicKeywords,
-    candidate: input.candidate
+    evidence: input.evidence,
+    qualityFeedback: input.qualityFeedback
   })
 
   const result = await runAiTaskWithFallback({

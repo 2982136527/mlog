@@ -62,7 +62,11 @@ function summarizeRunResult(result: GithubHotDailyRunResult): string {
         ? `部署触发失败：${result.publish.deploy.message || 'unknown'}`
         : '部署：未触发（缺少 VERCEL_DEPLOY_HOOK_URL 或未合并）'
     const fixedTagText = result.fixedTags && result.fixedTags.length > 0 ? `固定标签：${result.fixedTags.join(', ')}` : '固定标签：-'
-    return `已发布。${repoText}；${slugText}；${prText}；${fixedTagText}；${deployText}；策略：${formatSelectionMode(result.selectionMode)}`
+    const qualityText = result.quality
+      ? `质量门禁：${result.quality.passed ? '通过' : '未通过'}（重试 ${result.quality.retryCount} 次）`
+      : '质量门禁：-'
+    const evidenceText = result.evidence ? `证据：${result.evidence.sourceCount} 个来源，README 提炼 ${result.evidence.readmeHighlightsCount} 条` : '证据：-'
+    return `已发布。${repoText}；${slugText}；${prText}；${fixedTagText}；${qualityText}；${evidenceText}；${deployText}；策略：${formatSelectionMode(result.selectionMode)}`
   }
 
   const reason = result.reason || '-'
@@ -368,6 +372,11 @@ export function AdminAutomationCard() {
           <p>叠加关键词：{lastRun.result.overlayKeywords.length > 0 ? lastRun.result.overlayKeywords.join(', ') : '（无）'}</p>
           <p>生效关键词：{lastRun.result.effectiveKeywords.length > 0 ? lastRun.result.effectiveKeywords.join(', ') : '（无）'}</p>
           <p>固定标签：{lastRun.result.fixedTags && lastRun.result.fixedTags.length > 0 ? lastRun.result.fixedTags.join(', ') : '（无）'}</p>
+          <p>证据完整度：{lastRun.result.evidence ? `${lastRun.result.evidence.sourceCount} 个来源 / README 提炼 ${lastRun.result.evidence.readmeHighlightsCount} 条` : '-'}</p>
+          <p>
+            质量门禁：{lastRun.result.quality ? `${lastRun.result.quality.passed ? '通过' : '未通过'}（重试 ${lastRun.result.quality.retryCount} 次）` : '-'}
+          </p>
+          <p>质量失败项：{lastRun.result.quality?.failedChecks && lastRun.result.quality.failedChecks.length > 0 ? lastRun.result.quality.failedChecks.join(' | ') : '（无）'}</p>
           <p>候选仓库：{lastRun.result.selectedRepo?.fullName || '-'}</p>
           <p>生成 slug：{lastRun.result.slug || '-'}</p>
           <p>

@@ -48,6 +48,25 @@ export type GithubHotRepoCandidate = {
   updatedAt: string
 }
 
+export type GithubRepoEvidence = {
+  fullName: string
+  url: string
+  description: string
+  language: string
+  stars: number
+  forks: number
+  openIssues: number
+  license: string | null
+  createdAt: string | null
+  pushedAt: string | null
+  defaultBranch: string | null
+  latestReleaseTag: string | null
+  latestReleaseAt: string | null
+  readmeHighlights: string[]
+  sourceUrls: string[]
+  fetchedAt: string
+}
+
 export type GithubHotCandidateScore = {
   fullName: string
   rank: number
@@ -84,6 +103,15 @@ export type GithubHotDailyRunResult = {
   publish?: PublishResult
   ai?: AdminAiResult
   fixedTags?: string[]
+  quality?: {
+    passed: boolean
+    retryCount: number
+    failedChecks: string[]
+  }
+  evidence?: {
+    sourceCount: number
+    readmeHighlightsCount: number
+  }
 }
 
 export type GithubHotDailyLastRunState = {

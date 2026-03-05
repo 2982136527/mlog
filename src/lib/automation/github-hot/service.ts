@@ -1,22 +1,29 @@
 import { createHash } from 'node:crypto'
 import type { AdminPostPayload } from '@/types/admin'
+import type { AiExecutionStep } from '@/types/admin'
 import type {
   CandidateSelectionMode,
   GithubHotCandidateScore,
   GithubHotCandidatesPreviewResult,
   GithubHotDailyConfig,
   GithubHotDailyRunResult,
-  GithubHotRepoCandidate
+  GithubHotRepoCandidate,
+  GithubRepoEvidence
 } from '@/types/automation'
+import { AdminHttpError } from '@/lib/admin/errors'
 import { listContentMarkdownPaths } from '@/lib/admin/github-client'
 import { publishPostChanges } from '@/lib/admin/publish-service'
 import { INTEREST_PRESET_KEYWORDS } from '@/lib/automation/github-hot/config'
 import { loadGithubHotDailyConfig } from '@/lib/automation/github-hot/config-store'
+import { collectGithubRepoEvidence } from '@/lib/automation/github-hot/evidence'
+import { validateGithubHotGeneratedPost } from '@/lib/automation/github-hot/quality'
 import { fetchGithubTrendingCandidates } from '@/lib/automation/github-hot/trending'
-import { runAiGithubHotPostGenerate } from '@/lib/ai/runner'
+import { AiRunnerError, runAiGithubHotPostGenerate } from '@/lib/ai/runner'
 
 const AUTO_POST_PREFIX = 'gh-hot-'
 const AUTO_FIXED_TAGS = ['ai-auto', 'github-hot'] as const
+const HOT_POST_MIN_ZH_CHARS = 1200
+const HOT_POST_REWRITE_RETRY = 1
 
 type SelectionContext = {
   selectionMode: CandidateSelectionMode
@@ -24,6 +31,96 @@ type SelectionContext = {
   overlayKeywords: string[]
   effectiveKeywords: string[]
   randomSeedDate: string | null
+}
+
+type GeneratedWithQuality = {
+  payload: {
+    title: string
+    summary: string
+    tags: string[]
+    category: string
+    markdown: string
+  }
+  steps: AiExecutionStep[]
+  quality: {
+    passed: boolean
+    retryCount: number
+    failedChecks: string[]
+  }
+}
+
+function mapAiErrorToAdmin(error: unknown): never {
+  if (error instanceof AiRunnerError) {
+    const statusMap: Record<AiRunnerError['code'], number> = {
+      AI_CONFIG_ERROR: 500,
+      AI_PROVIDER_UNAVAILABLE: 502,
+      AI_OUTPUT_INVALID: 502,
+      AI_GENERATION_FAILED: 502,
+      AI_TIMEOUT: 504
+    }
+    throw new AdminHttpError(statusMap[error.code], error.code, error.message, {
+      steps: error.steps
+    })
+  }
+  throw error
+}
+
+async function generateGithubHotPostWithQuality(input: {
+  dateIso: string
+  topicKeywords: string[]
+  evidence: GithubRepoEvidence
+}): Promise<GeneratedWithQuality> {
+  const failedChecksAll: string[] = []
+  let retryCount = 0
+  let qualityFeedback: string[] | undefined
+  let allSteps: AiExecutionStep[] = []
+
+  while (retryCount <= HOT_POST_REWRITE_RETRY) {
+    let generated: Awaited<ReturnType<typeof runAiGithubHotPostGenerate>>
+    try {
+      generated = await runAiGithubHotPostGenerate({
+        locale: 'zh',
+        dateIso: input.dateIso,
+        topicKeywords: input.topicKeywords,
+        evidence: input.evidence,
+        qualityFeedback
+      })
+    } catch (error) {
+      mapAiErrorToAdmin(error)
+    }
+
+    allSteps = [...allSteps, ...generated.steps]
+
+    const qualityResult = validateGithubHotGeneratedPost({
+      markdown: generated.payload.markdown,
+      evidence: input.evidence,
+      minChineseChars: HOT_POST_MIN_ZH_CHARS
+    })
+
+    if (qualityResult.passed) {
+      return {
+        payload: generated.payload,
+        steps: allSteps,
+        quality: {
+          passed: true,
+          retryCount,
+          failedChecks: failedChecksAll
+        }
+      }
+    }
+
+    failedChecksAll.push(...qualityResult.failedChecks)
+    if (retryCount >= HOT_POST_REWRITE_RETRY) {
+      throw new AdminHttpError(502, 'AI_OUTPUT_INVALID', 'Generated article failed quality checks.', {
+        failedChecks: qualityResult.failedChecks
+      })
+    }
+
+    qualityFeedback = qualityResult.failedChecks
+    retryCount += 1
+  }
+
+  throw new AdminHttpError(502, 'AI_GENERATION_FAILED', 'AI generation failed in quality rewrite loop.')
 }
 
 function getShanghaiDateParts(now = new Date()): { dateStamp: string; dateIso: string } {
@@ -389,11 +486,11 @@ export async function runGithubHotDailyAutomation(input: {
       continue
     }
 
-    const generated = await runAiGithubHotPostGenerate({
-      locale: 'zh',
+    const evidence = await collectGithubRepoEvidence(candidate)
+    const generated = await generateGithubHotPostWithQuality({
       dateIso,
       topicKeywords: preview.effectiveKeywords,
-      candidate
+      evidence
     })
 
     const changes: AdminPostPayload[] = [
@@ -438,6 +535,11 @@ export async function runGithubHotDailyAutomation(input: {
       changedPaths: published.changedPaths,
       publish: published.result,
       fixedTags: [...AUTO_FIXED_TAGS],
+      quality: generated.quality,
+      evidence: {
+        sourceCount: evidence.sourceUrls.length,
+        readmeHighlightsCount: evidence.readmeHighlights.length
+      },
       ai: {
         triggered: true,
         mode: 'publish',

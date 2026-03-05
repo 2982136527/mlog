@@ -29,6 +29,19 @@ const lastRunSchema = z.object({
     effectiveKeywords: z.array(z.string()),
     randomSeedDate: z.string().nullable(),
     fixedTags: z.array(z.string()).optional(),
+    quality: z
+      .object({
+        passed: z.boolean(),
+        retryCount: z.number(),
+        failedChecks: z.array(z.string())
+      })
+      .optional(),
+    evidence: z
+      .object({
+        sourceCount: z.number(),
+        readmeHighlightsCount: z.number()
+      })
+      .optional(),
     reason: z.string().optional(),
     slug: z.string().optional(),
     changedPaths: z.array(z.string()).optional(),
