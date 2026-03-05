@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/cron/tutorial-sync",
-      "schedule": "10 * * * *"
+      "schedule": "10 0 * * *"
     }
   ]
 }
