@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { Locale } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { ThemeToggle } from '@/components/theme/theme-toggle'
 
 type SiteHeaderProps = {
   locale: Locale
@@ -31,6 +32,7 @@ export function SiteHeader({ locale }: SiteHeaderProps) {
             {dict.nav.about}
           </Link>
         </nav>
+        <ThemeToggle locale={locale} />
         <LanguageSwitcher locale={locale} />
       </div>
     </header>

@@ -60,6 +60,9 @@ export type Dictionary = {
   }
   common: {
     language: string
+    theme: string
+    themeClassic: string
+    themeOrnate: string
     rss: string
     about: string
     categories: string
@@ -152,6 +155,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     },
     common: {
       language: '语言',
+      theme: '主题',
+      themeClassic: '经典',
+      themeOrnate: '华丽',
       rss: 'RSS',
       about: '介绍',
       categories: '分类',
@@ -242,6 +248,9 @@ const dictionaries: Record<Locale, Dictionary> = {
     },
     common: {
       language: 'Language',
+      theme: 'Theme',
+      themeClassic: 'Classic',
+      themeOrnate: 'Ornate',
       rss: 'RSS',
       about: 'About',
       categories: 'Categories',

@@ -30,6 +30,14 @@ Open [http://localhost:3000](http://localhost:3000), it redirects to `/zh`.
 
 For production builds, `pnpm build` runs `pnpm content:pull` first to sync private content (if content repo env vars are configured).
 
+## Theme Toggle (Public Site)
+
+- Default theme: `classic` (current warm glassmorphism style)
+- Optional theme: `ornate` (same design language, richer visual layers)
+- Scope: public site routes only (`/[locale]`), admin stays unchanged
+- Toggle location: right side of top navigation, next to language switcher
+- Persistence: browser local storage key `mlog_theme_v1`
+
 ## Routes
 
 - `/` -> redirect to `/zh`

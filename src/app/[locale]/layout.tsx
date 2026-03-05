@@ -22,7 +22,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
   }
 
   return (
-    <div className='relative min-h-screen pb-8' data-locale={locale}>
+    <div className='relative min-h-screen pb-8' data-locale={locale} data-theme-scope='public'>
       <BlurGradientBackground />
       <SiteHeader locale={locale as Locale} />
       <main className='mx-auto w-full max-w-6xl px-5 sm:px-8'>{children}</main>

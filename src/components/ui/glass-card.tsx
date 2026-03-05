@@ -3,14 +3,19 @@ import { cn } from '@/lib/utils'
 
 type GlassCardProps = ComponentPropsWithoutRef<'section'>
 
-export function GlassCard({ className, ...props }: GlassCardProps) {
+export function GlassCard({ className, style, ...props }: GlassCardProps) {
   return (
     <section
       className={cn(
-        'relative overflow-hidden rounded-3xl border border-white/55 bg-white/45 p-6 backdrop-blur-xl',
-        'shadow-[0_24px_80px_-40px_rgba(120,45,20,0.55),inset_0_1px_0_0_rgba(255,255,255,0.65)]',
+        'relative overflow-hidden rounded-3xl border p-6 backdrop-blur-xl',
         className
       )}
+      style={{
+        borderColor: 'var(--glass-border)',
+        background: 'var(--glass-bg)',
+        boxShadow: 'var(--glass-shadow)',
+        ...style
+      }}
       {...props}
     />
   )
