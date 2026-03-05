@@ -155,6 +155,20 @@ If required fields are missing, build fails with the source file path.
 - `GET /api/admin/automation/github-hot-daily/candidates`
 - `POST /api/admin/tutorials/mlog-open-source/sync`
 
+`POST /api/admin/posts` accepts optional `repoCards`:
+
+```json
+{
+  "slug": "post-slug",
+  "mode": "publish",
+  "changes": [],
+  "repoCards": {
+    "enabled": true,
+    "repoUrl": "https://github.com/owner/repo"
+  }
+}
+```
+
 ### Common Admin Failures
 
 - `401 UNAUTHORIZED`: not signed in.
@@ -227,6 +241,22 @@ If required fields are missing, build fails with the source file path.
 - Fallback behavior:
   - if GitHub upstream fails or repo extraction fails, page still renders and only the live card degrades
   - non hot-daily posts never call this API
+
+### Manual Repo Cards for Normal Posts
+
+- Admin editor provides an article-level switch and one GitHub repo URL input (shared by `/zh` and `/en`).
+- Config is stored at `content/posts/<slug>/repo-cards.json` in content repo.
+- When enabled:
+  - page shows two cards below summary:
+    - `Published Snapshot` (static baseline)
+    - `Live Snapshot` (10-minute cache)
+- Static baseline lock rule:
+  - first publish captures baseline from GitHub API
+  - re-publish with same repo keeps baseline unchanged
+  - changing `repoUrl` re-captures baseline
+- Delete behavior:
+  - deleting all locales also deletes `repo-cards.json`
+  - deleting one locale keeps `repo-cards.json` only if another locale still exists
 
 ### Automation Control Panel
 

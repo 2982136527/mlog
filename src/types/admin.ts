@@ -1,4 +1,5 @@
 import type { PostFrontmatter } from '@/types/content'
+import type { AdminRepoCardsInput, RepoCardsConfig } from '@/types/repo-cards'
 
 export type AdminLocale = 'zh' | 'en'
 
@@ -41,6 +42,7 @@ export type AdminPostSubmitRequest = {
   slug: string
   mode: AdminSubmitMode
   changes: Array<AdminPostPayload>
+  repoCards?: AdminRepoCardsInput
 }
 
 export type PublishResult = {
@@ -88,6 +90,7 @@ export type AdminPostLocaleData = {
 export type AdminPostDetail = {
   slug: string
   locales: Record<AdminLocale, AdminPostLocaleData>
+  repoCards: RepoCardsConfig
 }
 
 export type AdminPostSummary = {

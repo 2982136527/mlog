@@ -9,7 +9,7 @@ export type FooterStats = {
   updatedAt: string
 }
 
-export type LiveCardErrorCode = 'NOT_HOT_DAILY_POST' | 'POST_NOT_FOUND' | 'REPO_NOT_FOUND_IN_POST' | 'GITHUB_UPSTREAM_FAILED'
+export type LiveCardErrorCode = 'NOT_HOT_DAILY_POST' | 'NOT_LIVE_CARD_POST' | 'POST_NOT_FOUND' | 'REPO_NOT_FOUND_IN_POST' | 'GITHUB_UPSTREAM_FAILED'
 
 export type LiveCardResponse = {
   enabled: true

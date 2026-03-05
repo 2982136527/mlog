@@ -4,6 +4,16 @@ import type { AdminLocale } from '@/types/admin'
 import type { AdminPostFrontmatterInput } from '@/types/admin'
 import type { PostFrontmatter } from '@/types/content'
 import { postFrontmatterSchema, slugSchema } from '@/lib/content/schema'
+import { parseGithubRepoUrl } from '@/lib/blog/repo-cards-config'
+
+function isValidGithubRepoUrl(value: string): boolean {
+  try {
+    parseGithubRepoUrl(value)
+    return true
+  } catch {
+    return false
+  }
+}
 
 export const adminLocaleSchema = z.enum(['zh', 'en'])
 
@@ -59,10 +69,39 @@ export const adminPostChangeSchema = z.object({
   baseSha: z.string().trim().optional().nullable()
 })
 
+export const adminRepoCardsInputSchema = z
+  .object({
+    enabled: z.boolean(),
+    repoUrl: z.string().trim().optional()
+  })
+  .superRefine((value, ctx) => {
+    if (!value.enabled) {
+      return
+    }
+
+    if (!value.repoUrl) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['repoUrl'],
+        message: 'repoUrl is required when repo cards are enabled'
+      })
+      return
+    }
+
+    if (!isValidGithubRepoUrl(value.repoUrl)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['repoUrl'],
+        message: 'repoUrl must be a valid GitHub repository URL'
+      })
+    }
+  })
+
 export const adminPostWriteSchema = z.object({
   slug: slugSchema,
   mode: z.enum(['publish', 'draft']),
-  changes: z.array(adminPostChangeSchema).min(1)
+  changes: z.array(adminPostChangeSchema).min(1),
+  repoCards: adminRepoCardsInputSchema.optional()
 })
 
 export function normalizeAdminFrontmatterInput(frontmatter: AdminPostFrontmatterInput): AdminPostFrontmatterInput {

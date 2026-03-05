@@ -21,6 +21,11 @@ type LocaleDraftState = {
 
 type LocaleStateMap = Record<AdminLocale, LocaleDraftState>
 
+type RepoCardsDraftState = {
+  enabled: boolean
+  repoUrl: string
+}
+
 function todayDate() {
   return new Date().toISOString().slice(0, 10)
 }
@@ -78,6 +83,22 @@ function validateLocale(frontmatter: AdminPostFrontmatterInput, markdown: string
   if (!markdown.trim()) throw new Error(`${locale.toUpperCase()} 正文不能为空`)
 }
 
+function validateRepoCards(repoCards: RepoCardsDraftState) {
+  if (!repoCards.enabled) {
+    return
+  }
+
+  const value = repoCards.repoUrl.trim()
+  if (!value) {
+    throw new Error('已启用 GitHub 双卡时，仓库链接不能为空')
+  }
+
+  const matched = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?(?:\/)?(?:[?#].*)?$/i.test(value)
+  if (!matched) {
+    throw new Error('GitHub 仓库链接格式无效，示例：https://github.com/owner/repo')
+  }
+}
+
 function summarizeAiSteps(steps: AiExecutionStep[]): string {
   const successes = steps.filter(step => step.status === 'success')
   if (successes.length === 0) {
@@ -107,6 +128,10 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
   const [state, setState] = useState<LocaleStateMap>({
     zh: buildLocaleState(initial.locales.zh),
     en: buildLocaleState(initial.locales.en)
+  })
+  const [repoCards, setRepoCards] = useState<RepoCardsDraftState>({
+    enabled: Boolean(initial.repoCards.enabled),
+    repoUrl: initial.repoCards.repoUrl || ''
   })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -202,6 +227,8 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
     setMessage(null)
 
     try {
+      validateRepoCards(repoCards)
+
       const response = await fetch('/api/admin/posts', {
         method: 'POST',
         headers: {
@@ -210,7 +237,11 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
         body: JSON.stringify({
           slug: normalizedSlug,
           mode: submitMode,
-          changes
+          changes,
+          repoCards: {
+            enabled: repoCards.enabled,
+            repoUrl: repoCards.repoUrl.trim() || undefined
+          }
         })
       })
 
@@ -363,6 +394,24 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
               English
             </button>
           </div>
+
+          <label className='inline-flex items-center gap-2 text-sm text-[var(--color-ink-soft)] sm:col-span-2'>
+            <input
+              type='checkbox'
+              checked={repoCards.enabled}
+              onChange={event => setRepoCards(prev => ({ ...prev, enabled: event.target.checked }))}
+            />
+            启用文章级 GitHub 双卡（发布快照 + 实时快照）
+          </label>
+          <label className='text-xs text-[var(--color-ink-soft)] sm:col-span-2'>
+            GitHub 仓库链接（全语言共用）
+            <input
+              value={repoCards.repoUrl}
+              onChange={event => setRepoCards(prev => ({ ...prev, repoUrl: event.target.value }))}
+              placeholder='https://github.com/owner/repo'
+              className='mt-1 w-full rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-ink)] outline-none'
+            />
+          </label>
         </div>
       </div>
 

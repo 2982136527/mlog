@@ -4,15 +4,16 @@ import { isLocale, type Locale } from '@/i18n/config'
 import { getLocalizedPost } from '@/lib/content'
 import { fetchGithubRepoLiveSnapshot } from '@/lib/automation/github-hot/evidence'
 import type { LiveCardErrorCode, LiveCardResponse } from '@/types/analytics'
-
-const HOT_DAILY_REQUIRED_TAGS = ['ai-auto', 'github-hot'] as const
-const GITHUB_REPO_URL_RE = /https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)(?:[/?#][^\s<]*)?/gi
+import { extractGithubRepoFromMarkdown, getRepoCardsConfigFromLocal, parseGithubRepoUrl } from '@/lib/blog/repo-cards-config'
+import { isHotDailyTags } from '@/lib/blog/static-snapshot'
 
 export const LIVE_CARD_CACHE_TTL_SECONDS = 600
 
 type RepoIdentity = {
   owner: string
   repo: string
+  fullName: string
+  normalizedUrl: string
 }
 
 export class LiveCardHttpError extends Error {
@@ -26,28 +27,37 @@ export class LiveCardHttpError extends Error {
   }
 }
 
-function normalizeRepoSegment(value: string): string {
-  return value
-    .trim()
-    .replace(/\.git$/i, '')
-    .replace(/[.,;:!?]+$/, '')
-}
+function getRepoIdentityForLiveCard(input: {
+  slug: string
+  isHotDaily: boolean
+  markdown: string
+}): RepoIdentity {
+  if (input.isHotDaily) {
+    const parsed = extractGithubRepoFromMarkdown(input.markdown)
+    if (!parsed) {
+      throw new LiveCardHttpError(422, 'REPO_NOT_FOUND_IN_POST', 'Repository URL was not found in this post.')
+    }
 
-function extractRepoIdentity(markdown: string): RepoIdentity | null {
-  for (const match of markdown.matchAll(GITHUB_REPO_URL_RE)) {
-    const owner = normalizeRepoSegment(match[1] || '')
-    const repo = normalizeRepoSegment(match[2] || '')
-    if (owner && repo) {
-      return { owner, repo }
+    return {
+      owner: parsed.owner,
+      repo: parsed.repo,
+      fullName: parsed.fullName,
+      normalizedUrl: parsed.normalizedUrl
     }
   }
 
-  return null
-}
+  const repoCards = getRepoCardsConfigFromLocal(input.slug)
+  if (!repoCards.enabled || !repoCards.repoUrl) {
+    throw new LiveCardHttpError(404, 'NOT_LIVE_CARD_POST', 'Live cards are not enabled for this post.')
+  }
 
-function isHotDailyPostTags(tags: string[]): boolean {
-  const normalized = new Set(tags.map(tag => tag.trim().toLowerCase()))
-  return HOT_DAILY_REQUIRED_TAGS.every(tag => normalized.has(tag))
+  const parsed = parseGithubRepoUrl(repoCards.repoUrl)
+  return {
+    owner: parsed.owner,
+    repo: parsed.repo,
+    fullName: parsed.fullName,
+    normalizedUrl: parsed.normalizedUrl
+  }
 }
 
 const getCachedRepoSnapshot = unstable_cache(
@@ -72,14 +82,11 @@ export async function getLiveCardForPost(input: { locale: string; slug: string }
     throw new LiveCardHttpError(404, 'POST_NOT_FOUND', 'Post not found.')
   }
 
-  if (!isHotDailyPostTags(post.frontmatter.tags)) {
-    throw new LiveCardHttpError(404, 'NOT_HOT_DAILY_POST', 'Post is not a GitHub hot daily article.')
-  }
-
-  const repo = extractRepoIdentity(post.content)
-  if (!repo) {
-    throw new LiveCardHttpError(422, 'REPO_NOT_FOUND_IN_POST', 'Repository URL was not found in this post.')
-  }
+  const repo = getRepoIdentityForLiveCard({
+    slug: post.slug,
+    isHotDaily: isHotDailyTags(post.frontmatter.tags),
+    markdown: post.content
+  })
 
   let liveSnapshot: Awaited<ReturnType<typeof getCachedRepoSnapshot>>
   try {
@@ -99,8 +106,8 @@ export async function getLiveCardForPost(input: { locale: string; slug: string }
     locale,
     slug,
     repo: {
-      fullName: liveSnapshot.fullName,
-      url: liveSnapshot.url,
+      fullName: liveSnapshot.fullName || repo.fullName,
+      url: liveSnapshot.url || repo.normalizedUrl,
       language: liveSnapshot.language,
       license: liveSnapshot.license
     },

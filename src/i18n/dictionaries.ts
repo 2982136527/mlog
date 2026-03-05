@@ -48,6 +48,14 @@ export type Dictionary = {
     liveCardForks: string
     liveCardOpenIssues: string
     liveCardLastPush: string
+    staticCardTitle: string
+    staticCardSnapshotAt: string
+    staticCardSource: string
+    staticCardStars: string
+    staticCardForks: string
+    staticCardOpenIssues: string
+    staticCardUnavailable: string
+    staticCardRepo: string
   }
   common: {
     language: string
@@ -126,7 +134,15 @@ const dictionaries: Record<Locale, Dictionary> = {
       liveCardStars: 'Stars',
       liveCardForks: 'Forks',
       liveCardOpenIssues: 'Open Issues',
-      liveCardLastPush: '最近代码提交'
+      liveCardLastPush: '最近代码提交',
+      staticCardTitle: '发布快照卡',
+      staticCardSnapshotAt: '快照时间',
+      staticCardSource: '数据来源',
+      staticCardStars: 'Stars',
+      staticCardForks: 'Forks',
+      staticCardOpenIssues: 'Open Issues',
+      staticCardUnavailable: '当前没有可用的发布快照数据',
+      staticCardRepo: '仓库'
     },
     common: {
       language: '语言',
@@ -203,7 +219,15 @@ const dictionaries: Record<Locale, Dictionary> = {
       liveCardStars: 'Stars',
       liveCardForks: 'Forks',
       liveCardOpenIssues: 'Open Issues',
-      liveCardLastPush: 'Last Push'
+      liveCardLastPush: 'Last Push',
+      staticCardTitle: 'Published Snapshot',
+      staticCardSnapshotAt: 'Snapshot Time',
+      staticCardSource: 'Source',
+      staticCardStars: 'Stars',
+      staticCardForks: 'Forks',
+      staticCardOpenIssues: 'Open Issues',
+      staticCardUnavailable: 'No published snapshot is available yet.',
+      staticCardRepo: 'Repository'
     },
     common: {
       language: 'Language',

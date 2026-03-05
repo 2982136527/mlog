@@ -4,6 +4,7 @@ import { listContentMarkdownPaths, getRepoTextFile } from '@/lib/admin/github-cl
 import { buildPostMarkdownPath, parseMarkdownFile } from '@/lib/admin/post-serializer'
 import { slugSchema } from '@/lib/content/schema'
 import { AdminHttpError } from '@/lib/admin/errors'
+import { buildRepoCardsPath, buildDefaultRepoCardsConfig, parseRepoCardsConfigOrDefault } from '@/lib/blog/repo-cards-config'
 
 const LOCALES: AdminLocale[] = ['zh', 'en']
 
@@ -174,9 +175,14 @@ export async function getAdminPostDetail(slugInput: string): Promise<AdminPostDe
     throw new AdminHttpError(404, 'NOT_FOUND', `Post not found: ${slug}`)
   }
 
+  const repoCardsPath = buildRepoCardsPath(slug)
+  const repoCardsFile = await getRepoTextFile(repoCardsPath)
+  const repoCards = parseRepoCardsConfigOrDefault(repoCardsFile?.content)
+
   return {
     slug,
-    locales
+    locales,
+    repoCards
   }
 }
 
@@ -202,6 +208,7 @@ export function getEmptyAdminPost(slugInput?: string): AdminPostDetail {
         markdown: '',
         path: slug ? buildPostMarkdownPath(slug, 'en') : 'content/posts/<slug>/en.md'
       }
-    }
+    },
+    repoCards: buildDefaultRepoCardsConfig()
   }
 }

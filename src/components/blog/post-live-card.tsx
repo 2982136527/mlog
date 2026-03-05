@@ -8,6 +8,7 @@ import type { LiveCardErrorCode, LiveCardResponse, LiveCardState } from '@/types
 type PostLiveCardProps = {
   locale: Locale
   slug: string
+  className?: string
 }
 
 type ApiErrorResponse = {
@@ -54,7 +55,12 @@ function toErrorState(errorCode: string | undefined, message: string | undefined
   }
 }
 
-export function PostLiveCard({ locale, slug }: PostLiveCardProps) {
+function withCardShell(className?: string): string {
+  const base = 'rounded-2xl border border-white/60 bg-white/55 p-4 shadow-[0_16px_42px_-30px_rgba(120,45,20,0.45)] backdrop-blur sm:p-5'
+  return className ? `${base} ${className}` : base
+}
+
+export function PostLiveCard({ locale, slug, className }: PostLiveCardProps) {
   const dict = getDictionary(locale)
   const [state, setState] = useState<LiveCardState>({ status: 'loading' })
   const endpoint = useMemo(() => {
@@ -119,7 +125,7 @@ export function PostLiveCard({ locale, slug }: PostLiveCardProps) {
 
   if (state.status === 'loading') {
     return (
-      <section className='mt-6 rounded-2xl border border-white/60 bg-white/55 p-4 shadow-[0_16px_42px_-30px_rgba(120,45,20,0.45)] backdrop-blur sm:p-5' aria-live='polite'>
+      <section className={withCardShell(className)} aria-live='polite'>
         <div className='h-6 w-44 animate-pulse rounded bg-[var(--color-glass-strong)]/60' />
         <div className='mt-4 grid gap-3 sm:grid-cols-2'>
           <div className='h-20 animate-pulse rounded-xl bg-[var(--color-glass-strong)]/55' />
@@ -133,7 +139,7 @@ export function PostLiveCard({ locale, slug }: PostLiveCardProps) {
 
   if (state.status === 'error') {
     return (
-      <section className='mt-6 rounded-2xl border border-white/60 bg-white/55 p-4 text-sm text-[var(--color-ink-soft)] shadow-[0_16px_42px_-30px_rgba(120,45,20,0.45)] backdrop-blur sm:p-5'>
+      <section className={withCardShell(className)}>
         <h2 className='font-title text-xl text-[var(--color-ink)]'>{dict.blog.liveCardTitle}</h2>
         <p className='mt-3'>{dict.blog.liveCardUnavailable}</p>
       </section>
@@ -143,7 +149,7 @@ export function PostLiveCard({ locale, slug }: PostLiveCardProps) {
   const { data } = state
 
   return (
-    <section className='mt-6 rounded-2xl border border-white/60 bg-white/55 p-4 text-[var(--color-ink)] shadow-[0_16px_42px_-30px_rgba(120,45,20,0.45)] backdrop-blur sm:p-5'>
+    <section className={withCardShell(className)}>
       <div className='flex flex-wrap items-center justify-between gap-2'>
         <h2 className='font-title text-2xl'>{dict.blog.liveCardTitle}</h2>
         <span className='text-xs text-[var(--color-ink-soft)]'>{dict.blog.liveCardCacheHint}</span>

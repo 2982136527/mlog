@@ -3,13 +3,15 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { isLocale } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
-import { getAllLocalizedRouteParams, getLocalizedPost, getPostNeighbors } from '@/lib/content'
+import { getAllLocalizedRouteParams, getLocalizedPost, getPost, getPostNeighbors } from '@/lib/content'
 import { createLocaleMetadata } from '@/lib/metadata'
 import { renderMarkdown } from '@/lib/markdown'
 import { PostContent } from '@/components/blog/post-content'
 import { PostToc } from '@/components/blog/post-toc'
 import { PostFallbackNotice } from '@/components/blog/post-fallback-notice'
 import { GiscusComments } from '@/components/blog/giscus-comments'
+import { getRepoCardsConfigFromLocal } from '@/lib/blog/repo-cards-config'
+import { extractHotDailyStaticSnapshot, isHotDailyTags, toPostStaticSnapshotFromRepoCards } from '@/lib/blog/static-snapshot'
 
 type BlogDetailProps = {
   params: Promise<{ locale: string; slug: string }>
@@ -53,6 +55,25 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
     notFound()
   }
 
+  const repoCardsConfig = getRepoCardsConfigFromLocal(post.slug)
+  const isHotDaily = isHotDailyTags(post.frontmatter.tags)
+  const showRepoCards = isHotDaily || repoCardsConfig.enabled
+
+  const staticSnapshot = (() => {
+    const fromConfig = toPostStaticSnapshotFromRepoCards(repoCardsConfig)
+    if (fromConfig) {
+      return fromConfig
+    }
+
+    if (!isHotDaily) {
+      return null
+    }
+
+    const zhSource = getPost('zh', post.slug)
+    const sourcePost = zhSource || post
+    return extractHotDailyStaticSnapshot(sourcePost.content, sourcePost.frontmatter.updated || sourcePost.frontmatter.date)
+  })()
+
   const { html, toc } = await renderMarkdown(post.content)
   const neighbors = getPostNeighbors(post.locale, post.slug)
 
@@ -65,7 +86,7 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
       {post.isFallback && <PostFallbackNotice locale={locale} />}
 
       <div className='flex items-start gap-6'>
-        <PostContent locale={locale} post={post} html={html} />
+        <PostContent locale={locale} post={post} html={html} showRepoCards={showRepoCards} staticSnapshot={staticSnapshot} />
         <PostToc locale={locale} toc={toc} />
       </div>
 

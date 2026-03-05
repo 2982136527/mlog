@@ -8,6 +8,7 @@ import type {
   FrontmatterEnrichPayload,
   PublishResult
 } from '@/types/admin'
+import type { AdminRepoCardsInput, RepoCardsConfig } from '@/types/repo-cards'
 import { getAdminGithubEnv } from '@/lib/admin/env'
 import { AdminHttpError } from '@/lib/admin/errors'
 import {
@@ -32,6 +33,14 @@ import {
 import { AiRunnerError, runAiFrontmatterEnrich, runAiTranslate } from '@/lib/ai/runner'
 import { slugSchema } from '@/lib/content/schema'
 import { triggerVercelDeployHook } from '@/lib/deploy/vercel-hook'
+import {
+  buildRepoCardsPath,
+  normalizeAdminRepoCardsInput,
+  parseGithubRepoUrl,
+  parseRepoCardsConfigOrDefault,
+  serializeRepoCardsConfig
+} from '@/lib/blog/repo-cards-config'
+import { fetchGithubRepoLiveSnapshot } from '@/lib/automation/github-hot/evidence'
 
 function buildPrBody(input: {
   actor: string
@@ -148,6 +157,113 @@ function mergeForcedTags(frontmatter: AdminPostFrontmatterInput, forcedTags: str
   }
 }
 
+function createSnapshotFromLive(live: Awaited<ReturnType<typeof fetchGithubRepoLiveSnapshot>>): RepoCardsConfig['staticSnapshot'] {
+  return {
+    stars: live.stars,
+    forks: live.forks,
+    openIssues: live.openIssues,
+    snapshotAt: live.fetchedAt,
+    language: live.language || null,
+    license: live.license,
+    pushedAt: live.pushedAt,
+    updatedAt: live.updatedAt
+  }
+}
+
+function isSameStaticSnapshot(a: RepoCardsConfig['staticSnapshot'], b: RepoCardsConfig['staticSnapshot']): boolean {
+  if (!a && !b) {
+    return true
+  }
+  if (!a || !b) {
+    return false
+  }
+  return JSON.stringify(a) === JSON.stringify(b)
+}
+
+async function resolveNextRepoCardsConfig(input: {
+  mode: AdminSubmitMode
+  actor: string
+  requestRepoCards: AdminRepoCardsInput | undefined
+  existingRepoCards: RepoCardsConfig
+}): Promise<RepoCardsConfig | null> {
+  const requestRepoCards = normalizeAdminRepoCardsInput(input.requestRepoCards)
+  if (!requestRepoCards) {
+    return null
+  }
+
+  const nowIso = new Date().toISOString()
+  if (!requestRepoCards.enabled) {
+    if (!input.existingRepoCards.enabled && !input.existingRepoCards.repoUrl && !input.existingRepoCards.staticSnapshot) {
+      return input.existingRepoCards
+    }
+
+    return {
+      enabled: false,
+      repoUrl: '',
+      repoFullName: null,
+      staticSnapshot: null,
+      updatedAt: nowIso,
+      updatedBy: input.actor === 'system:cron' ? 'system' : 'admin'
+    }
+  }
+
+  if (!requestRepoCards.repoUrl) {
+    throw new AdminHttpError(400, 'INVALID_INPUT', 'Repo cards enabled but repoUrl is empty.')
+  }
+
+  const parsed = parseGithubRepoUrl(requestRepoCards.repoUrl)
+  const existingParsedRepo = input.existingRepoCards.repoUrl
+    ? (() => {
+        try {
+          return parseGithubRepoUrl(input.existingRepoCards.repoUrl)
+        } catch {
+          return null
+        }
+      })()
+    : null
+
+  const shouldRefreshStaticSnapshot =
+    input.mode === 'publish' &&
+    (!input.existingRepoCards.staticSnapshot || !existingParsedRepo || existingParsedRepo.fullName !== parsed.fullName)
+
+  let staticSnapshot = input.existingRepoCards.staticSnapshot
+  if (shouldRefreshStaticSnapshot) {
+    try {
+      const live = await fetchGithubRepoLiveSnapshot(parsed.owner, parsed.repo)
+      staticSnapshot = createSnapshotFromLive(live)
+    } catch (error) {
+      throw new AdminHttpError(
+        503,
+        'GITHUB_UPSTREAM_FAILED',
+        error instanceof Error ? error.message : 'Failed to fetch GitHub snapshot for repo cards.'
+      )
+    }
+  }
+
+  const unchanged =
+    input.existingRepoCards.enabled &&
+    existingParsedRepo?.normalizedUrl === parsed.normalizedUrl &&
+    (input.existingRepoCards.repoFullName || parsed.fullName) === parsed.fullName &&
+    isSameStaticSnapshot(input.existingRepoCards.staticSnapshot, staticSnapshot)
+
+  if (unchanged) {
+    return {
+      ...input.existingRepoCards,
+      repoUrl: parsed.normalizedUrl,
+      repoFullName: parsed.fullName
+    }
+  }
+
+  return {
+    enabled: true,
+    repoUrl: parsed.normalizedUrl,
+    repoFullName: parsed.fullName,
+    staticSnapshot,
+    updatedAt: nowIso,
+    updatedBy: input.actor === 'system:cron' ? 'system' : 'admin'
+  }
+}
+
 function toSerializableFrontmatter(locale: AdminLocale, frontmatter: AdminPostFrontmatterInput): {
   title: string
   date: string
@@ -213,6 +329,7 @@ export async function publishPostChanges(input: {
   slug: string
   mode: AdminSubmitMode
   changes: Array<AdminPostPayload>
+  repoCards?: AdminRepoCardsInput
   actor: string
   requestId: string
   forcedTags?: string[]
@@ -220,7 +337,8 @@ export async function publishPostChanges(input: {
   const parsed = adminPostWriteSchema.parse({
     slug: input.slug,
     mode: input.mode,
-    changes: input.changes
+    changes: input.changes,
+    repoCards: input.repoCards
   })
 
   const uniqueChanges = new Map<AdminLocale, AdminPostPayload>()
@@ -241,6 +359,15 @@ export async function publishPostChanges(input: {
   }
 
   const env = getAdminGithubEnv()
+  const repoCardsPath = buildRepoCardsPath(parsed.slug)
+  const existingRepoCardsFile = await getRepoTextFile(repoCardsPath, env.baseBranch)
+  const existingRepoCards = parseRepoCardsConfigOrDefault(existingRepoCardsFile?.content)
+  const nextRepoCards = await resolveNextRepoCardsConfig({
+    mode: parsed.mode,
+    actor: input.actor,
+    requestRepoCards: parsed.repoCards,
+    existingRepoCards
+  })
   const aiSteps: AdminAiResult['steps'] = []
 
   const enrichLocaleChange = async (change: AdminPostPayload) => {
@@ -363,6 +490,21 @@ export async function publishPostChanges(input: {
     changedPaths.push(state.targetPath)
   }
 
+  if (nextRepoCards) {
+    const nextRepoCardsContent = serializeRepoCardsConfig(nextRepoCards)
+    if (!existingRepoCardsFile || existingRepoCardsFile.content !== nextRepoCardsContent) {
+      await upsertFile({
+        path: repoCardsPath,
+        contentBase64: encodeTextBase64(nextRepoCardsContent),
+        branch,
+        message: `update ${repoCardsPath}`,
+        sha: existingRepoCardsFile?.sha
+      })
+
+      changedPaths.push(repoCardsPath)
+    }
+  }
+
   if (changedPaths.length === 0) {
     throw new AdminHttpError(400, 'NO_CHANGES', 'No file changes detected.')
   }
@@ -425,9 +567,25 @@ export async function deletePostBySlug(input: {
     throw new AdminHttpError(404, 'NOT_FOUND', `No deletable files found for slug: ${slug}`)
   }
 
+  const repoCardsPath = buildRepoCardsPath(slug)
+  const repoCardsFile = await getRepoTextFile(repoCardsPath, env.baseBranch)
+
+  let shouldDeleteRepoCards = false
+  if (repoCardsFile) {
+    if (input.locale === 'all') {
+      shouldDeleteRepoCards = true
+    } else {
+      const otherLocale: AdminLocale = input.locale === 'zh' ? 'en' : 'zh'
+      const otherPath = buildPostMarkdownPath(slug, otherLocale)
+      const otherFile = await getRepoTextFile(otherPath, env.baseBranch)
+      shouldDeleteRepoCards = !otherFile
+    }
+  }
+
   const branch = buildBranchName('delete', slug)
   await createBranch(branch)
 
+  const deletedPaths = deletable.map(item => item.targetPath)
   for (const target of deletable) {
     await deleteFile({
       path: target.targetPath,
@@ -435,6 +593,16 @@ export async function deletePostBySlug(input: {
       sha: target.existing!.sha,
       message: `delete ${target.targetPath}`
     })
+  }
+
+  if (shouldDeleteRepoCards && repoCardsFile) {
+    await deleteFile({
+      path: repoCardsPath,
+      branch,
+      sha: repoCardsFile.sha,
+      message: `delete ${repoCardsPath}`
+    })
+    deletedPaths.push(repoCardsPath)
   }
 
   const prTitle = `删除文章：${slug}`
@@ -446,19 +614,19 @@ export async function deletePostBySlug(input: {
       actor: input.actor,
       requestId: input.requestId,
       slug,
-      changedPaths: deletable.map(item => item.targetPath),
+      changedPaths: deletedPaths,
       action: `delete-${input.locale}`
     }),
     deployContext: {
       requestId: input.requestId,
       action: `post-delete-${input.locale}`,
-      changedPaths: deletable.map(item => item.targetPath)
+      changedPaths: deletedPaths
     }
   })
 
   return {
     result,
-    deletedPaths: deletable.map(item => item.targetPath)
+    deletedPaths
   }
 }
 
