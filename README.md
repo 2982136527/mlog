@@ -218,6 +218,7 @@ updated?: ISO date
 - 教程源文在博客内容仓
 - 每次执行教程同步时，会按 `Asia/Shanghai` 刷新教程文章 `updated` 为当天日期
 - 同步状态为 `SYNCED` 且教程源文已合并时，会自动触发 `VERCEL_DEPLOY_HOOK_URL`，前台无需手动重部署
+- 默认定时检查频率：每小时第 10 分钟（Vercel Cron UTC）
 - 同步后镜像到公开仓：
   - `docs/tutorials/mlog-open-source-deploy-guide.zh.md`
   - `docs/tutorials/mlog-open-source-deploy-guide.en.md`

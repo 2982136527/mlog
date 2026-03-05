@@ -296,6 +296,7 @@ If required fields are missing, build fails with the source file path.
 - Source of truth: blog content in private content repo
 - Every tutorial sync refreshes tutorial frontmatter `updated` to current `Asia/Shanghai` date
 - When sync status is `SYNCED` and tutorial source changes are merged, the system auto-triggers `VERCEL_DEPLOY_HOOK_URL` so production picks up the new date without manual redeploy.
+- Default scheduled check cadence: minute 10 of every hour (Vercel Cron, UTC).
 - Mirror targets in public repo:
   - `docs/tutorials/mlog-open-source-deploy-guide.zh.md`
   - `docs/tutorials/mlog-open-source-deploy-guide.en.md`
