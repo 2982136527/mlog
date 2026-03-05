@@ -5,6 +5,9 @@ import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { runGithubHotDailyAutomation } from '@/lib/automation/github-hot/service'
 import { saveGithubHotDailyLastRun } from '@/lib/automation/github-hot/run-state-store'
 
+export const runtime = 'nodejs'
+export const maxDuration = 300
+
 const runRequestSchema = z
   .object({
     forceRunToday: z.boolean().optional()
