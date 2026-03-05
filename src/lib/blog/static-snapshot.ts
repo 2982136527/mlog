@@ -4,6 +4,7 @@ import { extractGithubRepoFromMarkdown } from '@/lib/blog/repo-cards-config'
 
 const HOT_DAILY_REQUIRED_TAGS = ['ai-auto', 'github-hot'] as const
 const HOT_DAILY_SECTION_TITLES = ['已确认事实（数据卡）', '已确认事实(数据卡)', 'confirmedfacts(datacard)', 'confirmedfacts', 'verifiedfacts']
+const HOT_DAILY_SOURCE_SECTION_TITLES = ['证据来源', 'evidence sources', 'evidence source', 'sources']
 
 function normalizeHeading(input: string): string {
   return input
@@ -67,6 +68,17 @@ function parseDateMaybeIso(input: string): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
+function parseEvidenceFetchTime(input: string): string | null {
+  const matched = input.match(/(?:获取时间|抓取时间|fetched\s*at)[^0-9]*(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?/i)
+  if (!matched) {
+    return null
+  }
+
+  const value = matched[2] ? `${matched[1]}T${matched[2]}` : `${matched[1]}T00:00:00`
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
 function toIsoOrNull(value: string | null | undefined): string | null {
   const text = (value || '').trim()
   if (!text) {
@@ -103,11 +115,12 @@ export function toPostStaticSnapshotFromRepoCards(config: RepoCardsConfig): Post
 export function extractHotDailyStaticSnapshot(markdown: string, fallbackDate?: string): PostStaticSnapshot | null {
   const section = extractH2Section(markdown, HOT_DAILY_SECTION_TITLES)
   const source = section || markdown
+  const evidenceSourceSection = extractH2Section(markdown, HOT_DAILY_SOURCE_SECTION_TITLES)
   const repo = extractGithubRepoFromMarkdown(markdown)
   const stars = parseMetric(source, ['Stars', 'Star', '⭐', '星标'])
   const forks = parseMetric(source, ['Forks', 'Fork', '分叉'])
   const openIssues = parseMetric(source, ['Open Issues', 'Issues', 'Issue', '未关闭 Issue', '问题数'])
-  const snapshotAt = parseDateMaybeIso(source) || toIsoOrNull(fallbackDate)
+  const snapshotAt = parseEvidenceFetchTime(evidenceSourceSection) || toIsoOrNull(fallbackDate) || parseDateMaybeIso(source)
 
   if (!repo && stars === null && forks === null && openIssues === null && !snapshotAt) {
     return null
