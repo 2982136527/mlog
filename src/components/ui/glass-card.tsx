@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils'
 
 type GlassCardProps = ComponentPropsWithoutRef<'section'>
 
-export function GlassCard({ className, style, ...props }: GlassCardProps) {
+export function GlassCard({ className, style, children, ...props }: GlassCardProps) {
   return (
     <section
       className={cn(
@@ -16,7 +16,10 @@ export function GlassCard({ className, style, ...props }: GlassCardProps) {
         boxShadow: 'var(--glass-shadow)',
         ...style
       }}
-      {...props}
-    />
+      {...props}>
+      <div aria-hidden className='pointer-events-none absolute inset-0' style={{ background: 'var(--card-gloss)' }} />
+      <div aria-hidden className='pointer-events-none absolute inset-0 rounded-3xl border' style={{ borderColor: 'var(--card-edge)', boxShadow: 'var(--card-depth-overlay)' }} />
+      <div className='relative z-[1]'>{children}</div>
+    </section>
   )
 }

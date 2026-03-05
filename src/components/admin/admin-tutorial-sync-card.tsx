@@ -34,9 +34,9 @@ export function AdminTutorialSyncCard() {
       })
 
       if (data.result.status === 'SKIPPED_NO_SOURCE_CHANGE') {
-        setMessage(`无需同步（requestId: ${data.requestId}）`)
+        setMessage(`无需镜像更新（requestId: ${data.requestId}）`)
       } else {
-        setMessage(`教程镜像已同步（requestId: ${data.requestId}）`)
+        setMessage(`教程已同步并刷新日期（requestId: ${data.requestId}）`)
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '教程同步失败')
@@ -69,6 +69,8 @@ export function AdminTutorialSyncCard() {
           <p>requestId：{result.requestId}</p>
           <p>状态：{result.data.status}</p>
           <p>sourceHash：{result.data.sourceHash}</p>
+          <p>应用日期：{result.data.updatedDateApplied || '-'}</p>
+          <p>日期刷新：{result.data.updatedDateChanged ? '是' : '否'}</p>
           <p>
             公开 PR：{result.data.publicMirrorPublish?.prUrl ? (
               <a href={result.data.publicMirrorPublish.prUrl} target='_blank' rel='noreferrer' className='text-[var(--color-brand)] underline'>

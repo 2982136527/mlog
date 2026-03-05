@@ -14,6 +14,7 @@ export function TagChip({ className, style, ...props }: TagChipProps) {
         borderColor: 'var(--chip-border)',
         background: 'var(--chip-bg)',
         color: 'var(--chip-text)',
+        boxShadow: 'var(--chip-shadow)',
         ...style
       }}
       {...props}

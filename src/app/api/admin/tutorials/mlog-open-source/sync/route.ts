@@ -18,6 +18,8 @@ export async function POST() {
       requestId,
       status: result.status,
       sourceHash: result.sourceHash,
+      updatedDateApplied: result.updatedDateApplied,
+      updatedDateChanged: result.updatedDateChanged,
       docsPaths: result.docsPaths,
       prUrl: result.publicMirrorPublish?.prUrl
     })

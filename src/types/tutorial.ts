@@ -18,6 +18,8 @@ export type TutorialSyncResult = {
   sourceHash: string
   blogPaths: string[]
   docsPaths: string[]
+  updatedDateApplied?: string
+  updatedDateChanged?: boolean
   contentPublish?: PublishResult
   publicMirrorPublish?: PublishResult
   statePublish?: PublishResult

@@ -15,7 +15,7 @@ import {
   upsertFile,
   type GithubRepoTarget
 } from '@/lib/admin/github-client'
-import { parseMarkdownFile } from '@/lib/admin/post-serializer'
+import { parseMarkdownFile, serializeMarkdownFile } from '@/lib/admin/post-serializer'
 import { publishPostChanges } from '@/lib/admin/publish-service'
 import { applyPrivacyGuard } from '@/lib/tutorial/privacy-guard'
 
@@ -42,8 +42,27 @@ type EnsureTutorialResult = {
   aiSteps: TutorialSyncResult['aiSteps']
 }
 
+type TutorialUpdatedSyncResult = {
+  zhRaw: string
+  enRaw: string
+  updatedDateApplied: string
+  updatedDateChanged: boolean
+  contentPublish?: PublishResult
+}
+
 function hashSource(input: { zhRaw: string; enRaw: string }): string {
   return createHash('sha256').update(`${input.zhRaw}\n\n---\n\n${input.enRaw}`).digest('hex')
+}
+
+function getShanghaiYmd(now = new Date()): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  })
+
+  return formatter.format(now)
 }
 
 function buildPrBody(input: {
@@ -145,6 +164,105 @@ async function ensureTutorialLocales(input: {
     enRaw: refreshedEn.content,
     contentPublish: publish.result,
     aiSteps: publish.ai.steps
+  }
+}
+
+async function refreshTutorialUpdatedDate(input: {
+  actor: 'admin' | 'system'
+  requestId: string
+  zhRaw: string
+  enRaw: string
+  contentWrite: GithubRepoEnv
+}): Promise<TutorialUpdatedSyncResult> {
+  const updatedDateApplied = getShanghaiYmd()
+  const parsedZh = parseMarkdownFile(input.zhRaw, TUTORIAL_ZH_PATH)
+  const parsedEn = parseMarkdownFile(input.enRaw, TUTORIAL_EN_PATH)
+
+  const nextZhRaw = serializeMarkdownFile(
+    {
+      ...parsedZh.frontmatter,
+      updated: updatedDateApplied
+    },
+    parsedZh.markdown
+  )
+  const nextEnRaw = serializeMarkdownFile(
+    {
+      ...parsedEn.frontmatter,
+      updated: updatedDateApplied
+    },
+    parsedEn.markdown
+  )
+
+  const changedPaths: string[] = []
+  if (nextZhRaw !== input.zhRaw) {
+    changedPaths.push(TUTORIAL_ZH_PATH)
+  }
+  if (nextEnRaw !== input.enRaw) {
+    changedPaths.push(TUTORIAL_EN_PATH)
+  }
+
+  if (changedPaths.length === 0) {
+    return {
+      zhRaw: input.zhRaw,
+      enRaw: input.enRaw,
+      updatedDateApplied,
+      updatedDateChanged: false
+    }
+  }
+
+  const zhFile = await getRepoTextFile(TUTORIAL_ZH_PATH, undefined, input.contentWrite)
+  const enFile = await getRepoTextFile(TUTORIAL_EN_PATH, undefined, input.contentWrite)
+  if (!zhFile || !enFile) {
+    throw new AdminHttpError(404, 'TUTORIAL_SOURCE_MISSING', 'Tutorial source files are missing while refreshing updated date.')
+  }
+
+  const branch = buildBranchName('tutorial', 'updated-date')
+  await createBranch(branch, input.contentWrite)
+
+  if (changedPaths.includes(TUTORIAL_ZH_PATH)) {
+    await upsertFile(
+      {
+        path: TUTORIAL_ZH_PATH,
+        contentBase64: encodeTextBase64(nextZhRaw),
+        branch,
+        message: `update ${TUTORIAL_ZH_PATH}`,
+        sha: zhFile.sha
+      },
+      input.contentWrite
+    )
+  }
+
+  if (changedPaths.includes(TUTORIAL_EN_PATH)) {
+    await upsertFile(
+      {
+        path: TUTORIAL_EN_PATH,
+        contentBase64: encodeTextBase64(nextEnRaw),
+        branch,
+        message: `update ${TUTORIAL_EN_PATH}`,
+        sha: enFile.sha
+      },
+      input.contentWrite
+    )
+  }
+
+  const contentPublish = await createAndMaybeMergePR({
+    target: input.contentWrite,
+    branch,
+    title: `刷新教程更新时间：${TUTORIAL_SLUG}`,
+    body: buildPrBody({
+      actor: input.actor,
+      requestId: input.requestId,
+      action: 'tutorial-update-date',
+      paths: changedPaths
+    })
+  })
+
+  return {
+    zhRaw: nextZhRaw,
+    enRaw: nextEnRaw,
+    updatedDateApplied,
+    updatedDateChanged: true,
+    contentPublish
   }
 }
 
@@ -305,9 +423,17 @@ export async function runTutorialSync(input: {
     contentRead
   })
 
-  const sourceHash = hashSource({
+  const refreshed = await refreshTutorialUpdatedDate({
+    actor: input.actor,
+    requestId: input.requestId,
     zhRaw: ensured.zhRaw,
-    enRaw: ensured.enRaw
+    enRaw: ensured.enRaw,
+    contentWrite
+  })
+
+  const sourceHash = hashSource({
+    zhRaw: refreshed.zhRaw,
+    enRaw: refreshed.enRaw
   })
 
   const state = await loadTutorialSyncState(contentRead)
@@ -318,6 +444,9 @@ export async function runTutorialSync(input: {
       sourceHash,
       blogPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH],
       docsPaths: [MIRROR_ZH_PATH, MIRROR_EN_PATH],
+      updatedDateApplied: refreshed.updatedDateApplied,
+      updatedDateChanged: refreshed.updatedDateChanged,
+      contentPublish: refreshed.contentPublish || ensured.contentPublish,
       aiSteps: ensured.aiSteps
     }
   }
@@ -327,8 +456,8 @@ export async function runTutorialSync(input: {
     mirrorResult = await mirrorTutorialToPublic({
       actor: input.actor,
       requestId: input.requestId,
-      zhRaw: ensured.zhRaw,
-      enRaw: ensured.enRaw,
+      zhRaw: refreshed.zhRaw,
+      enRaw: refreshed.enRaw,
       publicWrite
     })
   } catch (error) {
@@ -360,7 +489,9 @@ export async function runTutorialSync(input: {
     sourceHash,
     blogPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH],
     docsPaths: mirrorResult.docsPaths,
-    contentPublish: ensured.contentPublish,
+    updatedDateApplied: refreshed.updatedDateApplied,
+    updatedDateChanged: refreshed.updatedDateChanged,
+    contentPublish: refreshed.contentPublish || ensured.contentPublish,
     publicMirrorPublish: mirrorResult.publish,
     statePublish,
     aiSteps: ensured.aiSteps

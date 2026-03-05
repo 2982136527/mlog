@@ -294,6 +294,7 @@ If required fields are missing, build fails with the source file path.
 
 - Whitelist slug: `mlog-open-source-deploy-guide` (fixed single item)
 - Source of truth: blog content in private content repo
+- Every tutorial sync refreshes tutorial frontmatter `updated` to current `Asia/Shanghai` date
 - Mirror targets in public repo:
   - `docs/tutorials/mlog-open-source-deploy-guide.zh.md`
   - `docs/tutorials/mlog-open-source-deploy-guide.en.md`
