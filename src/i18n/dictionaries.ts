@@ -39,6 +39,15 @@ export type Dictionary = {
     publishedOn: string
     updatedOn: string
     readingTime: string
+    liveCardTitle: string
+    liveCardUpdatedAt: string
+    liveCardSource: string
+    liveCardUnavailable: string
+    liveCardCacheHint: string
+    liveCardStars: string
+    liveCardForks: string
+    liveCardOpenIssues: string
+    liveCardLastPush: string
   }
   common: {
     language: string
@@ -108,7 +117,16 @@ const dictionaries: Record<Locale, Dictionary> = {
       tableOfContents: '目录',
       publishedOn: '发布于',
       updatedOn: '更新于',
-      readingTime: '阅读时长'
+      readingTime: '阅读时长',
+      liveCardTitle: '实时快照卡',
+      liveCardUpdatedAt: '更新时间',
+      liveCardSource: '数据源',
+      liveCardUnavailable: '实时数据暂不可用',
+      liveCardCacheHint: '10 分钟缓存口径',
+      liveCardStars: 'Stars',
+      liveCardForks: 'Forks',
+      liveCardOpenIssues: 'Open Issues',
+      liveCardLastPush: '最近代码提交'
     },
     common: {
       language: '语言',
@@ -176,7 +194,16 @@ const dictionaries: Record<Locale, Dictionary> = {
       tableOfContents: 'Table of Contents',
       publishedOn: 'Published',
       updatedOn: 'Updated',
-      readingTime: 'Reading time'
+      readingTime: 'Reading time',
+      liveCardTitle: 'Live Snapshot',
+      liveCardUpdatedAt: 'Updated at',
+      liveCardSource: 'Source',
+      liveCardUnavailable: 'Live data is temporarily unavailable.',
+      liveCardCacheHint: '10-minute cache window',
+      liveCardStars: 'Stars',
+      liveCardForks: 'Forks',
+      liveCardOpenIssues: 'Open Issues',
+      liveCardLastPush: 'Last Push'
     },
     common: {
       language: 'Language',

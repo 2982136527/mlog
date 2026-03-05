@@ -3,6 +3,7 @@ import { getDictionary } from '@/i18n/dictionaries'
 import type { LocalizedPost, Post } from '@/types/content'
 import { formatDate } from '@/lib/date'
 import { TagChip } from '@/components/ui/tag-chip'
+import { PostLiveCard } from '@/components/blog/post-live-card'
 
 type PostContentProps = {
   locale: Locale
@@ -12,6 +13,8 @@ type PostContentProps = {
 
 export function PostContent({ locale, post, html }: PostContentProps) {
   const dict = getDictionary(locale)
+  const normalizedTags = post.frontmatter.tags.map(tag => tag.trim().toLowerCase())
+  const isHotDailyPost = normalizedTags.includes('ai-auto') && normalizedTags.includes('github-hot')
 
   return (
     <article className='prose-wrap min-w-0 rounded-3xl border border-white/65 bg-white/65 p-6 shadow-[0_24px_65px_-38px_rgba(120,45,20,0.4)] backdrop-blur sm:p-10'>
@@ -39,6 +42,8 @@ export function PostContent({ locale, post, html }: PostContentProps) {
       </div>
 
       <p className='mt-6 text-lg leading-8 text-[var(--color-ink-soft)]'>{post.frontmatter.summary}</p>
+
+      {isHotDailyPost && <PostLiveCard locale={locale} slug={post.slug} />}
 
       <div className='prose mt-8' dangerouslySetInnerHTML={{ __html: html }} />
     </article>

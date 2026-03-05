@@ -8,6 +8,7 @@ type GitHubRepoApiResponse = {
   stargazers_count?: number
   forks_count?: number
   open_issues_count?: number
+  updated_at?: string | null
   license?: {
     spdx_id?: string | null
     name?: string | null
@@ -160,6 +161,23 @@ function normalizeIsoOrNull(value: string | null | undefined): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
+function toSafeInteger(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0
+}
+
+export type GithubRepoLiveSnapshot = {
+  fullName: string
+  url: string
+  language: string
+  license: string | null
+  stars: number
+  forks: number
+  openIssues: number
+  pushedAt: string | null
+  updatedAt: string | null
+  fetchedAt: string
+}
+
 export async function collectGithubRepoEvidence(candidate: GithubHotRepoCandidate): Promise<GithubRepoEvidence> {
   const fetchedAt = new Date().toISOString()
   const repoEndpoint = `https://api.github.com/repos/${encodeURIComponent(candidate.owner)}/${encodeURIComponent(candidate.repo)}`
@@ -199,5 +217,31 @@ export async function collectGithubRepoEvidence(candidate: GithubHotRepoCandidat
     readmeHighlights: readmeResult.highlights.slice(0, 10),
     sourceUrls,
     fetchedAt
+  }
+}
+
+export async function fetchGithubRepoLiveSnapshot(owner: string, repo: string): Promise<GithubRepoLiveSnapshot> {
+  const normalizedOwner = owner.trim()
+  const normalizedRepo = repo.trim()
+  const endpoint = `https://api.github.com/repos/${encodeURIComponent(normalizedOwner)}/${encodeURIComponent(normalizedRepo)}`
+  const response = await fetchJson<GitHubRepoApiResponse>(endpoint)
+
+  if (!response.ok || !response.data) {
+    throw new Error(`Failed to fetch GitHub repo "${normalizedOwner}/${normalizedRepo}" (${response.status})`)
+  }
+
+  const data = response.data
+
+  return {
+    fullName: (data.full_name || `${normalizedOwner}/${normalizedRepo}`).trim(),
+    url: (data.html_url || `https://github.com/${normalizedOwner}/${normalizedRepo}`).trim(),
+    language: (data.language || '').trim(),
+    license: (data.license?.spdx_id || data.license?.name || '').trim() || null,
+    stars: toSafeInteger(data.stargazers_count),
+    forks: toSafeInteger(data.forks_count),
+    openIssues: toSafeInteger(data.open_issues_count),
+    pushedAt: normalizeIsoOrNull(data.pushed_at ?? null),
+    updatedAt: normalizeIsoOrNull(data.updated_at ?? null),
+    fetchedAt: new Date().toISOString()
   }
 }

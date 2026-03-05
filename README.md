@@ -41,6 +41,7 @@ For production builds, `pnpm build` runs `pnpm content:pull` first to sync priva
 - `/admin/edit/[slug]`
 - `/api/cron/github-hot-daily` (Vercel cron entry, bearer protected)
 - `/api/cron/tutorial-sync` (Vercel cron entry, bearer protected)
+- `/api/blog/live-card?locale=zh|en&slug=<slug>` (public read-only live snapshot API for hot-daily posts)
 
 ## Content Contract
 
@@ -213,6 +214,19 @@ If required fields are missing, build fails with the source file path.
   - `观点与推断` for interpretation/inference
 - Citation format: end-of-article evidence card (`证据来源`) with source URLs and fetched time.
 - If quality gate fails after retry, publish is blocked (`AI_OUTPUT_INVALID`) to avoid low-quality half products.
+
+### Hot-Daily Live Card (Near Real Time)
+
+- Scope: only for auto hot-daily posts tagged with both `ai-auto` and `github-hot`.
+- Behavior on post detail:
+  - keep the static markdown fact card as publish-time snapshot
+  - render an additional runtime "Live Snapshot" card above the article body
+- Data source:
+  - GitHub repo API (`owner/repo` extracted from post markdown)
+  - cached for 10 minutes (`600s`) on server side
+- Fallback behavior:
+  - if GitHub upstream fails or repo extraction fails, page still renders and only the live card degrades
+  - non hot-daily posts never call this API
 
 ### Automation Control Panel
 
