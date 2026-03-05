@@ -22,6 +22,7 @@ const lastRunSchema = z.object({
     status: z.enum(['PUBLISHED', 'SKIPPED_DISABLED', 'SKIPPED_ALREADY_PUBLISHED_TODAY', 'SKIPPED_NO_CANDIDATE', 'SKIPPED_FETCH_FAILED']),
     dateStamp: z.string().trim().min(1),
     dateIso: z.string().trim().min(1),
+    bypassedDailyLimit: z.boolean().optional(),
     usedTopicFallback: z.boolean(),
     selectionMode: z.enum(['scored_keyword', 'theme_random_seeded']),
     presetKeywords: z.array(z.string()),

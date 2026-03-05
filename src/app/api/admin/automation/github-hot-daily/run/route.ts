@@ -1,18 +1,34 @@
+import { z } from 'zod'
 import { requireAdminSession } from '@/lib/admin/session'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { runGithubHotDailyAutomation } from '@/lib/automation/github-hot/service'
 import { saveGithubHotDailyLastRun } from '@/lib/automation/github-hot/run-state-store'
 
-export async function POST() {
+const runRequestSchema = z
+  .object({
+    forceRunToday: z.boolean().optional()
+  })
+  .optional()
+
+export async function POST(request: Request) {
   const requestId = createRequestId()
 
   try {
     const { login } = await requireAdminSession()
+    let payload: z.infer<typeof runRequestSchema>
+    try {
+      const raw = await request.text()
+      payload = runRequestSchema.parse(raw ? JSON.parse(raw) : undefined)
+    } catch {
+      payload = undefined
+    }
+
     const result = await runGithubHotDailyAutomation({
       actor: login,
       requestId,
-      bypassEnabled: true
+      bypassEnabled: true,
+      forceRunToday: Boolean(payload?.forceRunToday)
     })
 
     try {

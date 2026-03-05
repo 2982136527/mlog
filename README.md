@@ -225,6 +225,7 @@ If required fields are missing, build fails with the source file path.
   - minimum stars / candidate window / language diversification
   - candidate preview with score reasons
   - run now (manual one-shot, bypasses `enabled` switch; can be used for same-day backfill if 08:00 run failed)
+  - force run now (admin-only, ignores same-day uniqueness limit for manual testing)
   - last-run snapshot (status, reason, selected repo, slug, fixed tags, evidence completeness, quality gate result, deploy trigger result)
 - Presets:
   - `mixed`, `ai_fun`, `dev_tools`, `creative_coding`, `hardcore_engineering`

@@ -66,7 +66,8 @@ function summarizeRunResult(result: GithubHotDailyRunResult): string {
       ? `质量门禁：${result.quality.passed ? '通过' : '未通过'}（重试 ${result.quality.retryCount} 次）`
       : '质量门禁：-'
     const evidenceText = result.evidence ? `证据：${result.evidence.sourceCount} 个来源，README 提炼 ${result.evidence.readmeHighlightsCount} 条` : '证据：-'
-    return `已发布。${repoText}；${slugText}；${prText}；${fixedTagText}；${qualityText}；${evidenceText}；${deployText}；策略：${formatSelectionMode(result.selectionMode)}`
+    const bypassText = result.bypassedDailyLimit ? '；已启用同日限制绕过' : ''
+    return `已发布。${repoText}；${slugText}；${prText}；${fixedTagText}；${qualityText}；${evidenceText}；${deployText}；策略：${formatSelectionMode(result.selectionMode)}${bypassText}`
   }
 
   const reason = result.reason || '-'
@@ -193,13 +194,17 @@ export function AdminAutomationCard() {
     }
   }
 
-  const runNow = async () => {
+  const runNow = async (forceRunToday = false) => {
     setRunning(true)
     setMessage(null)
     setLastRun(null)
     try {
       const response = await fetch('/api/admin/automation/github-hot-daily/run', {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(forceRunToday ? { forceRunToday: true } : {})
       })
       const data = (await response.json()) as RunResponse
       if (!response.ok) {
@@ -353,10 +358,17 @@ export function AdminAutomationCard() {
         </button>
         <button
           type='button'
-          onClick={runNow}
+          onClick={() => runNow(false)}
           disabled={loading || running}
           className='rounded-xl bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-brand-strong)] disabled:cursor-not-allowed disabled:opacity-60'>
           {running ? '执行中...' : '立即执行'}
+        </button>
+        <button
+          type='button'
+          onClick={() => runNow(true)}
+          disabled={loading || running}
+          className='rounded-xl border border-[var(--color-brand)] bg-white px-4 py-2 text-sm font-semibold text-[var(--color-brand)] transition hover:bg-[var(--color-brand)]/10 disabled:cursor-not-allowed disabled:opacity-60'>
+          {running ? '执行中...' : '强制执行（忽略同日限制）'}
         </button>
       </div>
 
@@ -368,6 +380,7 @@ export function AdminAutomationCard() {
           <p>状态：{lastRun.result.status}</p>
           <p>选题策略：{formatSelectionMode(lastRun.result.selectionMode)}</p>
           <p>随机种子日期：{lastRun.result.randomSeedDate || '（无）'}</p>
+          <p>同日限制绕过：{lastRun.result.bypassedDailyLimit ? '是' : '否'}</p>
           <p>预设关键词：{lastRun.result.presetKeywords.length > 0 ? lastRun.result.presetKeywords.join(', ') : '（无）'}</p>
           <p>叠加关键词：{lastRun.result.overlayKeywords.length > 0 ? lastRun.result.overlayKeywords.join(', ') : '（无）'}</p>
           <p>生效关键词：{lastRun.result.effectiveKeywords.length > 0 ? lastRun.result.effectiveKeywords.join(', ') : '（无）'}</p>

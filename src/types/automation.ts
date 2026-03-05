@@ -89,6 +89,7 @@ export type GithubHotDailyRunResult = {
   status: GithubHotRunStatus
   dateStamp: string
   dateIso: string
+  bypassedDailyLimit?: boolean
   usedTopicFallback: boolean
   selectionMode: CandidateSelectionMode
   presetKeywords: string[]

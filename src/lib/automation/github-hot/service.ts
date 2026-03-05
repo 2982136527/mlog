@@ -401,6 +401,7 @@ export async function runGithubHotDailyAutomation(input: {
   actor: string
   requestId: string
   bypassEnabled?: boolean
+  forceRunToday?: boolean
 }): Promise<GithubHotDailyRunResult> {
   const { dateStamp, dateIso } = getShanghaiDateParts()
   const { config } = await loadGithubHotDailyConfig()
@@ -428,7 +429,8 @@ export async function runGithubHotDailyAutomation(input: {
   const existingPaths = await listContentMarkdownPaths()
   const slugSet = new Set(existingPaths.map(extractSlug).filter(Boolean) as string[])
 
-  if (Array.from(slugSet).some(slug => slug.startsWith(`${AUTO_POST_PREFIX}${dateStamp}-`))) {
+  const todayExists = Array.from(slugSet).some(slug => slug.startsWith(`${AUTO_POST_PREFIX}${dateStamp}-`))
+  if (todayExists && !input.forceRunToday) {
     return {
       status: 'SKIPPED_ALREADY_PUBLISHED_TODAY',
       dateStamp,
@@ -523,6 +525,7 @@ export async function runGithubHotDailyAutomation(input: {
       status: 'PUBLISHED',
       dateStamp,
       dateIso,
+      bypassedDailyLimit: todayExists && Boolean(input.forceRunToday),
       usedTopicFallback,
       selectionMode: preview.selectionMode,
       presetKeywords: preview.presetKeywords,
