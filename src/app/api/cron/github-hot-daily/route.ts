@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { runGithubHotDailyAutomation } from '@/lib/automation/github-hot/service'
+import { saveGithubHotDailyLastRun } from '@/lib/automation/github-hot/run-state-store'
 
 function requireCronAuth(request: NextRequest) {
   const expected = (process.env.CRON_SECRET || '').trim()
@@ -27,6 +28,16 @@ export async function GET(request: NextRequest) {
       requestId
     })
 
+    try {
+      await saveGithubHotDailyLastRun({
+        requestId,
+        actor: 'system:cron',
+        result
+      })
+    } catch (saveError) {
+      console.error('[cron][github-hot-daily][save-last-run]', requestId, saveError)
+    }
+
     console.info('[cron][github-hot-daily]', {
       requestId,
       status: result.status,
@@ -49,4 +60,3 @@ export async function GET(request: NextRequest) {
     return fail(requestId, 500, 'INTERNAL_ERROR', 'Failed to run github hot daily cron')
   }
 }
-

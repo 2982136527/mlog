@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import type { GithubHotCandidatesPreviewResult, GithubHotDailyConfig, GithubHotDailyRunResult, InterestPreset } from '@/types/automation'
+import type { GithubHotCandidatesPreviewResult, GithubHotDailyConfig, GithubHotDailyLastRunState, GithubHotDailyRunResult, InterestPreset } from '@/types/automation'
 
 function splitKeywords(raw: string): string[] {
   return Array.from(
@@ -56,7 +56,13 @@ function summarizeRunResult(result: GithubHotDailyRunResult): string {
     const repoText = result.selectedRepo?.fullName ? `仓库：${result.selectedRepo.fullName}` : '仓库：-'
     const slugText = result.slug ? `Slug：${result.slug}` : 'Slug：-'
     const prText = result.publish?.prUrl ? `PR：${result.publish.prUrl}` : 'PR：-'
-    return `已发布。${repoText}；${slugText}；${prText}；策略：${formatSelectionMode(result.selectionMode)}`
+    const deployText = result.publish?.deploy?.success
+      ? '部署：已触发'
+      : result.publish?.deploy?.triggered
+        ? `部署触发失败：${result.publish.deploy.message || 'unknown'}`
+        : '部署：未触发（缺少 VERCEL_DEPLOY_HOOK_URL 或未合并）'
+    const fixedTagText = result.fixedTags && result.fixedTags.length > 0 ? `固定标签：${result.fixedTags.join(', ')}` : '固定标签：-'
+    return `已发布。${repoText}；${slugText}；${prText}；${fixedTagText}；${deployText}；策略：${formatSelectionMode(result.selectionMode)}`
   }
 
   const reason = result.reason || '-'
@@ -66,6 +72,7 @@ function summarizeRunResult(result: GithubHotDailyRunResult): string {
 type ConfigResponse = {
   requestId: string
   config: GithubHotDailyConfig
+  lastRun?: GithubHotDailyLastRunState | null
   changed?: boolean
   publish?: { prUrl?: string; merged?: boolean }
   error?: { message?: string }
@@ -131,6 +138,7 @@ export function AdminAutomationCard() {
       setMinStars(Number.isFinite(data.config.minStars) ? data.config.minStars : 500)
       setCandidateWindow(Number.isFinite(data.config.candidateWindow) ? data.config.candidateWindow : 30)
       setDiversifyByLanguage(Boolean(data.config.diversifyByLanguage))
+      setLastRun(data.lastRun ? { requestId: data.lastRun.requestId, result: data.lastRun.result } : null)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '读取自动发布配置失败')
     } finally {
@@ -236,6 +244,7 @@ export function AdminAutomationCard() {
       <div>
         <h3 className='font-title text-2xl text-[var(--color-ink)]'>自动发布设置（GitHub 爆火日报）</h3>
         <p className='mt-1 text-sm text-[var(--color-ink-soft)]'>数据源：Trending Daily；时区：Asia/Shanghai；计划：每日 08:00（Vercel Cron UTC 00:00）。</p>
+        <p className='mt-1 text-xs text-[var(--color-ink-soft)]'>若 08:00 执行失败，可在当天使用“立即执行”补发（仍保持每天最多一篇）。</p>
       </div>
 
       <label className='inline-flex items-center gap-2 text-sm text-[var(--color-ink-soft)]'>
@@ -358,6 +367,7 @@ export function AdminAutomationCard() {
           <p>预设关键词：{lastRun.result.presetKeywords.length > 0 ? lastRun.result.presetKeywords.join(', ') : '（无）'}</p>
           <p>叠加关键词：{lastRun.result.overlayKeywords.length > 0 ? lastRun.result.overlayKeywords.join(', ') : '（无）'}</p>
           <p>生效关键词：{lastRun.result.effectiveKeywords.length > 0 ? lastRun.result.effectiveKeywords.join(', ') : '（无）'}</p>
+          <p>固定标签：{lastRun.result.fixedTags && lastRun.result.fixedTags.length > 0 ? lastRun.result.fixedTags.join(', ') : '（无）'}</p>
           <p>候选仓库：{lastRun.result.selectedRepo?.fullName || '-'}</p>
           <p>生成 slug：{lastRun.result.slug || '-'}</p>
           <p>
@@ -368,6 +378,13 @@ export function AdminAutomationCard() {
             ) : (
               '-'
             )}
+          </p>
+          <p>
+            自动部署：{lastRun.result.publish?.deploy?.success
+              ? '已触发'
+              : lastRun.result.publish?.deploy?.triggered
+                ? `触发失败（${lastRun.result.publish.deploy.message || 'unknown'}）`
+                : '未触发'}
           </p>
           <p>主题回退：{lastRun.result.usedTopicFallback ? '是' : '否'}</p>
           <p>说明：{lastRun.result.reason || '-'}</p>

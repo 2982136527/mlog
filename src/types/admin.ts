@@ -49,6 +49,14 @@ export type PublishResult = {
   prUrl: string
   merged: boolean
   mergeMessage?: string
+  deploy?: DeployTriggerResult
+}
+
+export type DeployTriggerResult = {
+  triggered: boolean
+  success: boolean
+  status?: number
+  message?: string
 }
 
 export type AdminAiResult = {

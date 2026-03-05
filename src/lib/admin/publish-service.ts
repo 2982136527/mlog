@@ -31,6 +31,7 @@ import {
 } from '@/lib/admin/post-serializer'
 import { AiRunnerError, runAiFrontmatterEnrich, runAiTranslate } from '@/lib/ai/runner'
 import { slugSchema } from '@/lib/content/schema'
+import { triggerVercelDeployHook } from '@/lib/deploy/vercel-hook'
 
 function buildPrBody(input: {
   actor: string
@@ -54,6 +55,11 @@ async function createAndMaybeMergePR(params: {
   branch: string
   title: string
   body: string
+  deployContext: {
+    requestId: string
+    action: string
+    changedPaths: string[]
+  }
 }): Promise<PublishResult> {
   const env = getAdminGithubEnv()
 
@@ -73,12 +79,22 @@ async function createAndMaybeMergePR(params: {
     mergeMessage = mergeResult.message
   }
 
+  let deploy: PublishResult['deploy']
+  if (merged) {
+    deploy = await triggerVercelDeployHook({
+      requestId: params.deployContext.requestId,
+      reason: params.deployContext.action,
+      changedPaths: params.deployContext.changedPaths
+    })
+  }
+
   return {
     branch: params.branch,
     prNumber: pr.number,
     prUrl: pr.html_url,
     merged,
-    mergeMessage
+    mergeMessage,
+    deploy
   }
 }
 
@@ -118,6 +134,17 @@ function applyFrontmatterSuggestion(frontmatter: AdminPostFrontmatterInput, sugg
     summary: summary || suggestion.summary,
     category: category || suggestion.category,
     tags: tags.length > 0 ? tags : normalizeTags(suggestion.tags)
+  }
+}
+
+function mergeForcedTags(frontmatter: AdminPostFrontmatterInput, forcedTags: string[]): AdminPostFrontmatterInput {
+  if (forcedTags.length === 0) {
+    return frontmatter
+  }
+
+  return {
+    ...frontmatter,
+    tags: normalizeTags([...(frontmatter.tags || []), ...forcedTags])
   }
 }
 
@@ -188,6 +215,7 @@ export async function publishPostChanges(input: {
   changes: Array<AdminPostPayload>
   actor: string
   requestId: string
+  forcedTags?: string[]
 }): Promise<{ result: PublishResult; changedPaths: string[]; ai: AdminAiResult }> {
   const parsed = adminPostWriteSchema.parse({
     slug: input.slug,
@@ -289,6 +317,13 @@ export async function publishPostChanges(input: {
     }
   }
 
+  const forcedTags = normalizeTags(input.forcedTags)
+  if (forcedTags.length > 0) {
+    for (const change of uniqueChanges.values()) {
+      change.frontmatter = mergeForcedTags(change.frontmatter, forcedTags)
+    }
+  }
+
   const changes = Array.from(uniqueChanges.values())
 
   const existingStates = await Promise.all(
@@ -344,7 +379,12 @@ export async function publishPostChanges(input: {
       slug: parsed.slug,
       changedPaths,
       action
-    })
+    }),
+    deployContext: {
+      requestId: input.requestId,
+      action: `post-${action}`,
+      changedPaths
+    }
   })
 
   return {
@@ -408,7 +448,12 @@ export async function deletePostBySlug(input: {
       slug,
       changedPaths: deletable.map(item => item.targetPath),
       action: `delete-${input.locale}`
-    })
+    }),
+    deployContext: {
+      requestId: input.requestId,
+      action: `post-delete-${input.locale}`,
+      changedPaths: deletable.map(item => item.targetPath)
+    }
   })
 
   return {
@@ -476,7 +521,12 @@ export async function uploadMedia(input: {
       slug: safeBase,
       changedPaths: [filePath],
       action: 'upload-media'
-    })
+    }),
+    deployContext: {
+      requestId: input.requestId,
+      action: 'media-upload',
+      changedPaths: [filePath]
+    }
   })
 
   const url = filePath.replace(/^public/, '')

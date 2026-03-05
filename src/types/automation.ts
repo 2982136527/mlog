@@ -83,6 +83,14 @@ export type GithubHotDailyRunResult = {
   changedPaths?: string[]
   publish?: PublishResult
   ai?: AdminAiResult
+  fixedTags?: string[]
+}
+
+export type GithubHotDailyLastRunState = {
+  requestId: string
+  actor: string
+  runAt: string
+  result: GithubHotDailyRunResult
 }
 
 export type GithubHotCandidatesPreviewResult = {

@@ -3,6 +3,7 @@ import { requireAdminSession } from '@/lib/admin/session'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { loadGithubHotDailyConfig, saveGithubHotDailyConfig } from '@/lib/automation/github-hot/config-store'
+import { loadGithubHotDailyLastRun } from '@/lib/automation/github-hot/run-state-store'
 import { parseGithubHotDailyConfigUpdate } from '@/lib/automation/github-hot/config'
 
 export async function GET() {
@@ -10,9 +11,10 @@ export async function GET() {
 
   try {
     await requireAdminSession()
-    const loaded = await loadGithubHotDailyConfig()
+    const [loaded, lastRun] = await Promise.all([loadGithubHotDailyConfig(), loadGithubHotDailyLastRun()])
     return ok(requestId, {
-      config: loaded.config
+      config: loaded.config,
+      lastRun
     })
   } catch (error) {
     if (error instanceof AdminHttpError) {

@@ -16,6 +16,7 @@ import { fetchGithubTrendingCandidates } from '@/lib/automation/github-hot/trend
 import { runAiGithubHotPostGenerate } from '@/lib/ai/runner'
 
 const AUTO_POST_PREFIX = 'gh-hot-'
+const AUTO_FIXED_TAGS = ['ai-auto', 'github-hot'] as const
 
 type SelectionContext = {
   selectionMode: CandidateSelectionMode
@@ -312,7 +313,8 @@ export async function runGithubHotDailyAutomation(input: {
     presetKeywords: selectionContext.presetKeywords,
     overlayKeywords: selectionContext.overlayKeywords,
     effectiveKeywords: selectionContext.effectiveKeywords,
-    randomSeedDate: selectionContext.randomSeedDate
+    randomSeedDate: selectionContext.randomSeedDate,
+    fixedTags: [...AUTO_FIXED_TAGS]
   }
 
   if (!input.bypassEnabled && !config.enabled) {
@@ -367,6 +369,7 @@ export async function runGithubHotDailyAutomation(input: {
       overlayKeywords: preview.overlayKeywords,
       effectiveKeywords: preview.effectiveKeywords,
       randomSeedDate: preview.randomSeedDate,
+      fixedTags: [...AUTO_FIXED_TAGS],
       reason: 'no trending candidates'
     }
   }
@@ -415,7 +418,8 @@ export async function runGithubHotDailyAutomation(input: {
       mode: 'publish',
       changes,
       actor: input.actor,
-      requestId: input.requestId
+      requestId: input.requestId,
+      forcedTags: [...AUTO_FIXED_TAGS]
     })
 
     return {
@@ -433,6 +437,7 @@ export async function runGithubHotDailyAutomation(input: {
       slug,
       changedPaths: published.changedPaths,
       publish: published.result,
+      fixedTags: [...AUTO_FIXED_TAGS],
       ai: {
         triggered: true,
         mode: 'publish',
@@ -451,6 +456,7 @@ export async function runGithubHotDailyAutomation(input: {
     overlayKeywords: preview.overlayKeywords,
     effectiveKeywords: preview.effectiveKeywords,
     randomSeedDate: preview.randomSeedDate,
+    fixedTags: [...AUTO_FIXED_TAGS],
     reason: 'all candidates are already used'
   }
 }
