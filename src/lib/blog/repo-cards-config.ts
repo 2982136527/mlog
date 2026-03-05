@@ -7,8 +7,7 @@ import { slugSchema } from '@/lib/content/schema'
 import type { AdminRepoCardsInput, RepoCardsConfig } from '@/types/repo-cards'
 
 const CONTENT_ROOT = path.join(process.cwd(), 'content', 'posts')
-const GITHUB_REPO_URL_RE = /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?(?:\/)?(?:[?#].*)?$/i
-const GITHUB_REPO_IN_TEXT_RE = /https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?(?:[/?#][^\s<]*)?/gi
+const GITHUB_REPO_IN_TEXT_RE = /https:\/\/github\.com\/[^\s<)"']+/gi
 
 const repoCardsConfigSchema = z.object({
   enabled: z.boolean(),
@@ -68,13 +67,21 @@ export function buildRepoCardsPath(slugInput: string): string {
 
 export function parseGithubRepoUrl(input: string): { owner: string; repo: string; fullName: string; normalizedUrl: string } {
   const value = input.trim()
-  const matched = value.match(GITHUB_REPO_URL_RE)
-  if (!matched) {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
     throw new Error('repoUrl must be a valid GitHub repository URL like https://github.com/owner/repo')
   }
 
-  const owner = sanitizeRepoSegment(matched[1] || '')
-  const repo = sanitizeRepoSegment(matched[2] || '')
+  const host = url.hostname.toLowerCase()
+  if (url.protocol !== 'https:' || (host !== 'github.com' && host !== 'www.github.com')) {
+    throw new Error('repoUrl must be a valid GitHub repository URL like https://github.com/owner/repo')
+  }
+
+  const segments = url.pathname.split('/').filter(Boolean)
+  const owner = sanitizeRepoSegment(segments[0] || '')
+  const repo = sanitizeRepoSegment(segments[1] || '')
   if (!owner || !repo) {
     throw new Error('repoUrl must include owner and repository name')
   }
@@ -89,17 +96,15 @@ export function parseGithubRepoUrl(input: string): { owner: string; repo: string
 
 export function extractGithubRepoFromMarkdown(markdown: string): { owner: string; repo: string; fullName: string; normalizedUrl: string } | null {
   for (const matched of markdown.matchAll(GITHUB_REPO_IN_TEXT_RE)) {
-    const owner = sanitizeRepoSegment(matched[1] || '')
-    const repo = sanitizeRepoSegment(matched[2] || '')
-    if (!owner || !repo) {
+    const candidate = (matched[0] || '').replace(/[.,;:!?]+$/, '')
+    if (!candidate) {
       continue
     }
 
-    return {
-      owner,
-      repo,
-      fullName: `${owner}/${repo}`,
-      normalizedUrl: `https://github.com/${owner}/${repo}`
+    try {
+      return parseGithubRepoUrl(candidate)
+    } catch {
+      continue
     }
   }
 
