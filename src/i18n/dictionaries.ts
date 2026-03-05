@@ -71,6 +71,10 @@ export type Dictionary = {
     title: string
     description: string
     eyebrow: string
+    actionsTitle: string
+    tutorialSource: string
+    tutorialDocs: string
+    lastUpdated: string
     sectionTitles: {
       tech: string
       features: string
@@ -159,6 +163,10 @@ const dictionaries: Record<Locale, Dictionary> = {
       title: '关于 MLog',
       description: '了解 MLog 使用的技术、核心功能、工程亮点与 AI 无服务器创新能力。',
       eyebrow: 'PROJECT OVERVIEW',
+      actionsTitle: '教程与文档入口',
+      tutorialSource: '站内教程',
+      tutorialDocs: '公开 Docs',
+      lastUpdated: '最后更新',
       sectionTitles: {
         tech: '技术栈与架构',
         features: '核心功能矩阵',
@@ -245,6 +253,10 @@ const dictionaries: Record<Locale, Dictionary> = {
       title: 'About MLog',
       description: 'Explore the MLog stack, feature matrix, engineering highlights, and AI-powered serverless capabilities.',
       eyebrow: 'PROJECT OVERVIEW',
+      actionsTitle: 'Tutorial & Docs Links',
+      tutorialSource: 'In-Site Tutorial',
+      tutorialDocs: 'Public Docs',
+      lastUpdated: 'Last updated',
       sectionTitles: {
         tech: 'Tech Stack & Architecture',
         features: 'Core Feature Matrix',

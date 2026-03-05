@@ -10,121 +10,153 @@ export interface AboutSection {
   tags?: string[]
 }
 
+export interface AboutActionLink {
+  label: string
+  href: string
+  external?: boolean
+}
+
 export interface AboutPageContent {
   heroTitle: string
   heroSubtitle: string
   sections: AboutSection[]
+  actionLinks: AboutActionLink[]
+  updatedAt: string
 }
 
 export const aboutContentByLocale: Record<Locale, AboutPageContent> = {
   zh: {
-    heroTitle: 'MLog：AI 驱动的双语博客系统',
+    heroTitle: 'MLog：AI 驱动的双语工程博客系统',
     heroSubtitle:
-      'MLog 是一个以内容为中心的无服务器博客，结合 AI 写作增强、前台管理发布、自动化运营与可扩展的工程化架构。',
+      'MLog 是一套内容优先、严格双仓隔离、无服务器部署的博客架构，覆盖写作增强、管理发布、自动发文与教程公开镜像。',
     sections: [
       {
         id: 'tech',
         title: '技术栈与架构',
-        intro: '我们用现代 Web 技术构建低运维、高可维护的发布链路，同时保持页面体验轻快稳定。',
+        intro: '我们围绕“可维护 + 可扩展 + 可审计”设计工程骨架，而不是仅做主题皮肤。',
         points: [
           'Next.js App Router + TypeScript + Tailwind v4 + Framer Motion',
-          'Git + Markdown 内容驱动，支持 zh/en 双语路径与统一 frontmatter 合约',
-          'Vercel 无服务器部署：生产自动发布、PR 预览、Cron 自动任务',
-          'SEO 基建完整：metadata、canonical、hreflang、RSS、sitemap、robots'
+          'Git + Markdown 内容模型，按 slug 与 locale 组织并严格 frontmatter 校验',
+          '双仓隔离：公开代码仓 + 私有内容仓（文章、系统配置、上传媒体）',
+          'Vercel 无服务器部署：主分支生产发布、PR 预览、Cron 定时任务'
         ],
-        tags: ['Next.js', 'TypeScript', 'Tailwind v4', 'Vercel']
+        tags: ['Next.js', 'TypeScript', 'Dual Repo', 'Vercel']
       },
       {
         id: 'features',
         title: '核心功能矩阵',
-        intro: '首版围绕“写作、发布、发现、订阅、反馈”闭环设计，覆盖真实博客运营所需能力。',
+        intro: '围绕真实运营流程构建从写作到上线的闭环，保证扩展时仍保持协议稳定。',
         points: [
-          '双语站点：/zh 与 /en，列表页支持搜索、标签、分类与可分享筛选参数',
-          '文章详情支持目录锚点、上一篇/下一篇、阅读时长、语言回退提示',
-          '后台管理支持新建、编辑、删除、图片上传、草稿与发布',
-          '发布链路自动创建 PR 并尝试自动合并，失败回落人工处理'
+          '双语站点：/zh 与 /en，列表支持搜索、标签、分类与 URL 参数分享',
+          '管理后台支持新建、编辑、删除、图片上传、草稿保存与一键发布',
+          '详情页提供目录、上一篇/下一篇、评论、统计、发布快照卡与实时快照卡',
+          '教程白名单镜像：仅指定教程同步到公开 docs，其余文章保持私有'
         ],
-        tags: ['Bilingual', 'Admin', 'Search', 'Publishing']
+        tags: ['Bilingual', 'Admin', 'Repo Cards', 'Tutorial Mirror']
       },
       {
         id: 'highlights',
         title: '产品亮点',
-        intro: '我们关注长期可演进，而不是一次性模板效果；每个功能都与可维护性和可观测性绑定。',
+        intro: '每个关键能力都与可观测和可回滚机制绑定，避免“看起来自动化，实际不可控”。',
         points: [
-          'Git 即内容源：所有内容变更可审计、可回滚、可协作',
-          '前台与后台复用同一套玻璃态设计系统，视觉语言统一',
-          '统计与评论可插拔：Umami + Giscus，在配置缺失时自动降级',
-          '错误码、请求 ID、操作日志齐全，便于排障与治理'
+          'Git 即内容源：内容变更可审计、可评审、可回滚',
+          '统一设计系统：前台与后台共享玻璃态 token 与组件语言',
+          '发布链路 PR 化：自动创建 PR、自动尝试合并、失败可人工接管',
+          '部署联动：内容合并后可自动触发部署，避免“已发布但前台未更新”'
         ],
-        tags: ['Observability', 'Auditability', 'Glassmorphism', 'Composable']
+        tags: ['Auditability', 'Observability', 'Glassmorphism', 'Deploy Hook']
       },
       {
         id: 'innovation',
         title: '创新能力',
-        intro: 'AI 不是装饰，而是写作流程中的可控执行层，强调“可阻断、可回退、可解释”。',
+        intro: 'AI 作为发布流程执行层接入，强调主备、阻断、可解释，不把失败留给线上。',
         points: [
-          'AI 双语写作增强：发布时自动补齐另一语言，并补全摘要、标签、分类',
-          '多模型主备链路：Gemini / OpenAI 兼容 / DeepSeek / Qwen 失败自动切换',
-          '失败阻断策略：关键 AI 步骤失败不会产生半成品发布',
-          '自动化选题与发文：按 GitHub 热门候选与规则筛选，定时生成内容'
+          'AI 双语增强：发布时自动补齐另一语言，并补全摘要、标签、分类',
+          '多 Provider 主备链路：Gemini / OpenAI 兼容 / DeepSeek / Qwen',
+          'GitHub 爆火日报自动化：08:00 定时选题、去重、写作、发布与固定标签',
+          '质量门禁：结构、证据与数值校验不过时直接阻断，避免低质量自动文上线'
         ],
-        tags: ['AI Bilingual', 'Provider Fallback', 'Fail-Safe', 'Automation']
+        tags: ['AI Bilingual', 'Provider Fallback', 'Hot Daily', 'Quality Gate']
       }
-    ]
+    ],
+    actionLinks: [
+      {
+        label: '查看站内教程（中文）',
+        href: '/zh/blog/mlog-open-source-deploy-guide'
+      },
+      {
+        label: '查看公开 Docs 镜像（中文）',
+        href: 'https://github.com/2982136527/mlog/blob/main/docs/tutorials/mlog-open-source-deploy-guide.zh.md',
+        external: true
+      }
+    ],
+    updatedAt: '2026-03-05'
   },
   en: {
-    heroTitle: 'MLog: An AI-Enhanced Bilingual Blogging System',
+    heroTitle: 'MLog: AI-Enhanced Bilingual Engineering Blog',
     heroSubtitle:
-      'MLog is a serverless, content-first blog platform combining AI writing enhancement, in-place admin publishing, and automation-ready operations.',
+      'MLog is a content-first, strict dual-repo, serverless blogging architecture that integrates AI writing enhancement, admin publishing, daily automation, and tutorial mirroring.',
     sections: [
       {
         id: 'tech',
         title: 'Tech Stack & Architecture',
-        intro: 'We built a low-ops and maintainable publishing workflow while keeping performance and readability first.',
+        intro: 'The foundation prioritizes maintainability, scalability, and auditability over a one-off visual template.',
         points: [
           'Next.js App Router + TypeScript + Tailwind v4 + Framer Motion',
-          'Git + Markdown content model with zh/en routing and strict frontmatter contracts',
-          'Vercel serverless deployment: production auto-deploys, PR previews, and scheduled cron jobs',
-          'Complete SEO baseline: metadata, canonical, hreflang, RSS, sitemap, and robots'
+          'Git + Markdown model with locale-aware slug folders and strict frontmatter contracts',
+          'Strict dual-repo isolation: public code repo + private content repo',
+          'Vercel serverless workflow: production from main, PR previews, scheduled cron jobs'
         ],
-        tags: ['Next.js', 'TypeScript', 'Tailwind v4', 'Vercel']
+        tags: ['Next.js', 'TypeScript', 'Dual Repo', 'Vercel']
       },
       {
         id: 'features',
         title: 'Core Feature Matrix',
-        intro: 'The first release covers the end-to-end loop of writing, publishing, discovery, subscription, and feedback.',
+        intro: 'From writing to production, each capability is built for stable long-term operation.',
         points: [
-          'Bilingual site with /zh and /en, including search, tag, category, and shareable filter params',
-          'Post detail supports TOC anchors, previous/next navigation, reading time, and locale fallback notice',
-          'Admin supports create/edit/delete, media upload, draft save, and publishing',
-          'Publishing flow creates a PR and attempts auto-merge, with manual fallback when needed'
+          'Bilingual site with /zh and /en, plus search/tag/category filtering and shareable query params',
+          'Admin supports create/edit/delete, media upload, draft save, and one-click publish',
+          'Post pages include TOC, prev/next navigation, comments, analytics, static snapshot card, and live snapshot card',
+          'Tutorial whitelist mirroring: only selected tutorial content is mirrored to public docs'
         ],
-        tags: ['Bilingual', 'Admin', 'Search', 'Publishing']
+        tags: ['Bilingual', 'Admin', 'Repo Cards', 'Tutorial Mirror']
       },
       {
         id: 'highlights',
         title: 'Product Highlights',
-        intro: 'The product is designed for long-term evolution, with maintainability and observability built into each workflow.',
+        intro: 'Critical workflows are tied to observability and rollback paths, not hidden black boxes.',
         points: [
-          'Git as source of truth: content changes are auditable, reviewable, and rollback-friendly',
-          'Unified glassmorphism design language shared by public pages and admin pages',
-          'Pluggable comments and analytics: Giscus + Umami with graceful fallback behavior',
-          'Structured error codes, request IDs, and operation logs for fast troubleshooting'
+          'Git as source of truth: all content changes are reviewable, traceable, and rollback-friendly',
+          'Unified glassmorphism language shared between public pages and admin interfaces',
+          'PR-based publishing with auto-merge attempt and manual fallback',
+          'Deploy linkage after merged content updates to avoid stale production content'
         ],
-        tags: ['Observability', 'Auditability', 'Glassmorphism', 'Composable']
+        tags: ['Auditability', 'Observability', 'Glassmorphism', 'Deploy Hook']
       },
       {
         id: 'innovation',
         title: 'Innovation Layer',
-        intro: 'AI here is an execution layer inside publishing, not a gimmick: blocking, fallback, and traceability come first.',
+        intro: 'AI is integrated as a controlled execution layer with failover, blocking, and explainable outcomes.',
         points: [
-          'AI bilingual enhancement: publish in one locale and auto-complete the counterpart locale',
-          'Automatic frontmatter enrichment: summary, tags, and category generation when fields are empty',
-          'Provider failover strategy: Gemini / OpenAI-compatible / DeepSeek / Qwen',
-          'Automated topic pipeline: scheduled GitHub hot-project curation and content generation'
+          'AI bilingual enhancement: publish one locale and auto-complete the counterpart locale',
+          'Multi-provider failover: Gemini / OpenAI-compatible / DeepSeek / Qwen',
+          'Daily GitHub hot-project automation at 08:00 with dedupe and fixed tags',
+          'Quality gate blocks low-quality AI output when structure, evidence, or fact checks fail'
         ],
-        tags: ['AI Bilingual', 'Provider Fallback', 'Fail-Safe', 'Automation']
+        tags: ['AI Bilingual', 'Provider Fallback', 'Hot Daily', 'Quality Gate']
       }
-    ]
+    ],
+    actionLinks: [
+      {
+        label: 'Open In-Site Tutorial (EN)',
+        href: '/en/blog/mlog-open-source-deploy-guide'
+      },
+      {
+        label: 'Open Public Docs Mirror (EN)',
+        href: 'https://github.com/2982136527/mlog/blob/main/docs/tutorials/mlog-open-source-deploy-guide.en.md',
+        external: true
+      }
+    ],
+    updatedAt: '2026-03-05'
   }
 }
