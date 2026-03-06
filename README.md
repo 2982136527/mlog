@@ -52,6 +52,7 @@ pnpm dev
 - `/admin/edit/[slug]`
 - `/api/cron/github-hot-daily`（Vercel Cron 入口）
 - `/api/cron/github-hot-daily-fallback`（Vercel Cron 兜底入口）
+- `/api/cron/ai-paper-daily`（AI 论文速读 Cron）
 - `/api/cron/tutorial-sync`（教程镜像 Cron）
 - `/api/blog/live-card?locale=zh|en&slug=<slug>`（文章实时快照 API）
 
@@ -190,6 +191,16 @@ updated?: ISO date
 - 同日唯一 + 历史仓库去重
 - 自动标签：`ai-auto`、`github-hot`
 - 合并后可自动触发部署（`VERCEL_DEPLOY_HOOK_URL`）
+
+## AI 论文速读自动化（非 GitHub）
+
+- 执行时间：`Asia/Shanghai 12:30`（Cron UTC `30 4 * * *`）
+- 数据源：arXiv + Papers with Code
+- 筛选参数：arXiv 分类、候选窗口、最低信号分、是否优先有代码论文
+- 同日唯一 + 历史论文去重
+- 自动标签：`ai-paper`、`paper-daily`
+- 发布策略：AI 质检 + 低质量自动重写 1 次 + 通过后自动直发
+- 合并后自动触发部署（`VERCEL_DEPLOY_HOOK_URL`）
 
 ### 日报质量策略
 

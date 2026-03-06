@@ -7,7 +7,7 @@ import type {
   FrontmatterEnrichPayload,
   TranslatedLocalePayload
 } from '@/types/admin'
-import type { GithubHotGeneratedPost, GithubRepoEvidence } from '@/types/automation'
+import type { AiPaperEvidence, AiPaperGeneratedPost, GithubHotGeneratedPost, GithubRepoEvidence } from '@/types/automation'
 import { getAiRuntimeConfig, type AiRuntimeConfig } from '@/lib/ai/config'
 import { runDeepseekProvider } from '@/lib/ai/provider-deepseek'
 import { runGeminiProvider } from '@/lib/ai/provider-gemini'
@@ -29,6 +29,14 @@ const translateSchema = z.object({
 })
 
 const githubHotPostSchema = z.object({
+  title: z.string().trim().min(1),
+  summary: z.string().trim().min(1),
+  tags: z.array(z.string().trim().min(1)).min(3).max(8),
+  category: z.string().trim().min(1),
+  markdown: z.string().trim().min(1)
+})
+
+const aiPaperPostSchema = z.object({
   title: z.string().trim().min(1),
   summary: z.string().trim().min(1),
   tags: z.array(z.string().trim().min(1)).min(3).max(8),
@@ -381,6 +389,73 @@ function buildGithubHotPostPrompt(input: {
   }
 }
 
+function buildAiPaperDailyPrompt(input: {
+  locale: AdminLocale
+  dateIso: string
+  evidence: AiPaperEvidence
+  qualityFeedback?: string[]
+}): { systemPrompt: string; userPrompt: string } {
+  const evidenceCard = {
+    arxivId: input.evidence.arxivId,
+    title: input.evidence.title,
+    summary: input.evidence.summary,
+    authors: input.evidence.authors.slice(0, 10),
+    categories: input.evidence.categories,
+    publishedAt: input.evidence.publishedAt,
+    updatedAt: input.evidence.updatedAt,
+    paperUrl: input.evidence.paperUrl,
+    pwcUrl: input.evidence.pwcUrl,
+    codeUrl: input.evidence.codeUrl,
+    hasCode: input.evidence.hasCode,
+    signalsScore: input.evidence.signalsScore,
+    sourceUrls: input.evidence.sourceUrls,
+    fetchedAt: input.evidence.fetchedAt
+  }
+
+  return {
+    systemPrompt:
+      'You are a senior Chinese AI researcher and technical editor. Return strict JSON only. Never wrap output in markdown fences. Output language must be Simplified Chinese.',
+    userPrompt: [
+      `Task: write a daily AI paper digest article in locale=${input.locale}.`,
+      'Output JSON schema:',
+      '{"title":"string","summary":"string","tags":["string"],"category":"string","markdown":"string"}',
+      'Hard requirements:',
+      '- summary: about 90-160 Chinese characters.',
+      '- tags: 3-6 concise searchable tags.',
+      '- category: one concise Chinese category phrase.',
+      '- markdown must be 1200-1800 Chinese characters and include all required H2 sections.',
+      '- Never fabricate hard facts not present in evidence JSON.',
+      '- Include arXiv URL in正文.',
+      '- `证据来源` must include URL list and fetched date.',
+      '',
+      'Required H2 sections (exact text):',
+      '- 论文一句话结论',
+      '- 已确认事实（论文信息卡）',
+      '- 方法与创新点',
+      '- 结果与可信边界',
+      '- 30分钟复现实操路径',
+      '- 适用/不适用场景',
+      '- 证据来源',
+      '',
+      `Publish date: ${input.dateIso}`,
+      '',
+      'Evidence JSON (single source of truth):',
+      JSON.stringify(evidenceCard, null, 2),
+      '',
+      'Writing constraints:',
+      '- Explain why this paper matters now for AI engineering.',
+      '- `30分钟复现实操路径` must include concrete runnable steps.',
+      '- In `适用/不适用场景`, provide explicit audience boundaries.',
+      '- Keep tone objective and evidence-first.',
+      '',
+      ...(input.qualityFeedback && input.qualityFeedback.length > 0
+        ? ['Previous draft failed checks. You MUST fix all items below:', ...input.qualityFeedback.map(item => `- ${item}`), '']
+        : []),
+      'Output JSON only.'
+    ].join('\n')
+  }
+}
+
 export async function runAiFrontmatterEnrich(input: {
   locale: AdminLocale
   title: string
@@ -475,6 +550,39 @@ export async function runAiGithubHotPostGenerate(input: {
     task: 'github_hot_post_generate',
     locale: input.locale,
     schema: githubHotPostSchema,
+    systemPrompt: prompts.systemPrompt,
+    userPrompt: prompts.userPrompt
+  })
+
+  return {
+    payload: {
+      title: result.data.title.trim(),
+      summary: result.data.summary.trim(),
+      tags: normalizeTags(result.data.tags).slice(0, 6),
+      category: result.data.category.trim(),
+      markdown: result.data.markdown.trim()
+    },
+    steps: result.steps
+  }
+}
+
+export async function runAiPaperDailyGenerate(input: {
+  locale: AdminLocale
+  dateIso: string
+  evidence: AiPaperEvidence
+  qualityFeedback?: string[]
+}): Promise<{ payload: AiPaperGeneratedPost; steps: AiExecutionStep[] }> {
+  const prompts = buildAiPaperDailyPrompt({
+    locale: input.locale,
+    dateIso: input.dateIso,
+    evidence: input.evidence,
+    qualityFeedback: input.qualityFeedback
+  })
+
+  const result = await runAiTaskWithFallback({
+    task: 'ai_paper_daily_generate',
+    locale: input.locale,
+    schema: aiPaperPostSchema,
     systemPrompt: prompts.systemPrompt,
     userPrompt: prompts.userPrompt
   })

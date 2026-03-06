@@ -142,3 +142,100 @@ export type GithubHotGeneratedPost = {
   category: string
   markdown: string
 }
+
+export type AiPaperDailySource = 'arxiv_pwc'
+
+export type AiPaperDailyConfig = {
+  enabled: boolean
+  source: AiPaperDailySource
+  timezone: 'Asia/Shanghai'
+  scheduleLocalTime: '12:30'
+  arxivCategories: string[]
+  maxCandidates: number
+  minSignalsScore: number
+  includeCodeFirst: boolean
+  updatedAt: string
+  updatedBy: 'admin' | 'system'
+}
+
+export type AiPaperCandidate = {
+  rank: number
+  arxivId: string
+  title: string
+  summary: string
+  authors: string[]
+  categories: string[]
+  publishedAt: string
+  updatedAt: string
+  paperUrl: string
+  pwcUrl: string | null
+  codeUrl: string | null
+  hasCode: boolean
+  signalsScore: number
+}
+
+export type AiPaperEvidence = {
+  arxivId: string
+  title: string
+  summary: string
+  authors: string[]
+  categories: string[]
+  publishedAt: string
+  updatedAt: string
+  paperUrl: string
+  pwcUrl: string | null
+  codeUrl: string | null
+  hasCode: boolean
+  signalsScore: number
+  sourceUrls: string[]
+  fetchedAt: string
+}
+
+export type AiPaperRunStatus =
+  | 'PUBLISHED'
+  | 'SKIPPED_DISABLED'
+  | 'SKIPPED_ALREADY_PUBLISHED_TODAY'
+  | 'SKIPPED_NO_CANDIDATE'
+  | 'SKIPPED_FETCH_FAILED'
+  | 'SKIPPED_QUALITY_FAILED'
+
+export type AiPaperDailyRunResult = {
+  status: AiPaperRunStatus
+  dateStamp: string
+  dateIso: string
+  slug?: string
+  selectedPaper?: {
+    arxivId: string
+    title: string
+    paperUrl: string
+    pwcUrl?: string
+  }
+  reason?: string
+  changedPaths?: string[]
+  publish?: PublishResult
+  ai?: AdminAiResult
+  fixedTags?: string[]
+  quality?: {
+    passed: boolean
+    retryCount: number
+    failedChecks: string[]
+  }
+  evidence?: {
+    sourceCount: number
+  }
+}
+
+export type AiPaperDailyLastRunState = {
+  requestId: string
+  actor: string
+  runAt: string
+  result: AiPaperDailyRunResult
+}
+
+export type AiPaperGeneratedPost = {
+  title: string
+  summary: string
+  tags: string[]
+  category: string
+  markdown: string
+}

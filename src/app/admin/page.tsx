@@ -5,6 +5,7 @@ import { isAdminLogin } from '@/lib/admin/permissions'
 import { listAdminPosts } from '@/lib/admin/posts-service'
 import { AdminDeleteButton } from '@/components/admin/admin-delete-button'
 import { AdminAutomationCard } from '@/components/admin/admin-automation-card'
+import { AdminAiPaperDailyCard } from '@/components/admin/admin-ai-paper-daily-card'
 import { AdminTutorialSyncCard } from '@/components/admin/admin-tutorial-sync-card'
 import { AdminHttpError } from '@/lib/admin/errors'
 import type { AdminPostSummary } from '@/types/admin'
@@ -67,6 +68,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       </section>
 
       <AdminAutomationCard />
+      <AdminAiPaperDailyCard />
       <AdminTutorialSyncCard />
 
       <form className='grid gap-3 rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur sm:grid-cols-4'>
