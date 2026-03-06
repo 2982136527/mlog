@@ -19,6 +19,27 @@ export type UserAiProviderInput = {
   enabled?: boolean
 }
 
+export type UserDiscoverableModel = {
+  id: string
+  label: string
+  writingCapable: boolean
+}
+
+export type UserAiProviderModelsRequest = {
+  provider: AiProvider
+  apiKey: string
+  baseUrl?: string
+  includeAll?: boolean
+}
+
+export type UserAiProviderModelsResponse = {
+  provider: AiProvider
+  resolvedBaseUrl: string
+  source: 'live' | 'fallback'
+  models: UserDiscoverableModel[]
+  warnings?: string[]
+}
+
 export type UserAutomationJob = {
   id: string
   providerId: string
@@ -58,4 +79,3 @@ export type UserAutomationRun = {
   startedAt: string
   finishedAt: string | null
 }
-

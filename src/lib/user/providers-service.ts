@@ -3,6 +3,7 @@ import type { AiProvider } from '@/types/admin'
 import type { UserAiProvider, UserAiProviderInput } from '@/types/user'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { decryptUserApiKey, encryptUserApiKey } from '@/lib/user/crypto'
+import { getProviderDefaultBaseUrl } from '@/lib/user/provider-catalog'
 import { requireActiveUserProfile } from '@/lib/user/profile'
 import { sql } from '@/lib/user/db'
 
@@ -28,10 +29,10 @@ function normalizeModel(input: string): string {
   return value.slice(0, 160)
 }
 
-function normalizeBaseUrl(input?: string): string | null {
+function normalizeBaseUrl(provider: AiProvider, input?: string): string {
   const value = (input || '').trim()
   if (!value) {
-    return null
+    return getProviderDefaultBaseUrl(provider)
   }
 
   let url: URL
@@ -94,7 +95,7 @@ export async function createUserAiProvider(login: string, input: UserAiProviderI
   await requireActiveUserProfile(login)
   const provider = normalizeProvider(input.provider)
   const model = normalizeModel(input.model)
-  const baseUrl = normalizeBaseUrl(input.baseUrl)
+  const baseUrl = normalizeBaseUrl(provider, input.baseUrl)
   const secret = encryptUserApiKey(input.apiKey)
   const id = randomUUID()
   const enabled = input.enabled !== false
@@ -129,7 +130,14 @@ export async function updateUserAiProvider(
 
   const provider = input.provider ? normalizeProvider(input.provider) : normalizeProvider(existing.provider)
   const model = input.model ? normalizeModel(input.model) : existing.model
-  const baseUrl = input.baseUrl !== undefined ? normalizeBaseUrl(input.baseUrl) : existing.base_url
+  const previousProvider = normalizeProvider(existing.provider)
+  const providerChanged = previousProvider !== provider
+  const baseUrl =
+    input.baseUrl !== undefined
+      ? normalizeBaseUrl(provider, input.baseUrl)
+      : providerChanged
+        ? getProviderDefaultBaseUrl(provider)
+        : existing.base_url || getProviderDefaultBaseUrl(provider)
   const enabled = input.enabled === undefined ? existing.enabled : Boolean(input.enabled)
 
   const encrypted = input.apiKey ? encryptUserApiKey(input.apiKey) : null
@@ -247,4 +255,3 @@ export async function getUserAiProviderById(login: string, id: string): Promise<
   const row = result.rows[0]
   return row ? mapProvider(row) : null
 }
-

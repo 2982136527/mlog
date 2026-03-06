@@ -1,4 +1,5 @@
 import type { AiProvider } from '@/types/admin'
+import { getProviderDefaultBaseUrl } from '@/lib/user/provider-catalog'
 
 const DEFAULT_CHAIN: AiProvider[] = ['gemini', 'openai', 'deepseek', 'qwen']
 const VALID_PROVIDERS = new Set<AiProvider>(DEFAULT_CHAIN)
@@ -6,6 +7,7 @@ const VALID_PROVIDERS = new Set<AiProvider>(DEFAULT_CHAIN)
 type GeminiConfig = {
   apiKey: string
   model: string
+  baseUrl: string
 }
 
 type OpenAICompatibleConfig = {
@@ -63,16 +65,17 @@ function parseProviderChain(value: string | undefined): AiProvider[] {
 function readGeminiConfig(): GeminiConfig | null {
   const apiKey = (process.env.AI_GEMINI_API_KEY || '').trim()
   const model = (process.env.AI_GEMINI_MODEL || 'gemini-2.0-flash').trim()
+  const baseUrl = normalizeBaseUrl(process.env.AI_GEMINI_BASE_URL, getProviderDefaultBaseUrl('gemini'))
   if (!apiKey || !model) {
     return null
   }
-  return { apiKey, model }
+  return { apiKey, model, baseUrl }
 }
 
 function readOpenAiConfig(): OpenAICompatibleConfig | null {
   const apiKey = (process.env.AI_OPENAI_API_KEY || '').trim()
   const model = (process.env.AI_OPENAI_MODEL || 'gpt-4o-mini').trim()
-  const baseUrl = normalizeBaseUrl(process.env.AI_OPENAI_BASE_URL, 'https://api.openai.com/v1')
+  const baseUrl = normalizeBaseUrl(process.env.AI_OPENAI_BASE_URL, getProviderDefaultBaseUrl('openai'))
   if (!apiKey || !model) {
     return null
   }
@@ -82,7 +85,7 @@ function readOpenAiConfig(): OpenAICompatibleConfig | null {
 function readDeepseekConfig(): OpenAICompatibleConfig | null {
   const apiKey = (process.env.AI_DEEPSEEK_API_KEY || '').trim()
   const model = (process.env.AI_DEEPSEEK_MODEL || 'deepseek-chat').trim()
-  const baseUrl = normalizeBaseUrl(process.env.AI_DEEPSEEK_BASE_URL, 'https://api.deepseek.com/v1')
+  const baseUrl = normalizeBaseUrl(process.env.AI_DEEPSEEK_BASE_URL, getProviderDefaultBaseUrl('deepseek'))
   if (!apiKey || !model) {
     return null
   }
@@ -92,7 +95,7 @@ function readDeepseekConfig(): OpenAICompatibleConfig | null {
 function readQwenConfig(): OpenAICompatibleConfig | null {
   const apiKey = (process.env.AI_QWEN_API_KEY || '').trim()
   const model = (process.env.AI_QWEN_MODEL || 'qwen-plus').trim()
-  const baseUrl = normalizeBaseUrl(process.env.AI_QWEN_BASE_URL, 'https://dashscope.aliyuncs.com/compatible-mode/v1')
+  const baseUrl = normalizeBaseUrl(process.env.AI_QWEN_BASE_URL, getProviderDefaultBaseUrl('qwen'))
   if (!apiKey || !model) {
     return null
   }
@@ -111,4 +114,3 @@ export function getAiRuntimeConfig(): AiRuntimeConfig {
     qwen: readQwenConfig()
   }
 }
-

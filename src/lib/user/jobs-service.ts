@@ -5,6 +5,7 @@ import { AdminHttpError } from '@/lib/admin/errors'
 import { publishPostChanges } from '@/lib/admin/publish-service'
 import { getNextRunAt, normalizeCronExpr, normalizeTimezone } from '@/lib/user/cron'
 import { ensureUserAutomationSchema, sql } from '@/lib/user/db'
+import { getProviderDefaultBaseUrl } from '@/lib/user/provider-catalog'
 import { requireActiveUserProfile } from '@/lib/user/profile'
 import { getUserAiProviderForRuntime } from '@/lib/user/providers-service'
 import type { UserAutomationJob, UserAutomationJobInput, UserAutomationRun, UserAutomationRunStatus } from '@/types/user'
@@ -119,7 +120,8 @@ function buildUserRuntimeConfig(input: {
       ...base,
       gemini: {
         apiKey: input.apiKey,
-        model: input.model
+        model: input.model,
+        baseUrl: (input.baseUrl || getProviderDefaultBaseUrl('gemini')).replace(/\/+$/, '')
       }
     }
   }
@@ -130,7 +132,7 @@ function buildUserRuntimeConfig(input: {
       openai: {
         apiKey: input.apiKey,
         model: input.model,
-        baseUrl: (input.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '')
+        baseUrl: (input.baseUrl || getProviderDefaultBaseUrl('openai')).replace(/\/+$/, '')
       }
     }
   }
@@ -141,7 +143,7 @@ function buildUserRuntimeConfig(input: {
       deepseek: {
         apiKey: input.apiKey,
         model: input.model,
-        baseUrl: (input.baseUrl || 'https://api.deepseek.com/v1').replace(/\/+$/, '')
+        baseUrl: (input.baseUrl || getProviderDefaultBaseUrl('deepseek')).replace(/\/+$/, '')
       }
     }
   }
@@ -151,7 +153,7 @@ function buildUserRuntimeConfig(input: {
     qwen: {
       apiKey: input.apiKey,
       model: input.model,
-      baseUrl: (input.baseUrl || 'https://dashscope.aliyuncs.com/compatible-mode/v1').replace(/\/+$/, '')
+      baseUrl: (input.baseUrl || getProviderDefaultBaseUrl('qwen')).replace(/\/+$/, '')
     }
   }
 }

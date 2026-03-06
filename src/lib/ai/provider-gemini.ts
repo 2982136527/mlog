@@ -25,7 +25,7 @@ export async function runGeminiProvider(config: AiRuntimeConfig, input: Provider
     throw new Error('Gemini provider is not configured.')
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.gemini.model)}:generateContent?key=${encodeURIComponent(config.gemini.apiKey)}`
+  const endpoint = `${config.gemini.baseUrl}/models/${encodeURIComponent(config.gemini.model)}:generateContent?key=${encodeURIComponent(config.gemini.apiKey)}`
 
   const response = await fetch(endpoint, {
     method: 'POST',
@@ -82,4 +82,3 @@ export async function runGeminiProvider(config: AiRuntimeConfig, input: Provider
     model: config.gemini.model
   }
 }
-

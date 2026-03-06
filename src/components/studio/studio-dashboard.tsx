@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { AiProvider } from '@/types/admin'
-import type { UserAiProvider, UserAutomationJob, UserAutomationRun } from '@/types/user'
+import { getProviderDefaultBaseUrl, getProviderFallbackModels } from '@/lib/user/provider-catalog'
+import type { UserAiProvider, UserAiProviderModelsResponse, UserAutomationJob, UserAutomationRun, UserDiscoverableModel } from '@/types/user'
 
 type ApiError = {
   error?: {
@@ -25,6 +26,10 @@ function providerLabel(provider: AiProvider): string {
   return 'Qwen'
 }
 
+function initialModel(provider: AiProvider): string {
+  return getProviderFallbackModels(provider)[0]?.id || ''
+}
+
 export function StudioDashboard({ login }: StudioDashboardProps) {
   const [providers, setProviders] = useState<UserAiProvider[]>([])
   const [jobs, setJobs] = useState<UserAutomationJob[]>([])
@@ -36,10 +41,16 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
 
   const [providerForm, setProviderForm] = useState({
     provider: 'gemini' as AiProvider,
-    model: 'gemini-3.1-pro-preview',
-    baseUrl: '',
+    model: initialModel('gemini'),
+    baseUrl: getProviderDefaultBaseUrl('gemini'),
     apiKey: ''
   })
+  const [includeAllModels, setIncludeAllModels] = useState(false)
+  const [modelOptions, setModelOptions] = useState<UserDiscoverableModel[]>(getProviderFallbackModels('gemini'))
+  const [modelSource, setModelSource] = useState<'live' | 'fallback'>('fallback')
+  const [modelWarnings, setModelWarnings] = useState<string[]>([])
+  const [modelError, setModelError] = useState<string | null>(null)
+  const [discoveringModels, setDiscoveringModels] = useState(false)
 
   const [jobForm, setJobForm] = useState({
     providerId: '',
@@ -80,10 +91,81 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
     }
   }
 
+  async function discoverModels(options?: { silent?: boolean }) {
+    const apiKey = providerForm.apiKey.trim()
+    if (!apiKey) {
+      const fallback = getProviderFallbackModels(providerForm.provider)
+      setModelOptions(fallback)
+      setModelSource('fallback')
+      setModelWarnings([])
+      setModelError(null)
+      return
+    }
+
+    setDiscoveringModels(true)
+    setModelError(null)
+    try {
+      const response = await fetch('/api/user/ai-providers/models', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          provider: providerForm.provider,
+          apiKey,
+          baseUrl: providerForm.baseUrl.trim() || undefined,
+          includeAll: includeAllModels
+        })
+      })
+      const data = (await response.json()) as UserAiProviderModelsResponse & ApiError
+      if (!response.ok) {
+        throw new Error(data.error?.message || '拉取模型列表失败')
+      }
+
+      const optionsList = Array.isArray(data.models) && data.models.length > 0 ? data.models : getProviderFallbackModels(providerForm.provider)
+      setModelOptions(optionsList)
+      setModelSource(data.source || 'fallback')
+      setModelWarnings(data.warnings || [])
+      setProviderForm(prev => ({
+        ...prev,
+        baseUrl: data.resolvedBaseUrl,
+        model: prev.model.trim() ? prev.model : optionsList[0]?.id || prev.model
+      }))
+    } catch (error) {
+      const fallback = getProviderFallbackModels(providerForm.provider)
+      setModelOptions(fallback)
+      setModelSource('fallback')
+      setModelWarnings([])
+      setModelError(toErrorMessage(error, '拉取模型列表失败'))
+      if (!options?.silent) {
+        setMessage(toErrorMessage(error, '拉取模型列表失败'))
+      }
+    } finally {
+      setDiscoveringModels(false)
+    }
+  }
+
   useEffect(() => {
     void loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!providerForm.apiKey.trim()) {
+      setModelOptions(getProviderFallbackModels(providerForm.provider))
+      setModelSource('fallback')
+      setModelWarnings([])
+      setModelError(null)
+      return
+    }
+
+    const timer = setTimeout(() => {
+      void discoverModels({ silent: true })
+    }, 600)
+
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerForm.provider, providerForm.baseUrl, providerForm.apiKey, includeAllModels])
 
   const createProvider = async () => {
     if (!providerForm.apiKey.trim()) {
@@ -225,7 +307,19 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
             Provider
             <select
               value={providerForm.provider}
-              onChange={event => setProviderForm(prev => ({ ...prev, provider: event.target.value as AiProvider }))}
+              onChange={event => {
+                const provider = event.target.value as AiProvider
+                setProviderForm(prev => ({
+                  ...prev,
+                  provider,
+                  baseUrl: getProviderDefaultBaseUrl(provider),
+                  model: initialModel(provider)
+                }))
+                setModelOptions(getProviderFallbackModels(provider))
+                setModelSource('fallback')
+                setModelWarnings([])
+                setModelError(null)
+              }}
               className='mt-1 w-full rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-ink)]'>
               <option value='gemini'>Gemini</option>
               <option value='openai'>OpenAI Compatible</option>
@@ -234,21 +328,35 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
             </select>
           </label>
           <label className='text-xs text-[var(--color-ink-soft)]'>
-            Model
+            Model（可手填）
             <input
+              list='studio-model-options'
               value={providerForm.model}
               onChange={event => setProviderForm(prev => ({ ...prev, model: event.target.value }))}
               className='mt-1 w-full rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-ink)]'
             />
+            <datalist id='studio-model-options'>
+              {modelOptions.map(item => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </datalist>
           </label>
           <label className='text-xs text-[var(--color-ink-soft)]'>
-            Base URL（可选）
+            Base URL
             <input
               value={providerForm.baseUrl}
               onChange={event => setProviderForm(prev => ({ ...prev, baseUrl: event.target.value }))}
-              placeholder='https://api.openai.com/v1'
+              placeholder={getProviderDefaultBaseUrl(providerForm.provider)}
               className='mt-1 w-full rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-ink)]'
             />
+            <button
+              type='button'
+              onClick={() => setProviderForm(prev => ({ ...prev, baseUrl: getProviderDefaultBaseUrl(prev.provider) }))}
+              className='mt-2 text-xs font-medium text-[var(--color-brand)] transition hover:text-[var(--color-brand-strong)]'>
+              恢复官方默认
+            </button>
           </label>
           <label className='text-xs text-[var(--color-ink-soft)]'>
             API Key
@@ -260,6 +368,32 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
             />
           </label>
         </div>
+        <div className='flex flex-wrap items-center gap-3 text-xs text-[var(--color-ink-soft)]'>
+          <label className='inline-flex items-center gap-2'>
+            <input
+              type='checkbox'
+              checked={includeAllModels}
+              onChange={event => setIncludeAllModels(event.target.checked)}
+            />
+            显示全部模型（默认仅可写作）
+          </label>
+          <button
+            type='button'
+            onClick={() => void discoverModels()}
+            disabled={discoveringModels || !providerForm.apiKey.trim()}
+            className='rounded-lg border border-[var(--color-border-strong)] px-2.5 py-1 text-xs text-[var(--color-ink)] transition hover:border-[var(--color-brand)] disabled:opacity-50'>
+            {discoveringModels ? '拉取中...' : '刷新模型'}
+          </button>
+          <span>模型来源：{modelSource === 'live' ? '厂商实时' : '推荐回退'}</span>
+        </div>
+        {modelWarnings.length > 0 && (
+          <div className='rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-700'>
+            {modelWarnings.join('；')}
+          </div>
+        )}
+        {modelError && (
+          <div className='rounded-xl border border-red-200 bg-red-50/80 px-3 py-2 text-xs text-red-700'>{modelError}</div>
+        )}
         <button
           type='button'
           onClick={createProvider}
@@ -389,4 +523,3 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
     </div>
   )
 }
-
