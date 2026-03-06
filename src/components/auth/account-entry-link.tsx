@@ -46,7 +46,12 @@ export function AccountEntryLink({ locale, className }: AccountEntryLinkProps) {
     }
   }, [])
 
-  const href = isAuthed ? '/me' : '/me/login?callbackUrl=/me'
+  const callbackUrl = `/me?locale=${locale}`
+  const search = new URLSearchParams({
+    locale,
+    callbackUrl
+  })
+  const href = isAuthed ? callbackUrl : `/me/login?${search.toString()}`
   const label = isAuthed ? dict.common.me : dict.common.login
 
   return (

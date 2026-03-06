@@ -5,9 +5,14 @@ import { signIn } from 'next-auth/react'
 type UserGitHubSignInButtonProps = {
   callbackUrl: string
   requestGistScope?: boolean
+  label?: string
 }
 
-export function UserGitHubSignInButton({ callbackUrl, requestGistScope = false }: UserGitHubSignInButtonProps) {
+export function UserGitHubSignInButton({
+  callbackUrl,
+  requestGistScope = false,
+  label = '使用 GitHub 登录'
+}: UserGitHubSignInButtonProps) {
   return (
     <button
       type='button'
@@ -17,7 +22,7 @@ export function UserGitHubSignInButton({ callbackUrl, requestGistScope = false }
           : signIn('github', { callbackUrl })
       }
       className='rounded-xl bg-[var(--color-brand)] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-brand-strong)]'>
-      使用 GitHub 登录
+      {label}
     </button>
   )
 }
