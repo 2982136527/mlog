@@ -19,7 +19,7 @@
     },
     {
       "path": "/api/cron/user-automation-dispatch",
-      "schedule": "*/5 * * * *"
+      "schedule": "20 0 * * *"
     }
   ]
 }

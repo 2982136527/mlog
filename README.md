@@ -56,7 +56,7 @@ pnpm dev
 - `/api/cron/github-hot-daily-fallback`（Vercel Cron 兜底入口）
 - `/api/cron/ai-paper-daily`（AI 论文速读 Cron）
 - `/api/cron/tutorial-sync`（教程镜像 Cron）
-- `/api/cron/user-automation-dispatch`（用户自定义 cron 轮询执行）
+- `/api/cron/user-automation-dispatch`（用户任务分发 Cron，Hobby 为每日一次）
 - `/api/blog/live-card?locale=zh|en&slug=<slug>`（文章实时快照 API）
 
 ## 内容合约
@@ -156,7 +156,7 @@ updated?: ISO date
 
 - 任意 GitHub 登录用户可用 `/studio` 管理自己的模型与任务。
 - 用户 API key 仅服务端加密存储，不回传明文。
-- 支持用户自定义 5 段 cron + 时区；由 `/api/cron/user-automation-dispatch` 每 5 分钟轮询触发。
+- 支持用户自定义 5 段 cron + 时区；当前 Vercel Hobby 按平台限制由 `/api/cron/user-automation-dispatch` 每日触发一次（08:20，Asia/Shanghai）。如需高频调度请升级 Vercel Pro 或改用外部调度器。
 - 用户任务仅生成草稿（`draft=true`），最终发布需管理员审核。
 - 自动追加标签：`ai-user`、`author-<login>`、`provider-<provider>`、`model-<model>`。
 

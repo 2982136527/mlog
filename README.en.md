@@ -56,7 +56,7 @@ For production builds, `pnpm build` runs `pnpm content:pull` first to sync priva
 - `/api/cron/github-hot-daily-fallback` (Vercel cron fallback entry, bearer protected)
 - `/api/cron/ai-paper-daily` (AI paper digest cron entry, bearer protected)
 - `/api/cron/tutorial-sync` (Vercel cron entry, bearer protected)
-- `/api/cron/user-automation-dispatch` (user custom-cron dispatcher, bearer protected)
+- `/api/cron/user-automation-dispatch` (user automation dispatcher, daily on Hobby plans)
 - `/api/blog/live-card?locale=zh|en&slug=<slug>` (public read-only live snapshot API for hot-daily posts)
 
 ## Content Contract
@@ -207,7 +207,7 @@ If required fields are missing, build fails with the source file path.
 - Any signed-in GitHub user can use `/studio`.
 - User API keys are encrypted server-side; plaintext is never returned to clients.
 - Users can configure provider/model/topic/custom cron/timezone.
-- Scheduler runs every 5 minutes via `/api/cron/user-automation-dispatch`.
+- On Vercel Hobby, scheduler runs once daily via `/api/cron/user-automation-dispatch` (08:20 Asia/Shanghai) due platform limits. For high-frequency schedules, use Vercel Pro or an external scheduler.
 - User automation always publishes as `draft=true`; final publish remains admin-reviewed.
 - Generated posts are tagged with `ai-user`, `author-<login>`, `provider-<provider>`, `model-<model>`.
 
