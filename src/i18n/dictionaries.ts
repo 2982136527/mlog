@@ -7,6 +7,7 @@ export type Dictionary = {
     home: string
     blog: string
     about: string
+    forum: string
     me: string
   }
   home: {
@@ -63,6 +64,39 @@ export type Dictionary = {
     staticCardRepo: string
     staticCardVisitRepo: string
   }
+  forum: {
+    title: string
+    description: string
+    categories: string
+    latestThreads: string
+    hotThreads: string
+    allCategories: string
+    searchPlaceholder: string
+    loadMore: string
+    emptyThreads: string
+    emptyReplies: string
+    noCategories: string
+    comments: string
+    reactions: string
+    createdAt: string
+    updatedAt: string
+    newThread: string
+    myForum: string
+    myThreads: string
+    myReplies: string
+    backToForum: string
+    threadFormTitle: string
+    threadFormBody: string
+    threadFormCategory: string
+    threadFormSubmit: string
+    threadFormSubmitting: string
+    replyFormTitle: string
+    replyFormSubmit: string
+    replyFormSubmitting: string
+    loginRequired: string
+    scopeRequired: string
+    authorize: string
+  }
   common: {
     language: string
     theme: string
@@ -70,6 +104,7 @@ export type Dictionary = {
     themeOrnate: string
     rss: string
     about: string
+    forum: string
     login: string
     me: string
     categories: string
@@ -109,6 +144,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       home: '首页',
       blog: '博客',
       about: '介绍',
+      forum: '论坛',
       me: '我的'
     },
     home: {
@@ -165,6 +201,39 @@ const dictionaries: Record<Locale, Dictionary> = {
       staticCardRepo: '仓库',
       staticCardVisitRepo: '访问仓库'
     },
+    forum: {
+      title: '论坛',
+      description: '围绕博客内容交流想法、提问和分享经验。',
+      categories: '分类',
+      latestThreads: '最新主题',
+      hotThreads: '热门主题',
+      allCategories: '全部分类',
+      searchPlaceholder: '搜索主题标题或内容',
+      loadMore: '加载更多',
+      emptyThreads: '暂无主题。',
+      emptyReplies: '暂无回复。',
+      noCategories: '暂无可用分类。',
+      comments: '回复',
+      reactions: '反应',
+      createdAt: '创建于',
+      updatedAt: '更新于',
+      newThread: '新建主题',
+      myForum: '我的论坛',
+      myThreads: '我的主题',
+      myReplies: '我的回复',
+      backToForum: '返回论坛',
+      threadFormTitle: '主题标题',
+      threadFormBody: '主题内容',
+      threadFormCategory: '主题分类',
+      threadFormSubmit: '发布主题',
+      threadFormSubmitting: '发布中...',
+      replyFormTitle: '回复内容',
+      replyFormSubmit: '发布回复',
+      replyFormSubmitting: '发布中...',
+      loginRequired: '请先登录后再操作。',
+      scopeRequired: '需要 GitHub Discussions 写入权限，请补授权。',
+      authorize: '补授权'
+    },
     common: {
       language: '语言',
       theme: '主题',
@@ -172,6 +241,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       themeOrnate: '华丽',
       rss: 'RSS',
       about: '介绍',
+      forum: '论坛',
       login: '登录',
       me: '我的',
       categories: '分类',
@@ -209,6 +279,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       home: 'Home',
       blog: 'Blog',
       about: 'About',
+      forum: 'Forum',
       me: 'My'
     },
     home: {
@@ -265,6 +336,39 @@ const dictionaries: Record<Locale, Dictionary> = {
       staticCardRepo: 'Repository',
       staticCardVisitRepo: 'Open Repo'
     },
+    forum: {
+      title: 'Forum',
+      description: 'Discuss blog topics, ask questions, and share practical experience.',
+      categories: 'Categories',
+      latestThreads: 'Latest Threads',
+      hotThreads: 'Hot Threads',
+      allCategories: 'All Categories',
+      searchPlaceholder: 'Search thread title or content',
+      loadMore: 'Load More',
+      emptyThreads: 'No threads yet.',
+      emptyReplies: 'No replies yet.',
+      noCategories: 'No categories available.',
+      comments: 'Replies',
+      reactions: 'Reactions',
+      createdAt: 'Created',
+      updatedAt: 'Updated',
+      newThread: 'New Thread',
+      myForum: 'My Forum',
+      myThreads: 'My Threads',
+      myReplies: 'My Replies',
+      backToForum: 'Back to Forum',
+      threadFormTitle: 'Thread Title',
+      threadFormBody: 'Thread Content',
+      threadFormCategory: 'Thread Category',
+      threadFormSubmit: 'Publish Thread',
+      threadFormSubmitting: 'Publishing...',
+      replyFormTitle: 'Reply Content',
+      replyFormSubmit: 'Post Reply',
+      replyFormSubmitting: 'Posting...',
+      loginRequired: 'Please sign in to continue.',
+      scopeRequired: 'GitHub Discussions write scope is required.',
+      authorize: 'Authorize Scope'
+    },
     common: {
       language: 'Language',
       theme: 'Theme',
@@ -272,6 +376,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       themeOrnate: 'Ornate',
       rss: 'RSS',
       about: 'About',
+      forum: 'Forum',
       login: 'Login',
       me: 'My',
       categories: 'Categories',

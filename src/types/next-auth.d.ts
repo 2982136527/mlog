@@ -5,6 +5,8 @@ declare module 'next-auth' {
     user?: DefaultSession['user'] & {
       login?: string
       hasGistScope?: boolean
+      hasDiscussionReadScope?: boolean
+      hasDiscussionWriteScope?: boolean
     }
   }
 }

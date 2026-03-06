@@ -2,16 +2,29 @@ import type { NextAuthOptions } from 'next-auth'
 import { getServerSession } from 'next-auth'
 import GitHubProvider from 'next-auth/providers/github'
 
-function hasGistScope(scopeValue: unknown): boolean {
+function parseScopeItems(scopeValue: unknown): string[] {
   if (typeof scopeValue !== 'string') {
-    return false
+    return []
   }
 
   return scopeValue
     .split(/[\s,]+/)
     .map(item => item.trim().toLowerCase())
     .filter(Boolean)
-    .includes('gist')
+}
+
+function hasGistScope(scopeValue: unknown): boolean {
+  return parseScopeItems(scopeValue).includes('gist')
+}
+
+function hasDiscussionReadScope(scopeValue: unknown): boolean {
+  const scopes = parseScopeItems(scopeValue)
+  return scopes.includes('read:discussion') || scopes.includes('write:discussion') || scopes.includes('public_repo') || scopes.includes('repo')
+}
+
+function hasDiscussionWriteScope(scopeValue: unknown): boolean {
+  const scopes = parseScopeItems(scopeValue)
+  return scopes.includes('write:discussion') || scopes.includes('public_repo') || scopes.includes('repo')
 }
 
 export const authOptions: NextAuthOptions = {
@@ -47,6 +60,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.login = typeof token.login === 'string' ? token.login : undefined
         session.user.hasGistScope = hasGistScope(token.githubScope)
+        session.user.hasDiscussionReadScope = hasDiscussionReadScope(token.githubScope)
+        session.user.hasDiscussionWriteScope = hasDiscussionWriteScope(token.githubScope)
       }
       return session
     }

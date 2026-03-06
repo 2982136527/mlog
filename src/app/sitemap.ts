@@ -27,6 +27,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8
     }
   ])
+  staticPages.push({
+    url: `${siteUrl}/forum`,
+    lastModified: now,
+    changeFrequency: 'daily',
+    priority: 0.7
+  })
 
   const slugs = getAllSlugs()
   const postPages: MetadataRoute.Sitemap = locales.flatMap(locale => {
