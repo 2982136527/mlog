@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import Giscus from '@giscus/react'
 import type { Locale } from '@/i18n/config'
+import { recordLocalHistoryEvent } from '@/lib/user-history/client'
 
 const config = {
   repo: process.env.NEXT_PUBLIC_GISCUS_REPO,
@@ -38,18 +39,11 @@ export function GiscusComments({ locale, slug, title }: GiscusCommentsProps) {
         trackedRef.current = true
         observer.disconnect()
 
-        void fetch('/api/user/activity/comment', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            locale,
-            slug,
-            title
-          })
-        }).catch(() => {
-          // no-op
+        recordLocalHistoryEvent({
+          type: 'comment',
+          locale,
+          slug,
+          title
         })
       },
       {

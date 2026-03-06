@@ -59,6 +59,8 @@ pnpm dev
 - `/api/cron/ai-paper-daily`（AI 论文速读 Cron）
 - `/api/cron/tutorial-sync`（教程镜像 Cron）
 - `/api/blog/live-card?locale=zh|en&slug=<slug>`（文章实时快照 API）
+- `/api/user/history`（读取用户云端历史）
+- `/api/user/history/sync`（同步本地历史到私有 Gist）
 
 ## 内容合约
 
@@ -95,7 +97,6 @@ updated?: ISO date
 |---|---|
 | `NEXT_PUBLIC_SITE_URL` | 站点绝对 URL，用于 metadata 与 RSS |
 | `NEXTAUTH_URL` | 登录回调基础 URL（本地如 `http://localhost:3000`） |
-| `DATABASE_URL` | Vercel Postgres 连接串（用户资料、阅读历史、评论交互记录） |
 | `NEXT_PUBLIC_GISCUS_REPO` | Giscus 仓库（`owner/repo`） |
 | `NEXT_PUBLIC_GISCUS_REPO_ID` | Giscus repo ID |
 | `NEXT_PUBLIC_GISCUS_CATEGORY` | Giscus 分类名 |
@@ -155,7 +156,10 @@ updated?: ISO date
 ## 用户中心（登录 + 记录）
 
 - 任意 GitHub 登录用户可访问 `/me`。
+- 默认记录方式：浏览器本地存储（`localStorage`）。
 - 用户中心展示“最近阅读历史”和“最近评论交互记录”。
+- 可选启用云同步：用户授权 `gist` 后，同步到自己的私有 Gist（无需数据库）。
+- 若拒绝 `gist` 授权，自动降级本地模式，后续可在 `/me` 再次授权并上传本地历史。
 - 评论系统继续使用 Giscus；站内仅记录交互事件，不抓取评论正文。
 - 旧 `Studio` 路由保留重定向，BYOK/用户自动发文能力已下线。
 

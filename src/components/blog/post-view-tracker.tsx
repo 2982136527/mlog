@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import type { Locale } from '@/i18n/config'
+import { recordLocalHistoryEvent } from '@/lib/user-history/client'
 
 type PostViewTrackerProps = {
   locale: Locale
@@ -11,26 +12,12 @@ type PostViewTrackerProps = {
 
 export function PostViewTracker({ locale, slug, title }: PostViewTrackerProps) {
   useEffect(() => {
-    const controller = new AbortController()
-
-    void fetch('/api/user/activity/view', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        locale,
-        slug,
-        title
-      }),
-      signal: controller.signal
-    }).catch(() => {
-      // no-op
+    recordLocalHistoryEvent({
+      type: 'read',
+      locale,
+      slug,
+      title
     })
-
-    return () => {
-      controller.abort()
-    }
   }, [locale, slug, title])
 
   return null

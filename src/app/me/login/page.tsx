@@ -20,7 +20,7 @@ export default async function MeLoginPage({ searchParams }: LoginPageProps) {
   return (
     <div className='mx-auto mt-10 max-w-xl rounded-3xl border border-white/70 bg-white/60 p-8 backdrop-blur'>
       <h2 className='font-title text-4xl text-[var(--color-ink)]'>登录</h2>
-      <p className='mt-3 text-sm leading-6 text-[var(--color-ink-soft)]'>登录后可查看你的阅读历史与评论交互记录。</p>
+      <p className='mt-3 text-sm leading-6 text-[var(--color-ink-soft)]'>登录后可查看历史记录，并可授权 gist 启用跨设备云同步。</p>
 
       {authError && (
         <p className='mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700'>
@@ -29,7 +29,7 @@ export default async function MeLoginPage({ searchParams }: LoginPageProps) {
       )}
 
       <div className='mt-6 flex flex-wrap gap-3'>
-        <UserGitHubSignInButton callbackUrl={callbackUrl} />
+        <UserGitHubSignInButton callbackUrl={callbackUrl} requestGistScope />
         <Link
           href='/'
           className='rounded-xl border border-[var(--color-border-strong)] bg-white px-5 py-2 text-sm text-[var(--color-ink-soft)] transition hover:text-[var(--color-ink)]'>

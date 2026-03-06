@@ -59,6 +59,8 @@ For production builds, `pnpm build` runs `pnpm content:pull` first to sync priva
 - `/api/cron/ai-paper-daily` (AI paper digest cron entry, bearer protected)
 - `/api/cron/tutorial-sync` (Vercel cron entry, bearer protected)
 - `/api/blog/live-card?locale=zh|en&slug=<slug>` (public read-only live snapshot API for hot-daily posts)
+- `/api/user/history` (load user cloud history)
+- `/api/user/history/sync` (sync local history to private Gist)
 
 ## Content Contract
 
@@ -95,7 +97,6 @@ If required fields are missing, build fails with the source file path.
 |---|---|
 | `NEXT_PUBLIC_SITE_URL` | absolute site URL for metadata and feeds |
 | `NEXTAUTH_URL` | auth callback base URL (local: `http://localhost:3000`) |
-| `DATABASE_URL` | Vercel Postgres connection string for user profile/activity data |
 | `NEXT_PUBLIC_GISCUS_REPO` | giscus repo (`owner/repo`) |
 | `NEXT_PUBLIC_GISCUS_REPO_ID` | giscus repo ID |
 | `NEXT_PUBLIC_GISCUS_CATEGORY` | giscus category |
@@ -205,7 +206,10 @@ If required fields are missing, build fails with the source file path.
 ## User Center (Login + Activity)
 
 - Any signed-in GitHub user can access `/me`.
+- Default storage is browser localStorage.
 - The page shows recent reading history and recent comment interactions.
+- Optional cloud sync: after granting `gist` scope, history syncs to the user's private Gist (no database required).
+- If `gist` permission is declined, the system automatically stays in local-only mode and users can re-authorize later from `/me`.
 - Comments remain powered by Giscus; the site records interaction events only (no comment body ingestion).
 - Legacy `Studio` routes are kept as redirects; BYOK and user auto-publishing features are sunset.
 
