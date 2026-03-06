@@ -50,10 +50,13 @@ For production builds, `pnpm build` runs `pnpm content:pull` first to sync priva
 - `/admin` (hidden admin entry)
 - `/admin/new`
 - `/admin/edit/[slug]`
+- `/studio`
+- `/studio/login`
 - `/api/cron/github-hot-daily` (Vercel cron entry, bearer protected)
 - `/api/cron/github-hot-daily-fallback` (Vercel cron fallback entry, bearer protected)
 - `/api/cron/ai-paper-daily` (AI paper digest cron entry, bearer protected)
 - `/api/cron/tutorial-sync` (Vercel cron entry, bearer protected)
+- `/api/cron/user-automation-dispatch` (user custom-cron dispatcher, bearer protected)
 - `/api/blog/live-card?locale=zh|en&slug=<slug>` (public read-only live snapshot API for hot-daily posts)
 
 ## Content Contract
@@ -91,6 +94,7 @@ If required fields are missing, build fails with the source file path.
 |---|---|
 | `NEXT_PUBLIC_SITE_URL` | absolute site URL for metadata and feeds |
 | `NEXTAUTH_URL` | auth callback base URL (local: `http://localhost:3000`) |
+| `DATABASE_URL` | Vercel Postgres connection string for BYOK user automation |
 | `NEXT_PUBLIC_GISCUS_REPO` | giscus repo (`owner/repo`) |
 | `NEXT_PUBLIC_GISCUS_REPO_ID` | giscus repo ID |
 | `NEXT_PUBLIC_GISCUS_CATEGORY` | giscus category |
@@ -104,7 +108,7 @@ If required fields are missing, build fails with the source file path.
 | `AUTH_SECRET` | auth session secret |
 | `AUTH_GITHUB_ID` | GitHub OAuth App client id |
 | `AUTH_GITHUB_SECRET` | GitHub OAuth App client secret |
-| `ADMIN_GITHUB_ALLOWLIST` | comma-separated GitHub logins with admin access |
+| `ADMIN_GITHUB_ALLOWLIST` | strict admin allowlist (must only be `2982136527`) |
 | `CONTENT_GITHUB_OWNER` | private content repository owner |
 | `CONTENT_GITHUB_REPO` | private content repository name |
 | `CONTENT_GITHUB_BASE_BRANCH` | private content base branch, default `main` |
@@ -134,6 +138,7 @@ If required fields are missing, build fails with the source file path.
 | `AI_QWEN_API_KEY` | Qwen API key |
 | `AI_QWEN_BASE_URL` | Qwen base URL (optional override) |
 | `AI_QWEN_MODEL` | Qwen model name |
+| `USER_AI_ENCRYPTION_KEY` | base64-encoded 32-byte master key for encrypted BYOK storage |
 
 ### Footer Stats
 
@@ -148,7 +153,7 @@ If required fields are missing, build fails with the source file path.
 ## Admin Backend
 
 - Admin uses GitHub OAuth (`next-auth`) and allowlist-based authorization.
-- All `/admin` pages and `/api/admin/*` APIs are protected by middleware.
+- All `/admin` pages and `/api/admin/*` APIs are admin-only (single-owner policy).
 - Publish flow:
   1. Admin edits content in `/admin/new` or `/admin/edit/[slug]`.
   2. API writes Markdown/image changes into a new branch.
@@ -196,6 +201,15 @@ If required fields are missing, build fails with the source file path.
 - `INVALID_AUTOMATION_CONFIG`: auto-publish config JSON is invalid.
 - `INVALID_AUTOMATION_LAST_RUN`: auto-publish last-run JSON is invalid.
 - `CRON_SECRET_MISSING`: cron secret is not configured.
+
+## User Studio (BYOK + Scheduled Drafts)
+
+- Any signed-in GitHub user can use `/studio`.
+- User API keys are encrypted server-side; plaintext is never returned to clients.
+- Users can configure provider/model/topic/custom cron/timezone.
+- Scheduler runs every 5 minutes via `/api/cron/user-automation-dispatch`.
+- User automation always publishes as `draft=true`; final publish remains admin-reviewed.
+- Generated posts are tagged with `ai-user`, `author-<login>`, `provider-<provider>`, `model-<model>`.
 
 ## AI Writing Flow
 

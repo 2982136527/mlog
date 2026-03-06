@@ -50,10 +50,13 @@ pnpm dev
 - `/admin`（隐藏入口）
 - `/admin/new`
 - `/admin/edit/[slug]`
+- `/studio`
+- `/studio/login`
 - `/api/cron/github-hot-daily`（Vercel Cron 入口）
 - `/api/cron/github-hot-daily-fallback`（Vercel Cron 兜底入口）
 - `/api/cron/ai-paper-daily`（AI 论文速读 Cron）
 - `/api/cron/tutorial-sync`（教程镜像 Cron）
+- `/api/cron/user-automation-dispatch`（用户自定义 cron 轮询执行）
 - `/api/blog/live-card?locale=zh|en&slug=<slug>`（文章实时快照 API）
 
 ## 内容合约
@@ -91,6 +94,7 @@ updated?: ISO date
 |---|---|
 | `NEXT_PUBLIC_SITE_URL` | 站点绝对 URL，用于 metadata 与 RSS |
 | `NEXTAUTH_URL` | 登录回调基础 URL（本地如 `http://localhost:3000`） |
+| `DATABASE_URL` | Vercel Postgres 连接串（用户 BYOK 与任务调度） |
 | `NEXT_PUBLIC_GISCUS_REPO` | Giscus 仓库（`owner/repo`） |
 | `NEXT_PUBLIC_GISCUS_REPO_ID` | Giscus repo ID |
 | `NEXT_PUBLIC_GISCUS_CATEGORY` | Giscus 分类名 |
@@ -104,7 +108,7 @@ updated?: ISO date
 | `AUTH_SECRET` | 登录会话密钥 |
 | `AUTH_GITHUB_ID` | GitHub OAuth App client id |
 | `AUTH_GITHUB_SECRET` | GitHub OAuth App client secret |
-| `ADMIN_GITHUB_ALLOWLIST` | 管理员 GitHub login 白名单（逗号分隔） |
+| `ADMIN_GITHUB_ALLOWLIST` | 严格管理员白名单（仅 `2982136527`） |
 | `CONTENT_GITHUB_OWNER` | 私有内容仓 owner |
 | `CONTENT_GITHUB_REPO` | 私有内容仓 repo |
 | `CONTENT_GITHUB_BASE_BRANCH` | 私有内容仓基线分支（默认 `main`） |
@@ -134,6 +138,7 @@ updated?: ISO date
 | `AI_QWEN_API_KEY` | Qwen API key |
 | `AI_QWEN_BASE_URL` | Qwen Base URL（可选） |
 | `AI_QWEN_MODEL` | Qwen 模型名 |
+| `USER_AI_ENCRYPTION_KEY` | 用户 BYOK 密钥加密主密钥（base64 32-byte） |
 
 ### 页脚统计说明
 
@@ -144,8 +149,16 @@ updated?: ISO date
 ## 管理后台
 
 - 使用 GitHub OAuth（`next-auth`）+ 白名单授权。
-- `/admin` 与 `/api/admin/*` 全部受中间件保护。
+- `/admin` 与 `/api/admin/*` 全部仅管理员可访问。
 - 发布链路：编辑 -> 新分支改动 -> 创建 PR -> 尝试自动合并 -> 合并后部署。
+
+## 用户 Studio（BYOK + 定时发文）
+
+- 任意 GitHub 登录用户可用 `/studio` 管理自己的模型与任务。
+- 用户 API key 仅服务端加密存储，不回传明文。
+- 支持用户自定义 5 段 cron + 时区；由 `/api/cron/user-automation-dispatch` 每 5 分钟轮询触发。
+- 用户任务仅生成草稿（`draft=true`），最终发布需管理员审核。
+- 自动追加标签：`ai-user`、`author-<login>`、`provider-<provider>`、`model-<model>`。
 
 ### 管理接口
 

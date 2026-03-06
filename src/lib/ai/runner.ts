@@ -44,6 +44,14 @@ const aiPaperPostSchema = z.object({
   markdown: z.string().trim().min(1)
 })
 
+const userTopicPostSchema = z.object({
+  title: z.string().trim().min(1),
+  summary: z.string().trim().min(1),
+  tags: z.array(z.string().trim().min(1)).min(3).max(8),
+  category: z.string().trim().min(1),
+  markdown: z.string().trim().min(1)
+})
+
 type ProviderPromptInput = {
   systemPrompt: string
   userPrompt: string
@@ -130,10 +138,11 @@ type AiTaskRunInput<T> = {
   schema: z.ZodSchema<T>
   systemPrompt: string
   userPrompt: string
+  runtimeConfig?: AiRuntimeConfig
 }
 
 async function runAiTaskWithFallback<T>(input: AiTaskRunInput<T>): Promise<{ data: T; steps: AiExecutionStep[] }> {
-  const config = getAiRuntimeConfig()
+  const config = input.runtimeConfig || getAiRuntimeConfig()
 
   if (!config.enabled) {
     throw new AiRunnerError('AI_CONFIG_ERROR', 'AI is disabled by AI_ENABLE=false.', [])
@@ -456,6 +465,40 @@ function buildAiPaperDailyPrompt(input: {
   }
 }
 
+function buildUserTopicPostPrompt(input: {
+  locale: AdminLocale
+  dateIso: string
+  topic: string
+}): { systemPrompt: string; userPrompt: string } {
+  return {
+    systemPrompt:
+      'You are a senior technical writer. Return strict JSON only. Never wrap output in markdown fences. Output language must follow locale.',
+    userPrompt: [
+      `Task: write a scheduled user-topic article in locale=${input.locale}.`,
+      'Output JSON schema:',
+      '{"title":"string","summary":"string","tags":["string"],"category":"string","markdown":"string"}',
+      'Hard requirements:',
+      '- summary: concise and readable.',
+      '- tags: 3-6 concise searchable tags.',
+      '- category: one concise category phrase.',
+      '- markdown should be structured with headings and practical sections.',
+      '- do not fabricate citation URLs or numeric claims.',
+      '',
+      `Publish date: ${input.dateIso}`,
+      `Topic: ${input.topic}`,
+      '',
+      'Suggested structure:',
+      '- 背景与问题',
+      '- 核心思路',
+      '- 实操步骤',
+      '- 风险与边界',
+      '- 小结',
+      '',
+      'Output JSON only.'
+    ].join('\n')
+  }
+}
+
 export async function runAiFrontmatterEnrich(input: {
   locale: AdminLocale
   title: string
@@ -585,6 +628,39 @@ export async function runAiPaperDailyGenerate(input: {
     schema: aiPaperPostSchema,
     systemPrompt: prompts.systemPrompt,
     userPrompt: prompts.userPrompt
+  })
+
+  return {
+    payload: {
+      title: result.data.title.trim(),
+      summary: result.data.summary.trim(),
+      tags: normalizeTags(result.data.tags).slice(0, 6),
+      category: result.data.category.trim(),
+      markdown: result.data.markdown.trim()
+    },
+    steps: result.steps
+  }
+}
+
+export async function runAiUserTopicPostGenerate(input: {
+  locale: AdminLocale
+  dateIso: string
+  topic: string
+  runtimeConfig: AiRuntimeConfig
+}): Promise<{ payload: AiPaperGeneratedPost; steps: AiExecutionStep[] }> {
+  const prompts = buildUserTopicPostPrompt({
+    locale: input.locale,
+    dateIso: input.dateIso,
+    topic: input.topic
+  })
+
+  const result = await runAiTaskWithFallback({
+    task: 'user_topic_post_generate',
+    locale: input.locale,
+    schema: userTopicPostSchema,
+    systemPrompt: prompts.systemPrompt,
+    userPrompt: prompts.userPrompt,
+    runtimeConfig: input.runtimeConfig
   })
 
   return {
