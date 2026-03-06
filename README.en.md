@@ -50,13 +50,14 @@ For production builds, `pnpm build` runs `pnpm content:pull` first to sync priva
 - `/admin` (hidden admin entry)
 - `/admin/new`
 - `/admin/edit/[slug]`
-- `/studio`
-- `/studio/login`
+- `/me`
+- `/me/login`
+- `/studio` (compat redirect to `/me`)
+- `/studio/login` (compat redirect to `/me/login`)
 - `/api/cron/github-hot-daily` (Vercel cron entry, bearer protected)
 - `/api/cron/github-hot-daily-fallback` (Vercel cron fallback entry, bearer protected)
 - `/api/cron/ai-paper-daily` (AI paper digest cron entry, bearer protected)
 - `/api/cron/tutorial-sync` (Vercel cron entry, bearer protected)
-- `/api/cron/user-automation-dispatch` (user automation dispatcher, daily on Hobby plans)
 - `/api/blog/live-card?locale=zh|en&slug=<slug>` (public read-only live snapshot API for hot-daily posts)
 
 ## Content Contract
@@ -94,7 +95,7 @@ If required fields are missing, build fails with the source file path.
 |---|---|
 | `NEXT_PUBLIC_SITE_URL` | absolute site URL for metadata and feeds |
 | `NEXTAUTH_URL` | auth callback base URL (local: `http://localhost:3000`) |
-| `DATABASE_URL` | Vercel Postgres connection string for BYOK user automation |
+| `DATABASE_URL` | Vercel Postgres connection string for user profile/activity data |
 | `NEXT_PUBLIC_GISCUS_REPO` | giscus repo (`owner/repo`) |
 | `NEXT_PUBLIC_GISCUS_REPO_ID` | giscus repo ID |
 | `NEXT_PUBLIC_GISCUS_CATEGORY` | giscus category |
@@ -138,7 +139,6 @@ If required fields are missing, build fails with the source file path.
 | `AI_QWEN_API_KEY` | Qwen API key |
 | `AI_QWEN_BASE_URL` | Qwen base URL (optional override) |
 | `AI_QWEN_MODEL` | Qwen model name |
-| `USER_AI_ENCRYPTION_KEY` | base64-encoded 32-byte master key for encrypted BYOK storage |
 
 ### Footer Stats
 
@@ -202,14 +202,12 @@ If required fields are missing, build fails with the source file path.
 - `INVALID_AUTOMATION_LAST_RUN`: auto-publish last-run JSON is invalid.
 - `CRON_SECRET_MISSING`: cron secret is not configured.
 
-## User Studio (BYOK + Scheduled Drafts)
+## User Center (Login + Activity)
 
-- Any signed-in GitHub user can use `/studio`.
-- User API keys are encrypted server-side; plaintext is never returned to clients.
-- Users can configure provider/model/topic/custom cron/timezone.
-- On Vercel Hobby, scheduler runs once daily via `/api/cron/user-automation-dispatch` (08:20 Asia/Shanghai) due platform limits. For high-frequency schedules, use Vercel Pro or an external scheduler.
-- User automation always publishes as `draft=true`; final publish remains admin-reviewed.
-- Generated posts are tagged with `ai-user`, `author-<login>`, `provider-<provider>`, `model-<model>`.
+- Any signed-in GitHub user can access `/me`.
+- The page shows recent reading history and recent comment interactions.
+- Comments remain powered by Giscus; the site records interaction events only (no comment body ingestion).
+- Legacy `Studio` routes are kept as redirects; BYOK and user auto-publishing features are sunset.
 
 ## AI Writing Flow
 

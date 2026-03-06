@@ -50,13 +50,14 @@ pnpm dev
 - `/admin`（隐藏入口）
 - `/admin/new`
 - `/admin/edit/[slug]`
-- `/studio`
-- `/studio/login`
+- `/me`
+- `/me/login`
+- `/studio`（兼容重定向到 `/me`）
+- `/studio/login`（兼容重定向到 `/me/login`）
 - `/api/cron/github-hot-daily`（Vercel Cron 入口）
 - `/api/cron/github-hot-daily-fallback`（Vercel Cron 兜底入口）
 - `/api/cron/ai-paper-daily`（AI 论文速读 Cron）
 - `/api/cron/tutorial-sync`（教程镜像 Cron）
-- `/api/cron/user-automation-dispatch`（用户任务分发 Cron，Hobby 为每日一次）
 - `/api/blog/live-card?locale=zh|en&slug=<slug>`（文章实时快照 API）
 
 ## 内容合约
@@ -94,7 +95,7 @@ updated?: ISO date
 |---|---|
 | `NEXT_PUBLIC_SITE_URL` | 站点绝对 URL，用于 metadata 与 RSS |
 | `NEXTAUTH_URL` | 登录回调基础 URL（本地如 `http://localhost:3000`） |
-| `DATABASE_URL` | Vercel Postgres 连接串（用户 BYOK 与任务调度） |
+| `DATABASE_URL` | Vercel Postgres 连接串（用户资料、阅读历史、评论交互记录） |
 | `NEXT_PUBLIC_GISCUS_REPO` | Giscus 仓库（`owner/repo`） |
 | `NEXT_PUBLIC_GISCUS_REPO_ID` | Giscus repo ID |
 | `NEXT_PUBLIC_GISCUS_CATEGORY` | Giscus 分类名 |
@@ -138,7 +139,6 @@ updated?: ISO date
 | `AI_QWEN_API_KEY` | Qwen API key |
 | `AI_QWEN_BASE_URL` | Qwen Base URL（可选） |
 | `AI_QWEN_MODEL` | Qwen 模型名 |
-| `USER_AI_ENCRYPTION_KEY` | 用户 BYOK 密钥加密主密钥（base64 32-byte） |
 
 ### 页脚统计说明
 
@@ -152,13 +152,12 @@ updated?: ISO date
 - `/admin` 与 `/api/admin/*` 全部仅管理员可访问。
 - 发布链路：编辑 -> 新分支改动 -> 创建 PR -> 尝试自动合并 -> 合并后部署。
 
-## 用户 Studio（BYOK + 定时发文）
+## 用户中心（登录 + 记录）
 
-- 任意 GitHub 登录用户可用 `/studio` 管理自己的模型与任务。
-- 用户 API key 仅服务端加密存储，不回传明文。
-- 支持用户自定义 5 段 cron + 时区；当前 Vercel Hobby 按平台限制由 `/api/cron/user-automation-dispatch` 每日触发一次（08:20，Asia/Shanghai）。如需高频调度请升级 Vercel Pro 或改用外部调度器。
-- 用户任务仅生成草稿（`draft=true`），最终发布需管理员审核。
-- 自动追加标签：`ai-user`、`author-<login>`、`provider-<provider>`、`model-<model>`。
+- 任意 GitHub 登录用户可访问 `/me`。
+- 用户中心展示“最近阅读历史”和“最近评论交互记录”。
+- 评论系统继续使用 Giscus；站内仅记录交互事件，不抓取评论正文。
+- 旧 `Studio` 路由保留重定向，BYOK/用户自动发文能力已下线。
 
 ### 管理接口
 

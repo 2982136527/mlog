@@ -118,7 +118,7 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
         </div>
       </div>
 
-      <GiscusComments />
+      <GiscusComments locale={locale} slug={post.slug} title={post.frontmatter.title} />
     </div>
   )
 }

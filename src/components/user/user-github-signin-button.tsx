@@ -2,11 +2,11 @@
 
 import { signIn } from 'next-auth/react'
 
-type StudioGitHubSignInButtonProps = {
+type UserGitHubSignInButtonProps = {
   callbackUrl: string
 }
 
-export function StudioGitHubSignInButton({ callbackUrl }: StudioGitHubSignInButtonProps) {
+export function UserGitHubSignInButton({ callbackUrl }: UserGitHubSignInButtonProps) {
   return (
     <button
       type='button'
@@ -16,4 +16,3 @@ export function StudioGitHubSignInButton({ callbackUrl }: StudioGitHubSignInButt
     </button>
   )
 }
-

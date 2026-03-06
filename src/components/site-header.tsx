@@ -3,6 +3,7 @@ import type { Locale } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { ThemeToggle } from '@/components/theme/theme-toggle'
+import { AccountEntryLink } from '@/components/auth/account-entry-link'
 
 type SiteHeaderProps = {
   locale: Locale
@@ -31,15 +32,12 @@ export function SiteHeader({ locale }: SiteHeaderProps) {
           <Link href={`/${locale}/about`} className='transition hover:text-[var(--color-ink)]'>
             {dict.nav.about}
           </Link>
-          <Link href='/studio' className='transition hover:text-[var(--color-ink)]'>
-            {dict.nav.studio}
-          </Link>
+          <AccountEntryLink locale={locale} className='transition hover:text-[var(--color-ink)]' />
         </nav>
-        <Link
-          href='/studio'
-          className='inline-flex rounded-full border border-white/70 bg-white/70 px-3 py-1.5 text-xs font-medium text-[var(--color-ink-soft)] shadow-sm backdrop-blur transition hover:text-[var(--color-ink)] sm:hidden'>
-          {dict.common.studio}
-        </Link>
+        <AccountEntryLink
+          locale={locale}
+          className='inline-flex rounded-full border border-white/70 bg-white/70 px-3 py-1.5 text-xs font-medium text-[var(--color-ink-soft)] shadow-sm backdrop-blur transition hover:text-[var(--color-ink)] sm:hidden'
+        />
         <ThemeToggle locale={locale} />
         <LanguageSwitcher locale={locale} />
       </div>

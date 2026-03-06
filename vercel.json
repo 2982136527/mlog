@@ -16,10 +16,6 @@
     {
       "path": "/api/cron/ai-paper-daily",
       "schedule": "30 4 * * *"
-    },
-    {
-      "path": "/api/cron/user-automation-dispatch",
-      "schedule": "20 0 * * *"
     }
   ]
 }

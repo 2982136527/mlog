@@ -8,6 +8,7 @@ import type { PostFrontmatter } from '@/types/content'
 import { GlassCard } from '@/components/ui/glass-card'
 import { SectionTitle } from '@/components/ui/section-title'
 import { TagChip } from '@/components/ui/tag-chip'
+import { AccountEntryLink } from '@/components/auth/account-entry-link'
 import { formatDate } from '@/lib/date'
 
 type HomeLatestPost = {
@@ -156,11 +157,10 @@ export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCar
               className='rounded-xl border border-white/70 bg-white/70 px-3 py-2 text-center text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
               GitHub
             </a>
-            <Link
-              href='/studio'
-              className='col-span-2 rounded-xl border border-white/70 bg-white/70 px-3 py-2 text-center text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
-              {dict.common.studio}
-            </Link>
+            <AccountEntryLink
+              locale={locale}
+              className='col-span-2 rounded-xl border border-white/70 bg-white/70 px-3 py-2 text-center text-sm font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'
+            />
           </div>
 
           <div className='mt-5'>
