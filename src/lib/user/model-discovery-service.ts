@@ -1,13 +1,10 @@
 import type { AiProvider } from '@/types/admin'
 import { AdminHttpError } from '@/lib/admin/errors'
-import {
-  getProviderDefaultBaseUrl,
-  getProviderFallbackModels,
-  isWritingCapableModelId,
-  type DiscoverableModel
-} from '@/lib/user/provider-catalog'
+import { getProviderDefaultBaseUrl, isWritingCapableModelId, type DiscoverableModel } from '@/lib/user/provider-catalog'
 
 const MODEL_DISCOVERY_TIMEOUT_MS = 12_000
+const GEMINI_PAGE_SIZE = 1000
+const GEMINI_MAX_PAGES = 200
 
 type DiscoverModelsInput = {
   provider: AiProvider
@@ -19,9 +16,8 @@ type DiscoverModelsInput = {
 export type DiscoverModelsResult = {
   provider: AiProvider
   resolvedBaseUrl: string
-  source: 'live' | 'fallback'
+  source: 'live'
   models: DiscoverableModel[]
-  warnings?: string[]
 }
 
 type OpenAICompatibleModelsResponse = {
@@ -39,6 +35,7 @@ type GeminiModelsResponse = {
     displayName?: string
     supportedGenerationMethods?: string[]
   }>
+  nextPageToken?: string
   error?: {
     message?: string
   }
@@ -47,7 +44,7 @@ type GeminiModelsResponse = {
 function normalizeApiKey(input: string): string {
   const value = input.trim()
   if (!value) {
-    throw new AdminHttpError(400, 'INVALID_INPUT', 'apiKey is required.')
+    throw new AdminHttpError(400, 'MODEL_DISCOVERY_KEY_REQUIRED', '请先填写 API Key 才能拉取完整模型列表。')
   }
   return value
 }
@@ -101,20 +98,12 @@ function scopeModels(models: DiscoverableModel[], includeAll: boolean): Discover
   return writingOnly.length > 0 ? writingOnly : deduped
 }
 
-function toWarning(error: unknown): string {
-  if (error instanceof AdminHttpError) {
-    if (error.status === 401 || error.status === 403) {
-      return '上游鉴权失败，请检查 API Key 或 Base URL。'
-    }
-    if (error.code === 'UPSTREAM_UNAVAILABLE') {
-      return '上游模型列表暂不可用，已切换到推荐模型列表。'
-    }
-    return error.message
-  }
-  return '模型列表拉取失败，已切换到推荐模型列表。'
-}
-
 function mapUpstreamError(status: number, rawMessage: string): AdminHttpError {
+  if (status === 429) {
+    return new AdminHttpError(502, 'UPSTREAM_UNAVAILABLE', `Model upstream rate limited (${status}).`, {
+      upstreamStatus: status
+    })
+  }
   if (status === 401 || status === 403) {
     return new AdminHttpError(502, 'UPSTREAM_UNAVAILABLE', `Model upstream authentication failed (${status}).`, {
       upstreamStatus: status
@@ -187,27 +176,46 @@ function parseGeminiModels(payload: GeminiModelsResponse): DiscoverableModel[] {
 }
 
 async function fetchGeminiModels(input: { apiKey: string; baseUrl: string }): Promise<DiscoverableModel[]> {
-  const endpoint = `${input.baseUrl}/models?key=${encodeURIComponent(input.apiKey)}`
-  const response = await fetchWithTimeout(endpoint, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json'
+  const models: DiscoverableModel[] = []
+  let pageToken = ''
+
+  for (let page = 0; page < GEMINI_MAX_PAGES; page += 1) {
+    const query = new URLSearchParams()
+    query.set('pageSize', String(GEMINI_PAGE_SIZE))
+    query.set('key', input.apiKey)
+    if (pageToken) {
+      query.set('pageToken', pageToken)
     }
-  })
-  const raw = await response.text()
 
-  let parsed: GeminiModelsResponse | null = null
-  try {
-    parsed = raw ? (JSON.parse(raw) as GeminiModelsResponse) : null
-  } catch {
-    parsed = null
+    const endpoint = `${input.baseUrl}/models?${query.toString()}`
+    const response = await fetchWithTimeout(endpoint, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json'
+      }
+    })
+    const raw = await response.text()
+
+    let parsed: GeminiModelsResponse | null = null
+    try {
+      parsed = raw ? (JSON.parse(raw) as GeminiModelsResponse) : null
+    } catch {
+      parsed = null
+    }
+
+    if (!response.ok) {
+      throw mapUpstreamError(response.status, parsed?.error?.message || raw)
+    }
+
+    models.push(...parseGeminiModels(parsed || {}))
+
+    const nextToken = (parsed?.nextPageToken || '').trim()
+    if (!nextToken || nextToken === pageToken) {
+      break
+    }
+    pageToken = nextToken
   }
 
-  if (!response.ok) {
-    throw mapUpstreamError(response.status, parsed?.error?.message || raw)
-  }
-
-  const models = parseGeminiModels(parsed || {})
   if (models.length === 0) {
     throw new AdminHttpError(502, 'UPSTREAM_UNAVAILABLE', 'Gemini upstream returned no models.')
   }
@@ -267,8 +275,6 @@ export async function discoverProviderModels(input: DiscoverModelsInput): Promis
   const includeAll = input.includeAll === true
   const apiKey = normalizeApiKey(input.apiKey)
   const resolvedBaseUrl = normalizeBaseUrl(input.provider, input.baseUrl)
-  const fallbackScoped = scopeModels(getProviderFallbackModels(input.provider), includeAll)
-
   try {
     const liveModels = await fetchLiveModels({
       provider: input.provider,
@@ -286,18 +292,9 @@ export async function discoverProviderModels(input: DiscoverModelsInput): Promis
       models: scoped
     }
   } catch (error) {
-    if (fallbackScoped.length === 0) {
-      if (error instanceof AdminHttpError) {
-        throw error
-      }
-      throw new AdminHttpError(502, 'MODEL_DISCOVERY_FAILED', error instanceof Error ? error.message : 'Model discovery failed.')
+    if (error instanceof AdminHttpError) {
+      throw error
     }
-    return {
-      provider: input.provider,
-      resolvedBaseUrl,
-      source: 'fallback',
-      models: fallbackScoped,
-      warnings: [toWarning(error)]
-    }
+    throw new AdminHttpError(502, 'MODEL_DISCOVERY_FAILED', error instanceof Error ? error.message : 'Model discovery failed.')
   }
 }

@@ -35,9 +35,8 @@ export type UserAiProviderModelsRequest = {
 export type UserAiProviderModelsResponse = {
   provider: AiProvider
   resolvedBaseUrl: string
-  source: 'live' | 'fallback'
+  source: 'live'
   models: UserDiscoverableModel[]
-  warnings?: string[]
 }
 
 export type UserAutomationJob = {

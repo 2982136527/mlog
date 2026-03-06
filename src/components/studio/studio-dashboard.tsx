@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { AiProvider } from '@/types/admin'
-import { getProviderDefaultBaseUrl, getProviderFallbackModels } from '@/lib/user/provider-catalog'
+import { getProviderDefaultBaseUrl } from '@/lib/user/provider-catalog'
 import type { UserAiProvider, UserAiProviderModelsResponse, UserAutomationJob, UserAutomationRun, UserDiscoverableModel } from '@/types/user'
 
 type ApiError = {
@@ -15,6 +15,8 @@ type StudioDashboardProps = {
   login: string
 }
 
+type ModelDiscoveryState = 'idle_needs_key' | 'loading' | 'success_live' | 'error_upstream'
+
 function toErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback
 }
@@ -24,10 +26,6 @@ function providerLabel(provider: AiProvider): string {
   if (provider === 'openai') return 'OpenAI'
   if (provider === 'deepseek') return 'DeepSeek'
   return 'Qwen'
-}
-
-function initialModel(provider: AiProvider): string {
-  return getProviderFallbackModels(provider)[0]?.id || ''
 }
 
 export function StudioDashboard({ login }: StudioDashboardProps) {
@@ -41,15 +39,14 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
 
   const [providerForm, setProviderForm] = useState({
     provider: 'gemini' as AiProvider,
-    model: initialModel('gemini'),
+    model: '',
     baseUrl: getProviderDefaultBaseUrl('gemini'),
     apiKey: ''
   })
   const [includeAllModels, setIncludeAllModels] = useState(false)
-  const [modelOptions, setModelOptions] = useState<UserDiscoverableModel[]>(getProviderFallbackModels('gemini'))
-  const [modelSource, setModelSource] = useState<'live' | 'fallback'>('fallback')
-  const [modelWarnings, setModelWarnings] = useState<string[]>([])
-  const [modelError, setModelError] = useState<string | null>(null)
+  const [modelOptions, setModelOptions] = useState<UserDiscoverableModel[]>([])
+  const [modelState, setModelState] = useState<ModelDiscoveryState>('idle_needs_key')
+  const [modelError, setModelError] = useState<string | null>('请先填写 API Key 才能拉取完整模型列表。')
   const [discoveringModels, setDiscoveringModels] = useState(false)
 
   const [jobForm, setJobForm] = useState({
@@ -94,15 +91,14 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
   async function discoverModels(options?: { silent?: boolean }) {
     const apiKey = providerForm.apiKey.trim()
     if (!apiKey) {
-      const fallback = getProviderFallbackModels(providerForm.provider)
-      setModelOptions(fallback)
-      setModelSource('fallback')
-      setModelWarnings([])
-      setModelError(null)
+      setModelOptions([])
+      setModelState('idle_needs_key')
+      setModelError('请先填写 API Key 才能拉取完整模型列表。')
       return
     }
 
     setDiscoveringModels(true)
+    setModelState('loading')
     setModelError(null)
     try {
       const response = await fetch('/api/user/ai-providers/models', {
@@ -122,23 +118,24 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
         throw new Error(data.error?.message || '拉取模型列表失败')
       }
 
-      const optionsList = Array.isArray(data.models) && data.models.length > 0 ? data.models : getProviderFallbackModels(providerForm.provider)
+      const optionsList = Array.isArray(data.models) ? data.models : []
+      if (optionsList.length === 0) {
+        throw new Error('厂商未返回可用模型，请检查 API Key、Base URL 或稍后重试。')
+      }
       setModelOptions(optionsList)
-      setModelSource(data.source || 'fallback')
-      setModelWarnings(data.warnings || [])
+      setModelState('success_live')
       setProviderForm(prev => ({
         ...prev,
         baseUrl: data.resolvedBaseUrl,
         model: prev.model.trim() ? prev.model : optionsList[0]?.id || prev.model
       }))
     } catch (error) {
-      const fallback = getProviderFallbackModels(providerForm.provider)
-      setModelOptions(fallback)
-      setModelSource('fallback')
-      setModelWarnings([])
-      setModelError(toErrorMessage(error, '拉取模型列表失败'))
+      const text = toErrorMessage(error, '拉取模型列表失败')
+      setModelOptions([])
+      setModelState('error_upstream')
+      setModelError(text)
       if (!options?.silent) {
-        setMessage(toErrorMessage(error, '拉取模型列表失败'))
+        setMessage(text)
       }
     } finally {
       setDiscoveringModels(false)
@@ -152,10 +149,9 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
 
   useEffect(() => {
     if (!providerForm.apiKey.trim()) {
-      setModelOptions(getProviderFallbackModels(providerForm.provider))
-      setModelSource('fallback')
-      setModelWarnings([])
-      setModelError(null)
+      setModelOptions([])
+      setModelState('idle_needs_key')
+      setModelError('请先填写 API Key 才能拉取完整模型列表。')
       return
     }
 
@@ -313,12 +309,16 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
                   ...prev,
                   provider,
                   baseUrl: getProviderDefaultBaseUrl(provider),
-                  model: initialModel(provider)
+                  model: ''
                 }))
-                setModelOptions(getProviderFallbackModels(provider))
-                setModelSource('fallback')
-                setModelWarnings([])
-                setModelError(null)
+                setModelOptions([])
+                if (providerForm.apiKey.trim()) {
+                  setModelState('loading')
+                  setModelError(null)
+                } else {
+                  setModelState('idle_needs_key')
+                  setModelError('请先填写 API Key 才能拉取完整模型列表。')
+                }
               }}
               className='mt-1 w-full rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-ink)]'>
               <option value='gemini'>Gemini</option>
@@ -384,13 +384,17 @@ export function StudioDashboard({ login }: StudioDashboardProps) {
             className='rounded-lg border border-[var(--color-border-strong)] px-2.5 py-1 text-xs text-[var(--color-ink)] transition hover:border-[var(--color-brand)] disabled:opacity-50'>
             {discoveringModels ? '拉取中...' : '刷新模型'}
           </button>
-          <span>模型来源：{modelSource === 'live' ? '厂商实时' : '推荐回退'}</span>
+          <span>
+            模型状态：
+            {modelState === 'idle_needs_key'
+              ? '需填写 Key'
+              : modelState === 'loading'
+                ? '拉取中'
+                : modelState === 'success_live'
+                  ? '厂商实时'
+                  : '上游失败'}
+          </span>
         </div>
-        {modelWarnings.length > 0 && (
-          <div className='rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-700'>
-            {modelWarnings.join('；')}
-          </div>
-        )}
         {modelError && (
           <div className='rounded-xl border border-red-200 bg-red-50/80 px-3 py-2 text-xs text-red-700'>{modelError}</div>
         )}

@@ -6,7 +6,7 @@ import { requireUserSession } from '@/lib/user/session'
 
 const discoverSchema = z.object({
   provider: z.enum(['gemini', 'openai', 'deepseek', 'qwen']),
-  apiKey: z.string().trim().min(1),
+  apiKey: z.string().trim().optional().default(''),
   baseUrl: z.string().trim().optional(),
   includeAll: z.boolean().optional()
 })
