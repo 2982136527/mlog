@@ -51,6 +51,7 @@ For production builds, `pnpm build` runs `pnpm content:pull` first to sync priva
 - `/admin/new`
 - `/admin/edit/[slug]`
 - `/api/cron/github-hot-daily` (Vercel cron entry, bearer protected)
+- `/api/cron/github-hot-daily-fallback` (Vercel cron fallback entry, bearer protected)
 - `/api/cron/tutorial-sync` (Vercel cron entry, bearer protected)
 - `/api/blog/live-card?locale=zh|en&slug=<slug>` (public read-only live snapshot API for hot-daily posts)
 
@@ -113,7 +114,7 @@ If required fields are missing, build fails with the source file path.
 | `PUBLIC_GITHUB_BASE_BRANCH` | public repo base branch, default `main` |
 | `PUBLIC_GITHUB_WRITE_TOKEN` | public repo write token (tutorial mirror) |
 | `ADMIN_AUTO_MERGE` | auto-merge PR after create, default `true` |
-| `CRON_SECRET` | bearer secret for cron route `/api/cron/github-hot-daily` |
+| `CRON_SECRET` | bearer secret shared by cron routes (`/api/cron/github-hot-daily`, `/api/cron/github-hot-daily-fallback`, `/api/cron/tutorial-sync`) |
 | `VERCEL_DEPLOY_HOOK_URL` | Vercel Deploy Hook URL; triggers production rebuild after merged content writes |
 | `TUTORIAL_SYNC_ENABLED` | enable tutorial sync cron, default `true` |
 | `PRIVACY_BLOCKLIST` | comma-separated sensitive words/domains for tutorial mirror blocking |
@@ -206,7 +207,7 @@ If required fields are missing, build fails with the source file path.
 
 ## Daily GitHub Hot Automation
 
-- Trigger schedule: every day at `Asia/Shanghai 08:00` (Vercel cron schedule `0 0 * * *` in UTC).
+- Trigger schedule: primary run at `Asia/Shanghai 08:00` (`0 0 * * *` UTC) + fallback check at `Asia/Shanghai 09:10` (`10 1 * * *` UTC).
 - Source: GitHub Trending Daily.
 - Interest strategy:
   - preset themes (13 presets total) + optional manual overlay keywords (OR matching)

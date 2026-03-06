@@ -51,6 +51,7 @@ pnpm dev
 - `/admin/new`
 - `/admin/edit/[slug]`
 - `/api/cron/github-hot-daily`（Vercel Cron 入口）
+- `/api/cron/github-hot-daily-fallback`（Vercel Cron 兜底入口）
 - `/api/cron/tutorial-sync`（教程镜像 Cron）
 - `/api/blog/live-card?locale=zh|en&slug=<slug>`（文章实时快照 API）
 
@@ -182,7 +183,7 @@ updated?: ISO date
 
 ## GitHub 爆火日报自动化
 
-- 执行时间：`Asia/Shanghai 08:00`（Cron UTC `0 0 * * *`）
+- 执行时间：主任务 `Asia/Shanghai 08:00`（Cron UTC `0 0 * * *`）+ 兜底检查 `Asia/Shanghai 09:10`（Cron UTC `10 1 * * *`）
 - 数据源：GitHub Trending Daily
 - 选题策略：13 个预设主题 + 叠加关键词 + 排除词 + 最小星标 + 候选窗口
 - 空叠加词时：按预设主题池“同日固定随机”

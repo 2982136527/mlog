@@ -252,7 +252,7 @@ export function AdminAutomationCard() {
     <section className='space-y-4 rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur'>
       <div>
         <h3 className='font-title text-2xl text-[var(--color-ink)]'>自动发布设置（GitHub 爆火日报）</h3>
-        <p className='mt-1 text-sm text-[var(--color-ink-soft)]'>数据源：Trending Daily；时区：Asia/Shanghai；计划：每日 08:00（Vercel Cron UTC 00:00）。</p>
+        <p className='mt-1 text-sm text-[var(--color-ink-soft)]'>数据源：Trending Daily；时区：Asia/Shanghai；计划：每日 08:00 主任务 + 09:10 兜底检查（Vercel Cron UTC 00:00 / 01:10）。</p>
         <p className='mt-1 text-xs text-[var(--color-ink-soft)]'>若 08:00 执行失败，可在当天使用“立即执行”补发（仍保持每天最多一篇）。</p>
       </div>
 

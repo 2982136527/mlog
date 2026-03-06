@@ -6,6 +6,10 @@
       "schedule": "0 0 * * *"
     },
     {
+      "path": "/api/cron/github-hot-daily-fallback",
+      "schedule": "10 1 * * *"
+    },
+    {
       "path": "/api/cron/tutorial-sync",
       "schedule": "10 0 * * *"
     }
