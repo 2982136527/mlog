@@ -46,12 +46,39 @@ function toNumberLabel(value: number, locale: Locale): string {
   return new Intl.NumberFormat(localeMap[locale]).format(value)
 }
 
-function toErrorState(errorCode: string | undefined, message: string | undefined): LiveCardState {
+function resolveErrorMessage(input: {
+  code: string | undefined
+  message: string | undefined
+  dict: ReturnType<typeof getDictionary>
+}): string {
+  switch (input.code) {
+    case 'GITHUB_UPSTREAM_FAILED':
+      return input.dict.blog.liveCardErrorUpstream
+    case 'REPO_NOT_FOUND_IN_POST':
+      return input.dict.blog.liveCardErrorRepoMissing
+    case 'NOT_LIVE_CARD_POST':
+    case 'NOT_HOT_DAILY_POST':
+      return input.dict.blog.liveCardErrorNotEnabled
+    default:
+      return input.message || input.dict.blog.liveCardErrorUnknown
+  }
+}
+
+function toErrorState(input: {
+  errorCode: string | undefined
+  message: string | undefined
+  dict: ReturnType<typeof getDictionary>
+}): LiveCardState {
+  const { errorCode, message, dict } = input
   const code = (errorCode || 'UNKNOWN') as LiveCardErrorCode | 'UNKNOWN'
   return {
     status: 'error',
     code,
-    message: message || 'Live data is temporarily unavailable.'
+    message: resolveErrorMessage({
+      code: errorCode,
+      message,
+      dict
+    })
   }
 }
 
@@ -87,7 +114,13 @@ export function PostLiveCard({ locale, slug, className }: PostLiveCardProps) {
         if (!response.ok) {
           const payload = (await response.json().catch(() => null)) as ApiErrorResponse | null
           if (mounted) {
-            setState(toErrorState(payload?.error?.code, payload?.error?.message || dict.blog.liveCardUnavailable))
+            setState(
+              toErrorState({
+                errorCode: payload?.error?.code,
+                message: payload?.error?.message,
+                dict
+              })
+            )
           }
           return
         }
@@ -106,10 +139,11 @@ export function PostLiveCard({ locale, slug, className }: PostLiveCardProps) {
 
         if (mounted) {
           setState(
-            toErrorState(
-              'UNKNOWN',
-              error instanceof Error && error.message ? error.message : dict.blog.liveCardUnavailable
-            )
+            toErrorState({
+              errorCode: 'UNKNOWN',
+              message: error instanceof Error && error.message ? error.message : undefined,
+              dict
+            })
           )
         }
       }
@@ -121,7 +155,7 @@ export function PostLiveCard({ locale, slug, className }: PostLiveCardProps) {
       mounted = false
       controller.abort()
     }
-  }, [endpoint, dict.blog.liveCardUnavailable])
+  }, [endpoint, dict])
 
   if (state.status === 'loading') {
     return (
@@ -141,7 +175,7 @@ export function PostLiveCard({ locale, slug, className }: PostLiveCardProps) {
     return (
       <section className={withCardShell(className)}>
         <h2 className='font-title text-xl text-[var(--color-ink)]'>{dict.blog.liveCardTitle}</h2>
-        <p className='mt-3'>{dict.blog.liveCardUnavailable}</p>
+        <p className='mt-3'>{state.message || dict.blog.liveCardUnavailable}</p>
       </section>
     )
   }

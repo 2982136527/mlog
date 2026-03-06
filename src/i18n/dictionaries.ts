@@ -43,6 +43,10 @@ export type Dictionary = {
     liveCardUpdatedAt: string
     liveCardSource: string
     liveCardUnavailable: string
+    liveCardErrorUpstream: string
+    liveCardErrorRepoMissing: string
+    liveCardErrorNotEnabled: string
+    liveCardErrorUnknown: string
     liveCardCacheHint: string
     liveCardStars: string
     liveCardForks: string
@@ -138,6 +142,10 @@ const dictionaries: Record<Locale, Dictionary> = {
       liveCardUpdatedAt: '更新时间',
       liveCardSource: '数据源',
       liveCardUnavailable: '实时数据暂不可用',
+      liveCardErrorUpstream: 'GitHub 上游暂不可用或权限受限，请稍后重试。',
+      liveCardErrorRepoMissing: '文章中未识别到有效 GitHub 仓库链接。',
+      liveCardErrorNotEnabled: '该文章未启用实时快照卡。',
+      liveCardErrorUnknown: '实时数据加载失败，请稍后重试。',
       liveCardCacheHint: '10 分钟缓存口径',
       liveCardStars: 'Stars',
       liveCardForks: 'Forks',
@@ -231,6 +239,10 @@ const dictionaries: Record<Locale, Dictionary> = {
       liveCardUpdatedAt: 'Updated at',
       liveCardSource: 'Source',
       liveCardUnavailable: 'Live data is temporarily unavailable.',
+      liveCardErrorUpstream: 'GitHub upstream is unavailable or restricted. Please try again later.',
+      liveCardErrorRepoMissing: 'No valid GitHub repository link was found in this post.',
+      liveCardErrorNotEnabled: 'Live snapshot is not enabled for this post.',
+      liveCardErrorUnknown: 'Failed to load live data. Please try again later.',
       liveCardCacheHint: '10-minute cache window',
       liveCardStars: 'Stars',
       liveCardForks: 'Forks',

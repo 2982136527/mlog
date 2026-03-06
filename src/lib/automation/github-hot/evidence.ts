@@ -36,13 +36,17 @@ type JsonFetchResult<T> = {
   data: T | null
 }
 
-function buildGitHubHeaders(): HeadersInit {
+type JsonFetchOptions = {
+  includeAuth?: boolean
+}
+
+function buildGitHubHeaders(includeAuth = true): HeadersInit {
   const token = (process.env.CONTENT_GITHUB_READ_TOKEN || process.env.CONTENT_GITHUB_WRITE_TOKEN || '').trim()
   return {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
     'User-Agent': 'mlog-github-hot-bot',
-    ...(token ? { Authorization: `Bearer ${token}` } : {})
+    ...(includeAuth && token ? { Authorization: `Bearer ${token}` } : {})
   }
 }
 
@@ -106,10 +110,10 @@ function extractReadmeHighlights(markdown: string): string[] {
   return highlights.slice(0, 10)
 }
 
-async function fetchJson<T>(url: string): Promise<JsonFetchResult<T>> {
+async function fetchJson<T>(url: string, options: JsonFetchOptions = {}): Promise<JsonFetchResult<T>> {
   try {
     const response = await fetch(url, {
-      headers: buildGitHubHeaders(),
+      headers: buildGitHubHeaders(options.includeAuth ?? true),
       cache: 'no-store'
     })
     if (!response.ok) {
@@ -178,6 +182,48 @@ export type GithubRepoLiveSnapshot = {
   fetchedAt: string
 }
 
+export class GithubRepoLiveSnapshotError extends Error {
+  primaryStatus: number
+  fallbackAttempted: boolean
+  fallbackStatus: number | null
+
+  constructor(input: {
+    message: string
+    primaryStatus: number
+    fallbackAttempted: boolean
+    fallbackStatus: number | null
+  }) {
+    super(input.message)
+    this.primaryStatus = input.primaryStatus
+    this.fallbackAttempted = input.fallbackAttempted
+    this.fallbackStatus = input.fallbackStatus
+  }
+}
+
+function shouldRetryWithoutAuth(status: number): boolean {
+  return status === 401 || status === 403 || status === 404
+}
+
+function toLiveSnapshot(input: {
+  owner: string
+  repo: string
+  data: GitHubRepoApiResponse
+}): GithubRepoLiveSnapshot {
+  const { owner, repo, data } = input
+  return {
+    fullName: (data.full_name || `${owner}/${repo}`).trim(),
+    url: (data.html_url || `https://github.com/${owner}/${repo}`).trim(),
+    language: (data.language || '').trim(),
+    license: (data.license?.spdx_id || data.license?.name || '').trim() || null,
+    stars: toSafeInteger(data.stargazers_count),
+    forks: toSafeInteger(data.forks_count),
+    openIssues: toSafeInteger(data.open_issues_count),
+    pushedAt: normalizeIsoOrNull(data.pushed_at ?? null),
+    updatedAt: normalizeIsoOrNull(data.updated_at ?? null),
+    fetchedAt: new Date().toISOString()
+  }
+}
+
 export async function collectGithubRepoEvidence(candidate: GithubHotRepoCandidate): Promise<GithubRepoEvidence> {
   const fetchedAt = new Date().toISOString()
   const repoEndpoint = `https://api.github.com/repos/${encodeURIComponent(candidate.owner)}/${encodeURIComponent(candidate.repo)}`
@@ -224,24 +270,44 @@ export async function fetchGithubRepoLiveSnapshot(owner: string, repo: string): 
   const normalizedOwner = owner.trim()
   const normalizedRepo = repo.trim()
   const endpoint = `https://api.github.com/repos/${encodeURIComponent(normalizedOwner)}/${encodeURIComponent(normalizedRepo)}`
-  const response = await fetchJson<GitHubRepoApiResponse>(endpoint)
+  const primaryResponse = await fetchJson<GitHubRepoApiResponse>(endpoint)
 
-  if (!response.ok || !response.data) {
-    throw new Error(`Failed to fetch GitHub repo "${normalizedOwner}/${normalizedRepo}" (${response.status})`)
+  if (primaryResponse.ok && primaryResponse.data) {
+    return toLiveSnapshot({
+      owner: normalizedOwner,
+      repo: normalizedRepo,
+      data: primaryResponse.data
+    })
   }
 
-  const data = response.data
+  let fallbackAttempted = false
+  let fallbackStatus: number | null = null
 
-  return {
-    fullName: (data.full_name || `${normalizedOwner}/${normalizedRepo}`).trim(),
-    url: (data.html_url || `https://github.com/${normalizedOwner}/${normalizedRepo}`).trim(),
-    language: (data.language || '').trim(),
-    license: (data.license?.spdx_id || data.license?.name || '').trim() || null,
-    stars: toSafeInteger(data.stargazers_count),
-    forks: toSafeInteger(data.forks_count),
-    openIssues: toSafeInteger(data.open_issues_count),
-    pushedAt: normalizeIsoOrNull(data.pushed_at ?? null),
-    updatedAt: normalizeIsoOrNull(data.updated_at ?? null),
-    fetchedAt: new Date().toISOString()
+  if (shouldRetryWithoutAuth(primaryResponse.status)) {
+    fallbackAttempted = true
+    const fallbackResponse = await fetchJson<GitHubRepoApiResponse>(endpoint, {
+      includeAuth: false
+    })
+    fallbackStatus = fallbackResponse.status
+
+    if (fallbackResponse.ok && fallbackResponse.data) {
+      console.info('[github][live-card][auth-fallback-success]', {
+        repo: `${normalizedOwner}/${normalizedRepo}`,
+        primaryStatus: primaryResponse.status,
+        fallbackStatus: fallbackResponse.status
+      })
+      return toLiveSnapshot({
+        owner: normalizedOwner,
+        repo: normalizedRepo,
+        data: fallbackResponse.data
+      })
+    }
   }
+
+  throw new GithubRepoLiveSnapshotError({
+    message: `Failed to fetch GitHub repo "${normalizedOwner}/${normalizedRepo}"`,
+    primaryStatus: primaryResponse.status,
+    fallbackAttempted,
+    fallbackStatus
+  })
 }

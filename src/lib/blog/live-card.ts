@@ -2,7 +2,7 @@ import 'server-only'
 import { unstable_cache } from 'next/cache'
 import { isLocale, type Locale } from '@/i18n/config'
 import { getLocalizedPost } from '@/lib/content'
-import { fetchGithubRepoLiveSnapshot } from '@/lib/automation/github-hot/evidence'
+import { fetchGithubRepoLiveSnapshot, GithubRepoLiveSnapshotError } from '@/lib/automation/github-hot/evidence'
 import type { LiveCardErrorCode, LiveCardResponse } from '@/types/analytics'
 import { extractGithubRepoFromMarkdown, getRepoCardsConfigFromLocal, parseGithubRepoUrl } from '@/lib/blog/repo-cards-config'
 import { isHotDailyTags } from '@/lib/blog/static-snapshot'
@@ -92,11 +92,24 @@ export async function getLiveCardForPost(input: { locale: string; slug: string }
   try {
     liveSnapshot = await getCachedRepoSnapshot(repo.owner, repo.repo)
   } catch (error) {
+    const upstream = error instanceof GithubRepoLiveSnapshotError
+      ? {
+          primaryStatus: error.primaryStatus,
+          fallbackAttempted: error.fallbackAttempted,
+          fallbackStatus: error.fallbackStatus
+        }
+      : {
+          primaryStatus: null,
+          fallbackAttempted: false,
+          fallbackStatus: null
+        }
+
     console.error('[blog][live-card][github-upstream]', {
       locale,
       slug,
       repo: `${repo.owner}/${repo.repo}`,
-      error
+      ...upstream,
+      error: error instanceof Error ? error.message : error
     })
     throw new LiveCardHttpError(503, 'GITHUB_UPSTREAM_FAILED', 'GitHub upstream request failed.')
   }
