@@ -7,6 +7,7 @@ export type Dictionary = {
     home: string
     blog: string
     about: string
+    studio: string
   }
   home: {
     introTitle: string
@@ -69,6 +70,7 @@ export type Dictionary = {
     themeOrnate: string
     rss: string
     about: string
+    studio: string
     categories: string
     tags: string
     backToBlog: string
@@ -105,7 +107,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     nav: {
       home: '首页',
       blog: '博客',
-      about: '介绍'
+      about: '介绍',
+      studio: '创作中心'
     },
     home: {
       introTitle: '暖色玻璃态博客',
@@ -168,6 +171,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       themeOrnate: '华丽',
       rss: 'RSS',
       about: '介绍',
+      studio: '创作中心',
       categories: '分类',
       tags: '标签',
       backToBlog: '返回文章列表',
@@ -202,7 +206,8 @@ const dictionaries: Record<Locale, Dictionary> = {
     nav: {
       home: 'Home',
       blog: 'Blog',
-      about: 'About'
+      about: 'About',
+      studio: 'Studio'
     },
     home: {
       introTitle: 'Warm Glassmorphism Blog',
@@ -265,6 +270,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       themeOrnate: 'Ornate',
       rss: 'RSS',
       about: 'About',
+      studio: 'Studio',
       categories: 'Categories',
       tags: 'Tags',
       backToBlog: 'Back to posts',
