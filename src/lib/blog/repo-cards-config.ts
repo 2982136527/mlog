@@ -7,7 +7,7 @@ import { slugSchema } from '@/lib/content/schema'
 import type { AdminRepoCardsInput, RepoCardsConfig } from '@/types/repo-cards'
 
 const CONTENT_ROOT = path.join(process.cwd(), 'content', 'posts')
-const GITHUB_REPO_IN_TEXT_RE = /https:\/\/github\.com\/[^\s<)"']+/gi
+const GITHUB_REPO_IN_TEXT_RE = /https:\/\/github\.com\/[^\s<)"'`\\]+/gi
 
 const repoCardsConfigSchema = z.object({
   enabled: z.boolean(),
@@ -43,8 +43,17 @@ function toIsoOrNow(input: string | undefined): string {
 }
 
 function sanitizeRepoSegment(value: string): string {
-  return value
-    .trim()
+  let decoded = value.trim()
+  try {
+    decoded = decodeURIComponent(decoded)
+  } catch {
+    decoded = value.trim()
+  }
+
+  return decoded
+    .replace(/%60$/i, '')
+    .replace(/`+$/, '')
+    .replace(/\\+$/, '')
     .replace(/\.git$/i, '')
     .replace(/[.,;:!?]+$/, '')
 }
