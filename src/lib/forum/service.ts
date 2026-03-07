@@ -728,7 +728,7 @@ async function ensureForumLabelIds(input: {
     query: `
       query ForumLabels($owner: String!, $name: String!) {
         repository(owner: $owner, name: $name) {
-          labels(first: 120, query: "mlog-") {
+          labels(first: 100, query: "mlog-") {
             nodes {
               id
               name
