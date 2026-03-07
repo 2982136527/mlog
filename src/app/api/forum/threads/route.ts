@@ -6,12 +6,22 @@ import { AdminHttpError } from '@/lib/admin/errors'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { checkForumRateLimit } from '@/lib/forum/rate-limit'
 import { getForumScopeState } from '@/lib/forum/scope'
+import { resolveForumGeminiSecret, hasGistScope } from '@/lib/forum/translator-secret'
+import { translateForumThreadWithGemini } from '@/lib/forum/translation'
 import { createForumThread, listForumThreads } from '@/lib/forum/service'
 
 const createThreadSchema = z.object({
   title: z.string().trim().min(3).max(200),
   body: z.string().trim().min(10).max(20000),
-  categorySlug: z.string().trim().min(1).max(100)
+  categorySlug: z.string().trim().min(1).max(100),
+  sourceLocale: z.enum(['zh', 'en']).optional().default('zh'),
+  autoTranslate: z.boolean().optional().default(false),
+  gemini: z
+    .object({
+      apiKey: z.string().trim().min(1).max(300).optional(),
+      model: z.string().trim().min(1).max(120).optional()
+    })
+    .optional()
 })
 
 function getClientIp(request: NextRequest): string {
@@ -30,11 +40,13 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category') || undefined
     const cursor = searchParams.get('cursor') || undefined
     const q = searchParams.get('q') || undefined
+    const contentLocale = searchParams.get('contentLocale') || searchParams.get('locale') || undefined
 
     const payload = await listForumThreads({
       categorySlug: category,
       cursor,
-      q
+      q,
+      contentLocale: contentLocale === 'en' ? 'en' : 'zh'
     })
 
     return ok(requestId, payload)
@@ -80,15 +92,62 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = createThreadSchema.parse(await request.json())
-    const created = await createForumThread({
-      accessToken,
-      title: payload.title,
-      body: payload.body,
-      categorySlug: payload.categorySlug
-    })
+    const autoTranslate = Boolean(payload.autoTranslate)
+    const sourceLocale = payload.sourceLocale
+    const targetLocale = sourceLocale === 'zh' ? 'en' : 'zh'
+
+    let created: Awaited<ReturnType<typeof createForumThread>>
+    if (!autoTranslate) {
+      created = await createForumThread({
+        accessToken,
+        title: payload.title,
+        body: payload.body,
+        categorySlug: payload.categorySlug,
+        sourceLocale
+      })
+    } else {
+      if (!hasGistScope(scope)) {
+        return fail(requestId, 403, 'FORUM_SCOPE_REQUIRED', 'Gemini key storage requires gist scope.')
+      }
+
+      const resolvedSecret = await resolveForumGeminiSecret({
+        accessToken,
+        login,
+        apiKey: payload.gemini?.apiKey,
+        model: payload.gemini?.model
+      })
+
+      if (!resolvedSecret.apiKey) {
+        return fail(requestId, 400, 'FORUM_TRANSLATOR_KEY_REQUIRED', 'Gemini API key is required for auto translation.')
+      }
+
+      const translated = await translateForumThreadWithGemini({
+        apiKey: resolvedSecret.apiKey,
+        model: resolvedSecret.model,
+        sourceLocale,
+        targetLocale,
+        title: payload.title,
+        body: payload.body
+      })
+
+      created = await createForumThread({
+        accessToken,
+        title: payload.title,
+        body: payload.body,
+        categorySlug: payload.categorySlug,
+        sourceLocale,
+        mirror: {
+          title: translated.title,
+          body: translated.body,
+          locale: targetLocale
+        }
+      })
+    }
 
     return ok(requestId, {
-      thread: created
+      thread: created.thread,
+      mirror: created.mirror,
+      translationStatus: created.translationStatus
     })
   } catch (error) {
     if (error instanceof z.ZodError) {

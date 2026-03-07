@@ -15,6 +15,7 @@ type ForumCategoryPageProps = {
   }>
   searchParams: Promise<{
     locale?: string
+    contentLocale?: string
     q?: string
     cursor?: string
   }>
@@ -31,13 +32,15 @@ export default async function ForumCategoryPage({ params, searchParams }: ForumC
   const locale = resolveForumLocale(query.locale)
   const dict = getDictionary(locale)
   const searchLabel = locale === 'zh' ? '搜索' : 'Search'
+  const contentLocale = resolveForumLocale(query.contentLocale || locale)
   const q = query.q?.trim() || ''
   const cursor = query.cursor?.trim() || undefined
 
   const payload = await listForumThreads({
     categorySlug: decodeURIComponent(category),
     q,
-    cursor
+    cursor,
+    contentLocale
   }).catch(error => {
     if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === 'FORUM_NOT_FOUND') {
       return null
@@ -77,6 +80,7 @@ export default async function ForumCategoryPage({ params, searchParams }: ForumC
 
         <form method='get' className='rounded-2xl border border-white/60 bg-white/60 p-4 backdrop-blur'>
           <input type='hidden' name='locale' value={locale} />
+          <input type='hidden' name='contentLocale' value={contentLocale} />
           <div className='flex flex-wrap gap-3'>
             <input
               name='q'
@@ -108,6 +112,14 @@ export default async function ForumCategoryPage({ params, searchParams }: ForumC
                     #{item.number} · {item.author?.login || 'unknown'} · {dict.forum.updatedAt}: {formatDate(item.updatedAt, locale)} · {dict.forum.comments}:{' '}
                     {item.commentCount} · {dict.forum.reactions}: {item.reactionCount}
                   </p>
+                  <div className='mt-2 flex flex-wrap gap-2'>
+                    <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-[11px] text-[var(--color-ink-soft)]'>
+                      {dict.forum.contentLocale}: {item.contentLocale === 'zh' ? dict.forum.contentLocaleZh : dict.forum.contentLocaleEn}
+                    </span>
+                    <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-[11px] text-[var(--color-ink-soft)]'>
+                      {item.translationStatus === 'bilingual' ? dict.forum.statusBilingual : dict.forum.statusSingle}
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -118,7 +130,9 @@ export default async function ForumCategoryPage({ params, searchParams }: ForumC
             <div className='mt-4'>
               <Link
                 href={withForumLocale(
-                  `/forum/c/${encodeURIComponent(payload.category.slug)}?cursor=${encodeURIComponent(payload.pageInfo.endCursor)}${q ? `&q=${encodeURIComponent(q)}` : ''}`,
+                  `/forum/c/${encodeURIComponent(payload.category.slug)}?cursor=${encodeURIComponent(payload.pageInfo.endCursor)}${q ? `&q=${encodeURIComponent(
+                    q
+                  )}` : ''}&contentLocale=${contentLocale}`,
                   locale
                 )}
                 className='inline-flex items-center rounded-full border border-[var(--color-border-strong)] bg-white px-4 py-2 text-sm text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>

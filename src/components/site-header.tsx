@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Suspense } from 'react'
 import type { Locale } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
 import { LanguageSwitcher } from '@/components/language-switcher'
@@ -42,7 +43,14 @@ export function SiteHeader({ locale }: SiteHeaderProps) {
           className='inline-flex rounded-full border border-white/70 bg-white/70 px-3 py-1.5 text-xs font-medium text-[var(--color-ink-soft)] shadow-sm backdrop-blur transition hover:text-[var(--color-ink)] sm:hidden'
         />
         <ThemeToggle locale={locale} />
-        <LanguageSwitcher locale={locale} />
+        <Suspense
+          fallback={
+            <div className='inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 p-1 text-xs shadow-sm backdrop-blur'>
+              <span className='rounded-full bg-[var(--color-brand)] px-3 py-1.5 font-medium text-white'>{locale.toUpperCase()}</span>
+            </div>
+          }>
+          <LanguageSwitcher locale={locale} />
+        </Suspense>
       </div>
     </header>
   )

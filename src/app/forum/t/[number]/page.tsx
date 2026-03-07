@@ -77,6 +77,26 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
             #{detail.thread.number} · {detail.thread.author?.login || 'unknown'} · {dict.forum.createdAt}: {formatDate(detail.thread.createdAt, locale)} · {dict.forum.updatedAt}:{' '}
             {formatDate(detail.thread.updatedAt, locale)} · {dict.forum.comments}: {detail.thread.commentCount} · {dict.forum.reactions}: {detail.thread.reactionCount}
           </p>
+          <div className='mt-2 flex flex-wrap gap-2'>
+            <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-xs text-[var(--color-ink-soft)]'>
+              {dict.forum.contentLocale}: {detail.contentLocale === 'zh' ? dict.forum.contentLocaleZh : dict.forum.contentLocaleEn}
+            </span>
+            <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-xs text-[var(--color-ink-soft)]'>
+              {detail.translationStatus === 'bilingual' ? dict.forum.statusBilingual : dict.forum.statusSingle}
+            </span>
+            {detail.translationStatus === 'single' ? (
+              <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-xs text-[var(--color-ink-soft)]'>
+                {detail.contentLocale === 'zh' ? dict.forum.singleOnlyZh : dict.forum.singleOnlyEn}
+              </span>
+            ) : null}
+            {detail.translationStatus === 'bilingual' && detail.counterpart ? (
+              <Link
+                href={withForumLocale(`/forum/t/${detail.counterpart.number}`, locale)}
+                className='inline-flex items-center rounded-full border border-[var(--color-border-strong)] bg-white px-2.5 py-0.5 text-xs font-medium text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
+                {detail.counterpart.locale === 'zh' ? dict.forum.switchToZh : dict.forum.switchToEn}
+              </Link>
+            ) : null}
+          </div>
           {detail.thread.category ? (
             <p className='mt-2 text-xs text-[var(--color-ink-soft)]'>
               <Link href={withForumLocale(`/forum/c/${encodeURIComponent(detail.thread.category.slug)}`, locale)} className='underline underline-offset-2'>

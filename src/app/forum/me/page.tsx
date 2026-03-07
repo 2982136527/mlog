@@ -73,6 +73,14 @@ export default async function ForumMePage({ searchParams }: ForumMePageProps) {
                   <p className='mt-2 text-xs text-[var(--color-ink-soft)]'>
                     #{item.number} · {dict.forum.updatedAt}: {formatDate(item.updatedAt, locale)} · {dict.forum.comments}: {item.commentCount}
                   </p>
+                  <div className='mt-2 flex flex-wrap gap-2'>
+                    <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-[11px] text-[var(--color-ink-soft)]'>
+                      {dict.forum.contentLocale}: {item.contentLocale === 'zh' ? dict.forum.contentLocaleZh : dict.forum.contentLocaleEn}
+                    </span>
+                    <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-[11px] text-[var(--color-ink-soft)]'>
+                      {item.translationStatus === 'bilingual' ? dict.forum.statusBilingual : dict.forum.statusSingle}
+                    </span>
+                  </div>
                 </li>
               ))}
             </ul>

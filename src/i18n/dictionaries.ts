@@ -96,6 +96,15 @@ export type Dictionary = {
     loginRequired: string
     scopeRequired: string
     authorize: string
+    contentLocale: string
+    contentLocaleZh: string
+    contentLocaleEn: string
+    statusSingle: string
+    statusBilingual: string
+    singleOnlyZh: string
+    singleOnlyEn: string
+    switchToZh: string
+    switchToEn: string
   }
   common: {
     language: string
@@ -232,7 +241,16 @@ const dictionaries: Record<Locale, Dictionary> = {
       replyFormSubmitting: '发布中...',
       loginRequired: '请先登录后再操作。',
       scopeRequired: '需要 GitHub Discussions 写入权限，请补授权。',
-      authorize: '补授权'
+      authorize: '补授权',
+      contentLocale: '内容语言',
+      contentLocaleZh: '中文',
+      contentLocaleEn: '英文',
+      statusSingle: '单语',
+      statusBilingual: '双语',
+      singleOnlyZh: '仅中文主题',
+      singleOnlyEn: '仅英文主题',
+      switchToZh: 'View in Chinese',
+      switchToEn: 'View in English'
     },
     common: {
       language: '语言',
@@ -367,7 +385,16 @@ const dictionaries: Record<Locale, Dictionary> = {
       replyFormSubmitting: 'Posting...',
       loginRequired: 'Please sign in to continue.',
       scopeRequired: 'GitHub Discussions write scope is required.',
-      authorize: 'Authorize Scope'
+      authorize: 'Authorize Scope',
+      contentLocale: 'Content Locale',
+      contentLocaleZh: 'Chinese',
+      contentLocaleEn: 'English',
+      statusSingle: 'Single',
+      statusBilingual: 'Bilingual',
+      singleOnlyZh: 'Chinese only',
+      singleOnlyEn: 'English only',
+      switchToZh: '查看中文',
+      switchToEn: 'View in English'
     },
     common: {
       language: 'Language',

@@ -11,6 +11,7 @@ import { SectionTitle } from '@/components/ui/section-title'
 type ForumPageProps = {
   searchParams: Promise<{
     locale?: string
+    contentLocale?: string
     q?: string
     cursor?: string
   }>
@@ -27,12 +28,14 @@ export default async function ForumPage({ searchParams }: ForumPageProps) {
   const locale = resolveForumLocale(params.locale)
   const dict = getDictionary(locale)
   const searchLabel = locale === 'zh' ? '搜索' : 'Search'
+  const contentLocale = resolveForumLocale(params.contentLocale || locale)
   const q = params.q?.trim() || ''
   const cursor = params.cursor?.trim() || undefined
 
   const payload = await listForumThreads({
     q,
-    cursor
+    cursor,
+    contentLocale
   })
 
   const hotItems = [...payload.items]
@@ -58,6 +61,7 @@ export default async function ForumPage({ searchParams }: ForumPageProps) {
 
         <form method='get' className='rounded-2xl border border-white/60 bg-white/60 p-4 backdrop-blur'>
           <input type='hidden' name='locale' value={locale} />
+          <input type='hidden' name='contentLocale' value={contentLocale} />
           <div className='flex flex-wrap gap-3'>
             <input
               name='q'
@@ -109,6 +113,14 @@ export default async function ForumPage({ searchParams }: ForumPageProps) {
                       #{item.number} · {item.author?.login || 'unknown'} · {dict.forum.updatedAt}: {formatDate(item.updatedAt, locale)} · {dict.forum.comments}:{' '}
                       {item.commentCount} · {dict.forum.reactions}: {item.reactionCount}
                     </p>
+                    <div className='mt-2 flex flex-wrap gap-2'>
+                      <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-[11px] text-[var(--color-ink-soft)]'>
+                        {dict.forum.contentLocale}: {item.contentLocale === 'zh' ? dict.forum.contentLocaleZh : dict.forum.contentLocaleEn}
+                      </span>
+                      <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-[11px] text-[var(--color-ink-soft)]'>
+                        {item.translationStatus === 'bilingual' ? dict.forum.statusBilingual : dict.forum.statusSingle}
+                      </span>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -118,7 +130,10 @@ export default async function ForumPage({ searchParams }: ForumPageProps) {
             {payload.pageInfo.hasNextPage && payload.pageInfo.endCursor ? (
               <div className='mt-4'>
                 <Link
-                  href={withForumLocale(`/forum?cursor=${encodeURIComponent(payload.pageInfo.endCursor)}${q ? `&q=${encodeURIComponent(q)}` : ''}`, locale)}
+                  href={withForumLocale(
+                    `/forum?cursor=${encodeURIComponent(payload.pageInfo.endCursor)}${q ? `&q=${encodeURIComponent(q)}` : ''}&contentLocale=${contentLocale}`,
+                    locale
+                  )}
                   className='inline-flex items-center rounded-full border border-[var(--color-border-strong)] bg-white px-4 py-2 text-sm text-[var(--color-ink)] transition hover:border-[var(--color-brand)]'>
                   {dict.forum.loadMore}
                 </Link>

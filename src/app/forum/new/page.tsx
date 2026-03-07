@@ -48,7 +48,12 @@ export default async function ForumNewPage({ searchParams }: ForumNewPageProps) 
             {dict.forum.myForum}
           </Link>
         </div>
-        <ForumThreadForm locale={locale} categories={categories} hasWriteScope={Boolean(session?.user?.hasDiscussionWriteScope)} />
+        <ForumThreadForm
+          locale={locale}
+          categories={categories}
+          hasWriteScope={Boolean(session?.user?.hasDiscussionWriteScope)}
+          hasGistScope={Boolean(session?.user?.hasGistScope)}
+        />
       </div>
     </ForumShell>
   )
