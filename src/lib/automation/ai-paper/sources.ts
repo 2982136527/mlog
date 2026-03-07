@@ -3,6 +3,7 @@ import type { AiPaperCandidate } from '@/types/automation'
 const ARXIV_QUERY_ENDPOINT = 'https://export.arxiv.org/api/query'
 const PWC_SEARCH_ENDPOINT = 'https://paperswithcode.com/search'
 const DEFAULT_TIMEOUT_MS = 12_000
+const MAX_PWC_ENRICH_CANDIDATES = 12
 
 type FetchTextResult = {
   ok: boolean
@@ -230,8 +231,12 @@ export async function fetchAiPaperCandidates(input: {
     return []
   }
 
-  const enriched = await Promise.all(
-    baseCandidates.map(async candidate => {
+  const enrichCount = Math.min(baseCandidates.length, MAX_PWC_ENRICH_CANDIDATES)
+  const enrichTargets = baseCandidates.slice(0, enrichCount)
+  const untouchedTargets = baseCandidates.slice(enrichCount)
+
+  const enrichedTargets = await Promise.all(
+    enrichTargets.map(async candidate => {
       const pwcSignals = await fetchPwcSignals({
         arxivId: candidate.arxivId
       })
@@ -249,6 +254,13 @@ export async function fetchAiPaperCandidates(input: {
       }
     })
   )
+
+  const untouchedWithScore = untouchedTargets.map(candidate => ({
+    ...candidate,
+    signalsScore: computeSignalsScore(candidate, input.includeCodeFirst)
+  }))
+
+  const enriched = [...enrichedTargets, ...untouchedWithScore]
 
   return sortCandidates(enriched, input.includeCodeFirst)
 }

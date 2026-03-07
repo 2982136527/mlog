@@ -14,7 +14,7 @@ import { AiRunnerError, runAiPaperDailyGenerate } from '@/lib/ai/runner'
 const AUTO_POST_PREFIX = AI_PAPER_DAILY_SLUG_PREFIX
 const AUTO_FIXED_TAGS = ['ai-paper', 'paper-daily'] as const
 const PAPER_MIN_ZH_CHARS = 1000
-const PAPER_REWRITE_RETRY = 2
+const PAPER_REWRITE_RETRY = 0
 
 class PaperQualityError extends Error {
   failedChecks: string[]
