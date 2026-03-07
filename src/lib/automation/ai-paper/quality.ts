@@ -87,8 +87,10 @@ export function validateAiPaperGeneratedPost(input: {
   }
 
   const sourceUrls = Array.from(sourceSection.matchAll(/https?:\/\/\S+/gi)).map(match => match[0])
-  if (sourceUrls.length < 2) {
-    failedChecks.push('证据来源章节至少需要 2 个可访问 URL')
+  const evidenceSourceCount = Math.max(1, input.evidence.sourceUrls.length)
+  const requiredSourceCount = Math.min(2, evidenceSourceCount)
+  if (sourceUrls.length < requiredSourceCount) {
+    failedChecks.push(`证据来源章节至少需要 ${requiredSourceCount} 个可访问 URL`)
   }
 
   if (!hasEvidenceTimestamp(sourceSection, input.evidence.fetchedAt)) {
