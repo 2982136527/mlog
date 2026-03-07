@@ -9,8 +9,7 @@ const config = {
   repo: process.env.NEXT_PUBLIC_GISCUS_REPO,
   repoId: process.env.NEXT_PUBLIC_GISCUS_REPO_ID,
   category: process.env.NEXT_PUBLIC_GISCUS_CATEGORY,
-  categoryId: process.env.NEXT_PUBLIC_GISCUS_CATEGORY_ID,
-  mapping: process.env.NEXT_PUBLIC_GISCUS_MAPPING ?? 'pathname'
+  categoryId: process.env.NEXT_PUBLIC_GISCUS_CATEGORY_ID
 }
 
 type GiscusCommentsProps = {
@@ -21,6 +20,8 @@ type GiscusCommentsProps = {
 
 export function GiscusComments({ locale, slug, title }: GiscusCommentsProps) {
   const enabled = Boolean(config.repo && config.repoId && config.category && config.categoryId)
+  const term = `/zh/blog/${slug}`
+  const lang = locale === 'zh' ? 'zh-CN' : 'en'
   const containerRef = useRef<HTMLDivElement | null>(null)
   const trackedRef = useRef(false)
 
@@ -67,12 +68,13 @@ export function GiscusComments({ locale, slug, title }: GiscusCommentsProps) {
         repoId={config.repoId!}
         category={config.category!}
         categoryId={config.categoryId!}
-        mapping={config.mapping as 'pathname' | 'url' | 'title' | 'og:title' | 'specific'}
+        mapping='specific'
+        term={term}
         reactionsEnabled='1'
         emitMetadata='0'
         inputPosition='top'
         theme='light'
-        lang='en'
+        lang={lang}
         loading='lazy'
       />
     </div>

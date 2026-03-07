@@ -83,6 +83,7 @@ updated?: ISO date
 
 - UI 文案由 `src/i18n/dictionaries.ts` 驱动。
 - 文章详情页若 `/en/blog/[slug]` 缺失 `en.md`，会回退到 `zh.md` 并显示提示。
+- 文章评论固定按 slug 合并（锚点 `/zh/blog/${slug}`），`/zh` 与 `/en` 共用同一评论串。
 
 ## SEO / 订阅
 
@@ -101,7 +102,7 @@ updated?: ISO date
 | `NEXT_PUBLIC_GISCUS_REPO_ID` | Giscus repo ID |
 | `NEXT_PUBLIC_GISCUS_CATEGORY` | Giscus 分类名 |
 | `NEXT_PUBLIC_GISCUS_CATEGORY_ID` | Giscus category ID |
-| `NEXT_PUBLIC_GISCUS_MAPPING` | Giscus mapping（默认 `pathname`） |
+| `NEXT_PUBLIC_GISCUS_MAPPING` | 兼容保留字段（博客评论已固定按 slug 合并） |
 | `NEXT_PUBLIC_UMAMI_SCRIPT_URL` | Umami 脚本地址 |
 | `NEXT_PUBLIC_UMAMI_WEBSITE_ID` | Umami 网站 ID |
 | `UMAMI_API_TOKEN` | 服务端 Umami API token（页脚统计） |

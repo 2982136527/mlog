@@ -83,6 +83,7 @@ If required fields are missing, build fails with the source file path.
 
 - UI copy is dictionary-driven in `src/i18n/dictionaries.ts`.
 - For post detail pages, if `/en/blog/[slug]` has no `en.md`, the app falls back to `zh.md` and shows a notice.
+- Blog comments are unified by slug (fixed anchor `/zh/blog/${slug}`), so `/zh` and `/en` share one comment thread.
 
 ## SEO / Feed
 
@@ -101,7 +102,7 @@ If required fields are missing, build fails with the source file path.
 | `NEXT_PUBLIC_GISCUS_REPO_ID` | giscus repo ID |
 | `NEXT_PUBLIC_GISCUS_CATEGORY` | giscus category |
 | `NEXT_PUBLIC_GISCUS_CATEGORY_ID` | giscus category ID |
-| `NEXT_PUBLIC_GISCUS_MAPPING` | giscus mapping, default `pathname` |
+| `NEXT_PUBLIC_GISCUS_MAPPING` | legacy compatibility field (blog comments now use fixed slug-based mapping) |
 | `NEXT_PUBLIC_UMAMI_SCRIPT_URL` | umami script URL |
 | `NEXT_PUBLIC_UMAMI_WEBSITE_ID` | umami website ID |
 | `UMAMI_API_TOKEN` | server-side token for Umami API (footer stats) |
