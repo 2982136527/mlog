@@ -1,6 +1,16 @@
 import type { AdminAiResult, PublishResult } from '@/types/admin'
 
 export type GithubHotDailySource = 'github_trending_daily'
+export type AutomationTriggerSource = 'cron_main' | 'cron_backfill' | 'admin_manual'
+export type AutomationHealthState = 'ok' | 'pending' | 'missed' | 'disabled'
+
+export type AutomationHealth = {
+  dateStamp: string
+  state: AutomationHealthState
+  expectedRunAtLocal: string
+  backfillAtLocal: string
+  hasPublishedToday: boolean
+}
 
 export type InterestPreset =
   | 'mixed'
@@ -82,6 +92,7 @@ export type GithubHotRunStatus =
   | 'PUBLISHED'
   | 'SKIPPED_DISABLED'
   | 'SKIPPED_ALREADY_PUBLISHED_TODAY'
+  | 'SKIPPED_ALREADY_HEALTHY'
   | 'SKIPPED_NO_CANDIDATE'
   | 'SKIPPED_FETCH_FAILED'
 
@@ -89,6 +100,7 @@ export type GithubHotDailyRunResult = {
   status: GithubHotRunStatus
   dateStamp: string
   dateIso: string
+  triggerSource: AutomationTriggerSource
   bypassedDailyLimit?: boolean
   usedTopicFallback: boolean
   selectionMode: CandidateSelectionMode
@@ -195,6 +207,7 @@ export type AiPaperRunStatus =
   | 'PUBLISHED'
   | 'SKIPPED_DISABLED'
   | 'SKIPPED_ALREADY_PUBLISHED_TODAY'
+  | 'SKIPPED_ALREADY_HEALTHY'
   | 'SKIPPED_NO_CANDIDATE'
   | 'SKIPPED_FETCH_FAILED'
   | 'SKIPPED_QUALITY_FAILED'
@@ -203,6 +216,7 @@ export type AiPaperDailyRunResult = {
   status: AiPaperRunStatus
   dateStamp: string
   dateIso: string
+  triggerSource: AutomationTriggerSource
   slug?: string
   selectedPaper?: {
     arxivId: string

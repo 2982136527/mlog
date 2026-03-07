@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server'
 import { requireAdminSession } from '@/lib/admin/session'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
+import { listContentMarkdownPaths } from '@/lib/admin/github-client'
+import { buildAutomationHealth, getShanghaiDateContext, hasPublishedTodayByPrefix } from '@/lib/automation/daily-health'
+import { BACKFILL_SCHEDULE_HOUR, DAILY_SCHEDULE_HOUR, GITHUB_HOT_DAILY_SLUG_PREFIX } from '@/lib/automation/github-hot/config'
 import { loadGithubHotDailyConfig, saveGithubHotDailyConfig } from '@/lib/automation/github-hot/config-store'
 import { loadGithubHotDailyLastRun } from '@/lib/automation/github-hot/run-state-store'
 import { parseGithubHotDailyConfigUpdate } from '@/lib/automation/github-hot/config'
@@ -11,10 +14,22 @@ export async function GET() {
 
   try {
     await requireAdminSession()
-    const [loaded, lastRun] = await Promise.all([loadGithubHotDailyConfig(), loadGithubHotDailyLastRun()])
+    const [loaded, lastRun, paths] = await Promise.all([loadGithubHotDailyConfig(), loadGithubHotDailyLastRun(), listContentMarkdownPaths()])
+    const today = getShanghaiDateContext()
+    const hasPublishedToday = hasPublishedTodayByPrefix(paths, GITHUB_HOT_DAILY_SLUG_PREFIX, today.dateStamp)
+    const health = buildAutomationHealth({
+      enabled: loaded.config.enabled,
+      dateStamp: today.dateStamp,
+      dateIso: today.dateIso,
+      minutesOfDay: today.minutesOfDay,
+      expectedHour: DAILY_SCHEDULE_HOUR,
+      backfillHour: BACKFILL_SCHEDULE_HOUR,
+      hasPublishedToday
+    })
     return ok(requestId, {
       config: loaded.config,
-      lastRun
+      lastRun,
+      health
     })
   } catch (error) {
     if (error instanceof AdminHttpError) {

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import type { AdminPostPayload } from '@/types/admin'
 import type { AiExecutionStep } from '@/types/admin'
 import type {
+  AutomationTriggerSource,
   CandidateSelectionMode,
   GithubHotCandidateScore,
   GithubHotCandidatesPreviewResult,
@@ -13,14 +14,14 @@ import type {
 import { AdminHttpError } from '@/lib/admin/errors'
 import { listContentMarkdownPaths } from '@/lib/admin/github-client'
 import { publishPostChanges } from '@/lib/admin/publish-service'
-import { INTEREST_PRESET_KEYWORDS } from '@/lib/automation/github-hot/config'
+import { GITHUB_HOT_DAILY_SLUG_PREFIX, INTEREST_PRESET_KEYWORDS } from '@/lib/automation/github-hot/config'
 import { loadGithubHotDailyConfig } from '@/lib/automation/github-hot/config-store'
 import { collectGithubRepoEvidence } from '@/lib/automation/github-hot/evidence'
 import { validateGithubHotGeneratedPost } from '@/lib/automation/github-hot/quality'
 import { fetchGithubTrendingCandidates } from '@/lib/automation/github-hot/trending'
 import { AiRunnerError, runAiGithubHotPostGenerate } from '@/lib/ai/runner'
 
-const AUTO_POST_PREFIX = 'gh-hot-'
+const AUTO_POST_PREFIX = GITHUB_HOT_DAILY_SLUG_PREFIX
 const AUTO_FIXED_TAGS = ['ai-auto', 'github-hot'] as const
 const HOT_POST_MIN_ZH_CHARS = 1200
 const HOT_POST_REWRITE_RETRY = 1
@@ -402,11 +403,14 @@ export async function runGithubHotDailyAutomation(input: {
   requestId: string
   bypassEnabled?: boolean
   forceRunToday?: boolean
+  triggerSource?: AutomationTriggerSource
 }): Promise<GithubHotDailyRunResult> {
   const { dateStamp, dateIso } = getShanghaiDateParts()
   const { config } = await loadGithubHotDailyConfig()
   const selectionContext = buildSelectionContext(config, dateStamp)
+  const triggerSource = input.triggerSource || 'admin_manual'
   const runMeta = {
+    triggerSource,
     selectionMode: selectionContext.selectionMode,
     presetKeywords: selectionContext.presetKeywords,
     overlayKeywords: selectionContext.overlayKeywords,
@@ -468,6 +472,7 @@ export async function runGithubHotDailyAutomation(input: {
       overlayKeywords: preview.overlayKeywords,
       effectiveKeywords: preview.effectiveKeywords,
       randomSeedDate: preview.randomSeedDate,
+      triggerSource,
       fixedTags: [...AUTO_FIXED_TAGS],
       reason: 'no trending candidates'
     }
@@ -532,6 +537,7 @@ export async function runGithubHotDailyAutomation(input: {
       overlayKeywords: preview.overlayKeywords,
       effectiveKeywords: preview.effectiveKeywords,
       randomSeedDate: preview.randomSeedDate,
+      triggerSource,
       selectedScore: candidate.scoreInfo,
       selectedRepo: candidate,
       slug,
@@ -561,6 +567,7 @@ export async function runGithubHotDailyAutomation(input: {
     overlayKeywords: preview.overlayKeywords,
     effectiveKeywords: preview.effectiveKeywords,
     randomSeedDate: preview.randomSeedDate,
+    triggerSource,
     fixedTags: [...AUTO_FIXED_TAGS],
     reason: 'all candidates are already used'
   }

@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
 
     const result = await runAiPaperDailyAutomation({
       actor: 'system:cron',
-      requestId
+      requestId,
+      triggerSource: 'cron_main'
     })
 
     try {

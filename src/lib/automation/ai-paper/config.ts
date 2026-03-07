@@ -4,6 +4,8 @@ import type { AiPaperDailyConfig } from '@/types/automation'
 export const AI_PAPER_DAILY_CONFIG_PATH = 'content/system/automation/ai-paper-daily.json'
 export const AI_PAPER_DAILY_TIMEZONE = 'Asia/Shanghai'
 export const AI_PAPER_DAILY_SCHEDULE_TIME = '12:30' as const
+export const AI_PAPER_DAILY_BACKFILL_TIME = '14:30' as const
+export const AI_PAPER_DAILY_SLUG_PREFIX = 'paper-daily-' as const
 export const AI_PAPER_DAILY_DEFAULT_MAX_CANDIDATES = 30
 export const AI_PAPER_DAILY_DEFAULT_CATEGORIES = ['cs.AI', 'cs.LG', 'cs.CL', 'stat.ML']
 

@@ -19,9 +19,17 @@ const lastRunSchema = z.object({
   actor: z.string().trim().min(1),
   runAt: z.string().trim().min(1),
   result: z.object({
-    status: z.enum(['PUBLISHED', 'SKIPPED_DISABLED', 'SKIPPED_ALREADY_PUBLISHED_TODAY', 'SKIPPED_NO_CANDIDATE', 'SKIPPED_FETCH_FAILED']),
+    status: z.enum([
+      'PUBLISHED',
+      'SKIPPED_DISABLED',
+      'SKIPPED_ALREADY_PUBLISHED_TODAY',
+      'SKIPPED_ALREADY_HEALTHY',
+      'SKIPPED_NO_CANDIDATE',
+      'SKIPPED_FETCH_FAILED'
+    ]),
     dateStamp: z.string().trim().min(1),
     dateIso: z.string().trim().min(1),
+    triggerSource: z.enum(['cron_main', 'cron_backfill', 'admin_manual']).optional(),
     bypassedDailyLimit: z.boolean().optional(),
     usedTopicFallback: z.boolean(),
     selectionMode: z.enum(['scored_keyword', 'theme_random_seeded']),

@@ -15,7 +15,8 @@ export async function POST() {
     const result = await runAiPaperDailyAutomation({
       actor: login,
       requestId,
-      bypassEnabled: true
+      bypassEnabled: true,
+      triggerSource: 'admin_manual'
     })
 
     try {

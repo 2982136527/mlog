@@ -31,7 +31,8 @@ export async function POST(request: Request) {
       actor: login,
       requestId,
       bypassEnabled: true,
-      forceRunToday: Boolean(payload?.forceRunToday)
+      forceRunToday: Boolean(payload?.forceRunToday),
+      triggerSource: 'admin_manual'
     })
 
     try {

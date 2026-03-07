@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import type { AiPaperDailyConfig, AiPaperDailyLastRunState, AiPaperDailyRunResult } from '@/types/automation'
+import type { AiPaperDailyConfig, AiPaperDailyLastRunState, AiPaperDailyRunResult, AutomationHealth } from '@/types/automation'
 
 function splitCategories(raw: string): string[] {
   return Array.from(
@@ -36,9 +36,36 @@ function summarizeRunResult(result: AiPaperDailyRunResult): string {
   return `未发布（${result.status}）：${reason}`
 }
 
+function formatHealthLabel(state: AutomationHealth['state']): string {
+  if (state === 'ok') {
+    return '今日状态：正常'
+  }
+  if (state === 'pending') {
+    return '今日状态：等待主任务'
+  }
+  if (state === 'missed') {
+    return '今日状态：漏发'
+  }
+  return '今日状态：已禁用'
+}
+
+function getHealthBadgeClass(state: AutomationHealth['state']): string {
+  if (state === 'ok') {
+    return 'border-emerald-300 bg-emerald-50 text-emerald-700'
+  }
+  if (state === 'pending') {
+    return 'border-amber-300 bg-amber-50 text-amber-700'
+  }
+  if (state === 'missed') {
+    return 'border-red-300 bg-red-50 text-red-700'
+  }
+  return 'border-slate-300 bg-slate-50 text-slate-600'
+}
+
 type ConfigResponse = {
   requestId: string
   config: AiPaperDailyConfig
+  health?: AutomationHealth
   lastRun?: AiPaperDailyLastRunState | null
   changed?: boolean
   publish?: { prUrl?: string; merged?: boolean }
@@ -67,6 +94,7 @@ export function AdminAiPaperDailyCard() {
   const [running, setRunning] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [lastRun, setLastRun] = useState<RunState | null>(null)
+  const [health, setHealth] = useState<AutomationHealth | null>(null)
 
   const categories = useMemo(() => splitCategories(categoriesInput), [categoriesInput])
 
@@ -87,8 +115,10 @@ export function AdminAiPaperDailyCard() {
       setMinSignalsScore(Number.isFinite(data.config.minSignalsScore) ? data.config.minSignalsScore : 0)
       setIncludeCodeFirst(Boolean(data.config.includeCodeFirst))
       setLastRun(data.lastRun ? { requestId: data.lastRun.requestId, result: data.lastRun.result } : null)
+      setHealth(data.health || null)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '读取论文速读配置失败')
+      setHealth(null)
     } finally {
       setLoading(false)
     }
@@ -152,6 +182,7 @@ export function AdminAiPaperDailyCard() {
         requestId: data.requestId,
         result: data.result
       })
+      await loadConfig()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '执行论文速读自动发布失败')
     } finally {
@@ -163,8 +194,20 @@ export function AdminAiPaperDailyCard() {
     <section className='space-y-4 rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur'>
       <div>
         <h3 className='font-title text-2xl text-[var(--color-ink)]'>自动发布设置（AI 论文速读）</h3>
-        <p className='mt-1 text-sm text-[var(--color-ink-soft)]'>数据源：arXiv + Papers with Code；时区：Asia/Shanghai；计划：每日 12:30（Vercel Cron UTC 04:30）。</p>
+        <p className='mt-1 text-sm text-[var(--color-ink-soft)]'>数据源：arXiv + Papers with Code；时区：Asia/Shanghai；计划：每日 12:30 主任务 + 14:30 自动补发（Vercel Cron UTC 04:30 / 06:30）。</p>
       </div>
+
+      {health && (
+        <div className='space-y-2'>
+          <p className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${getHealthBadgeClass(health.state)}`}>{formatHealthLabel(health.state)}</p>
+          <p className='text-xs text-[var(--color-ink-soft)]'>
+            日期：{health.dateStamp}；主任务：{health.expectedRunAtLocal}；补发：{health.backfillAtLocal}；今日已发布：{health.hasPublishedToday ? '是' : '否'}
+          </p>
+          {health.state === 'missed' && (
+            <p className='rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700'>检测到今日漏发，建议立即点击“补发今天（手动）”。</p>
+          )}
+        </div>
+      )}
 
       <label className='inline-flex items-center gap-2 text-sm text-[var(--color-ink-soft)]'>
         <input type='checkbox' checked={enabled} onChange={event => setEnabled(event.target.checked)} disabled={loading || saving} />
@@ -231,6 +274,13 @@ export function AdminAiPaperDailyCard() {
         <button
           type='button'
           onClick={runNow}
+          disabled={loading || running || health?.state !== 'missed'}
+          className='rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60'>
+          {running ? '执行中...' : '补发今天（手动）'}
+        </button>
+        <button
+          type='button'
+          onClick={runNow}
           disabled={loading || running}
           className='rounded-xl bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-brand-strong)] disabled:cursor-not-allowed disabled:opacity-60'>
           {running ? '执行中...' : '立即执行'}
@@ -243,6 +293,7 @@ export function AdminAiPaperDailyCard() {
         <div className='rounded-xl border border-[var(--color-border-strong)] bg-white/80 px-3 py-3 text-xs text-[var(--color-ink-soft)]'>
           <p>requestId：{lastRun.requestId}</p>
           <p>状态：{lastRun.result.status}</p>
+          <p>触发来源：{lastRun.result.triggerSource || '-'}</p>
           <p>候选论文：{lastRun.result.selectedPaper ? `${lastRun.result.selectedPaper.arxivId} / ${lastRun.result.selectedPaper.title}` : '-'}</p>
           <p>生成 slug：{lastRun.result.slug || '-'}</p>
           <p>固定标签：{lastRun.result.fixedTags && lastRun.result.fixedTags.length > 0 ? lastRun.result.fixedTags.join(', ') : '（无）'}</p>

@@ -4,6 +4,8 @@ import type { GithubHotDailyConfig, InterestPreset } from '@/types/automation'
 export const GITHUB_HOT_DAILY_CONFIG_PATH = 'content/system/automation/github-hot-daily.json'
 export const SHANGHAI_TIMEZONE = 'Asia/Shanghai'
 export const DAILY_SCHEDULE_HOUR = 8 as const
+export const BACKFILL_SCHEDULE_HOUR = 10 as const
+export const GITHUB_HOT_DAILY_SLUG_PREFIX = 'gh-hot-' as const
 export const DEFAULT_CANDIDATE_WINDOW = 30
 export const DEFAULT_MIN_STARS = 500
 

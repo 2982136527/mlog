@@ -1,7 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import type { GithubHotCandidatesPreviewResult, GithubHotDailyConfig, GithubHotDailyLastRunState, GithubHotDailyRunResult, InterestPreset } from '@/types/automation'
+import type {
+  AutomationHealth,
+  GithubHotCandidatesPreviewResult,
+  GithubHotDailyConfig,
+  GithubHotDailyLastRunState,
+  GithubHotDailyRunResult,
+  InterestPreset
+} from '@/types/automation'
 
 function splitKeywords(raw: string): string[] {
   return Array.from(
@@ -74,9 +81,36 @@ function summarizeRunResult(result: GithubHotDailyRunResult): string {
   return `未发布（${result.status}）：${reason}；策略：${formatSelectionMode(result.selectionMode)}`
 }
 
+function formatHealthLabel(state: AutomationHealth['state']): string {
+  if (state === 'ok') {
+    return '今日状态：正常'
+  }
+  if (state === 'pending') {
+    return '今日状态：等待主任务'
+  }
+  if (state === 'missed') {
+    return '今日状态：漏发'
+  }
+  return '今日状态：已禁用'
+}
+
+function getHealthBadgeClass(state: AutomationHealth['state']): string {
+  if (state === 'ok') {
+    return 'border-emerald-300 bg-emerald-50 text-emerald-700'
+  }
+  if (state === 'pending') {
+    return 'border-amber-300 bg-amber-50 text-amber-700'
+  }
+  if (state === 'missed') {
+    return 'border-red-300 bg-red-50 text-red-700'
+  }
+  return 'border-slate-300 bg-slate-50 text-slate-600'
+}
+
 type ConfigResponse = {
   requestId: string
   config: GithubHotDailyConfig
+  health?: AutomationHealth
   lastRun?: GithubHotDailyLastRunState | null
   changed?: boolean
   publish?: { prUrl?: string; merged?: boolean }
@@ -114,6 +148,7 @@ export function AdminAutomationCard() {
   const [previewing, setPreviewing] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [lastRun, setLastRun] = useState<RunState | null>(null)
+  const [health, setHealth] = useState<AutomationHealth | null>(null)
   const [preview, setPreview] = useState<{ requestId: string; data: GithubHotCandidatesPreviewResult } | null>(null)
 
   const keywords = useMemo(() => splitKeywords(topicInput), [topicInput])
@@ -144,8 +179,10 @@ export function AdminAutomationCard() {
       setCandidateWindow(Number.isFinite(data.config.candidateWindow) ? data.config.candidateWindow : 30)
       setDiversifyByLanguage(Boolean(data.config.diversifyByLanguage))
       setLastRun(data.lastRun ? { requestId: data.lastRun.requestId, result: data.lastRun.result } : null)
+      setHealth(data.health || null)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '读取自动发布配置失败')
+      setHealth(null)
     } finally {
       setLoading(false)
     }
@@ -216,6 +253,7 @@ export function AdminAutomationCard() {
         requestId: data.requestId,
         result: data.result
       })
+      await loadConfig()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '执行自动发布失败')
     } finally {
@@ -252,9 +290,21 @@ export function AdminAutomationCard() {
     <section className='space-y-4 rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur'>
       <div>
         <h3 className='font-title text-2xl text-[var(--color-ink)]'>自动发布设置（GitHub 爆火日报）</h3>
-        <p className='mt-1 text-sm text-[var(--color-ink-soft)]'>数据源：Trending Daily；时区：Asia/Shanghai；计划：每日 08:00 主任务 + 09:10 兜底检查（Vercel Cron UTC 00:00 / 01:10）。</p>
+        <p className='mt-1 text-sm text-[var(--color-ink-soft)]'>数据源：Trending Daily；时区：Asia/Shanghai；计划：每日 08:00 主任务 + 10:00 自动补发（Vercel Cron UTC 00:00 / 02:00）。</p>
         <p className='mt-1 text-xs text-[var(--color-ink-soft)]'>若 08:00 执行失败，可在当天使用“立即执行”补发（仍保持每天最多一篇）。</p>
       </div>
+
+      {health && (
+        <div className='space-y-2'>
+          <p className={`inline-flex rounded-full border px-2 py-0.5 text-xs ${getHealthBadgeClass(health.state)}`}>{formatHealthLabel(health.state)}</p>
+          <p className='text-xs text-[var(--color-ink-soft)]'>
+            日期：{health.dateStamp}；主任务：{health.expectedRunAtLocal}；补发：{health.backfillAtLocal}；今日已发布：{health.hasPublishedToday ? '是' : '否'}
+          </p>
+          {health.state === 'missed' && (
+            <p className='rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700'>检测到今日漏发，建议立即点击“补发今天（手动）”。</p>
+          )}
+        </div>
+      )}
 
       <label className='inline-flex items-center gap-2 text-sm text-[var(--color-ink-soft)]'>
         <input type='checkbox' checked={enabled} onChange={event => setEnabled(event.target.checked)} disabled={loading || saving} />
@@ -365,6 +415,13 @@ export function AdminAutomationCard() {
         </button>
         <button
           type='button'
+          onClick={() => runNow(false)}
+          disabled={loading || running || health?.state !== 'missed'}
+          className='rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60'>
+          {running ? '执行中...' : '补发今天（手动）'}
+        </button>
+        <button
+          type='button'
           onClick={() => runNow(true)}
           disabled={loading || running}
           className='rounded-xl border border-[var(--color-brand)] bg-white px-4 py-2 text-sm font-semibold text-[var(--color-brand)] transition hover:bg-[var(--color-brand)]/10 disabled:cursor-not-allowed disabled:opacity-60'>
@@ -378,6 +435,7 @@ export function AdminAutomationCard() {
         <div className='rounded-xl border border-[var(--color-border-strong)] bg-white/80 px-3 py-3 text-xs text-[var(--color-ink-soft)]'>
           <p>requestId：{lastRun.requestId}</p>
           <p>状态：{lastRun.result.status}</p>
+          <p>触发来源：{lastRun.result.triggerSource || '-'}</p>
           <p>选题策略：{formatSelectionMode(lastRun.result.selectionMode)}</p>
           <p>随机种子日期：{lastRun.result.randomSeedDate || '（无）'}</p>
           <p>同日限制绕过：{lastRun.result.bypassedDailyLimit ? '是' : '否'}</p>

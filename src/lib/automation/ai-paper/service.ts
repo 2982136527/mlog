@@ -1,16 +1,17 @@
 import { createHash } from 'node:crypto'
 import type { AdminPostPayload, AiExecutionStep } from '@/types/admin'
-import type { AiPaperCandidate, AiPaperDailyRunResult, AiPaperEvidence } from '@/types/automation'
+import type { AiPaperCandidate, AiPaperDailyRunResult, AiPaperEvidence, AutomationTriggerSource } from '@/types/automation'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { listContentMarkdownPaths } from '@/lib/admin/github-client'
 import { publishPostChanges } from '@/lib/admin/publish-service'
+import { AI_PAPER_DAILY_SLUG_PREFIX } from '@/lib/automation/ai-paper/config'
 import { loadAiPaperDailyConfig } from '@/lib/automation/ai-paper/config-store'
 import { buildAiPaperEvidence } from '@/lib/automation/ai-paper/evidence'
 import { validateAiPaperGeneratedPost } from '@/lib/automation/ai-paper/quality'
 import { fetchAiPaperCandidates } from '@/lib/automation/ai-paper/sources'
 import { AiRunnerError, runAiPaperDailyGenerate } from '@/lib/ai/runner'
 
-const AUTO_POST_PREFIX = 'paper-daily-'
+const AUTO_POST_PREFIX = AI_PAPER_DAILY_SLUG_PREFIX
 const AUTO_FIXED_TAGS = ['ai-paper', 'paper-daily'] as const
 const PAPER_MIN_ZH_CHARS = 1200
 const PAPER_REWRITE_RETRY = 1
@@ -189,10 +190,13 @@ export async function runAiPaperDailyAutomation(input: {
   actor: string
   requestId: string
   bypassEnabled?: boolean
+  triggerSource?: AutomationTriggerSource
 }): Promise<AiPaperDailyRunResult> {
   const { dateStamp, dateIso } = getShanghaiDateParts()
   const { config } = await loadAiPaperDailyConfig()
+  const triggerSource = input.triggerSource || 'admin_manual'
   const runMeta = {
+    triggerSource,
     fixedTags: [...AUTO_FIXED_TAGS]
   }
 

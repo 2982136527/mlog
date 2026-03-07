@@ -6,8 +6,8 @@
       "schedule": "0 0 * * *"
     },
     {
-      "path": "/api/cron/github-hot-daily-fallback",
-      "schedule": "10 1 * * *"
+      "path": "/api/cron/github-hot-daily-backfill",
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/cron/tutorial-sync",
@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/ai-paper-daily",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/ai-paper-daily-backfill",
+      "schedule": "30 6 * * *"
     }
   ]
 }

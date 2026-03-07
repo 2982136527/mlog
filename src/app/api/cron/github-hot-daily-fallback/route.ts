@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
 
     const result = await runGithubHotDailyAutomation({
       actor: 'system:cron-fallback',
-      requestId
+      requestId,
+      triggerSource: 'cron_backfill'
     })
 
     try {

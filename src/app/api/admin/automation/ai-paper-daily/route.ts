@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server'
 import { requireAdminSession } from '@/lib/admin/session'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
+import { listContentMarkdownPaths } from '@/lib/admin/github-client'
+import { buildAutomationHealth, getShanghaiDateContext, hasPublishedTodayByPrefix, parseLocalScheduleTime } from '@/lib/automation/daily-health'
+import { AI_PAPER_DAILY_BACKFILL_TIME, AI_PAPER_DAILY_SLUG_PREFIX } from '@/lib/automation/ai-paper/config'
 import { loadAiPaperDailyConfig, saveAiPaperDailyConfig } from '@/lib/automation/ai-paper/config-store'
 import { loadAiPaperDailyLastRun } from '@/lib/automation/ai-paper/run-state-store'
 import { parseAiPaperDailyConfigUpdate } from '@/lib/automation/ai-paper/config'
@@ -11,10 +14,26 @@ export async function GET() {
 
   try {
     await requireAdminSession()
-    const [loaded, lastRun] = await Promise.all([loadAiPaperDailyConfig(), loadAiPaperDailyLastRun()])
+    const [loaded, lastRun, paths] = await Promise.all([loadAiPaperDailyConfig(), loadAiPaperDailyLastRun(), listContentMarkdownPaths()])
+    const today = getShanghaiDateContext()
+    const mainSchedule = parseLocalScheduleTime(loaded.config.scheduleLocalTime)
+    const backfillSchedule = parseLocalScheduleTime(AI_PAPER_DAILY_BACKFILL_TIME)
+    const hasPublishedToday = hasPublishedTodayByPrefix(paths, AI_PAPER_DAILY_SLUG_PREFIX, today.dateStamp)
+    const health = buildAutomationHealth({
+      enabled: loaded.config.enabled,
+      dateStamp: today.dateStamp,
+      dateIso: today.dateIso,
+      minutesOfDay: today.minutesOfDay,
+      expectedHour: mainSchedule.hour,
+      expectedMinute: mainSchedule.minute,
+      backfillHour: backfillSchedule.hour,
+      backfillMinute: backfillSchedule.minute,
+      hasPublishedToday
+    })
     return ok(requestId, {
       config: loaded.config,
-      lastRun
+      lastRun,
+      health
     })
   } catch (error) {
     if (error instanceof AdminHttpError) {
