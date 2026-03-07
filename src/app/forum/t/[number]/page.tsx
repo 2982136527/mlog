@@ -49,6 +49,11 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
   if (!detail) {
     notFound()
   }
+
+  if (detail.translationStatus === 'bilingual' && detail.contentLocale !== locale && detail.counterpart?.locale === locale) {
+    redirect(withForumLocale(`/forum/t/${detail.counterpart.number}`, locale))
+  }
+
   const session = await getAuthSession()
   const login = session?.user?.login?.trim()
   const hasWriteScope = Boolean(session?.user?.hasDiscussionWriteScope)
