@@ -13,7 +13,7 @@ tags:
 category: 部署教程
 cover: /images/covers/ship-mlog.svg
 draft: false
-updated: '2026-03-22'
+updated: '2026-03-23'
 ---
 
 ## 一、MLog 是什么
