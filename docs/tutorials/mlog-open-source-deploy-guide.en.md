@@ -16,7 +16,7 @@ tags:
 category: Deployment Guide
 cover: /images/covers/ship-mlog.svg
 draft: false
-updated: '2026-03-25'
+updated: '2026-03-26'
 ---
 
 ## 1. What MLog Provides
