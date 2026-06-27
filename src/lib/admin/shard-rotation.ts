@@ -110,7 +110,7 @@ export async function checkAndRotateShard(): Promise<{ rotated: boolean; newShar
 
   try {
     await createRepo({
-      org: env.owner,
+      owner: env.owner,
       name: newRepoName,
       private: true,
       token: env.token

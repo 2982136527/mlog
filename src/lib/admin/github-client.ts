@@ -327,21 +327,25 @@ export async function getRepoInfo(owner: string, repo: string, token: string): P
   }
 }
 
-export async function createRepo(params: { org: string; name: string; private: boolean; token: string }): Promise<void> {
-  await githubRequestAt(
-    `${API_BASE}/orgs/${encodeURIComponent(params.org)}/repos`,
-    params.token,
-    {
-      method: 'POST',
-      body: {
-        name: params.name,
-        private: params.private,
-        auto_init: true,
-        description: 'Auto-created content shard for mlog'
-      },
-      allowStatuses: [422]
-    }
-  )
+export async function createRepo(params: { owner: string; name: string; private: boolean; token: string }): Promise<void> {
+  // Check if owner is the authenticated user
+  const { data: user } = await githubRequestAt<{ login: string }>(`${API_BASE}/user`, params.token)
+  const isPersonal = user.login === params.owner
+
+  const endpoint = isPersonal
+    ? `${API_BASE}/user/repos`
+    : `${API_BASE}/orgs/${encodeURIComponent(params.owner)}/repos`
+
+  await githubRequestAt(endpoint, params.token, {
+    method: 'POST',
+    body: {
+      name: params.name,
+      private: params.private,
+      auto_init: true,
+      description: 'Auto-created content shard for mlog'
+    },
+    allowStatuses: [422]
+  })
 }
 
 export function buildBranchName(action: 'create' | 'update' | 'delete' | 'media' | 'automation' | 'tutorial' | 'mirror', slug: string): string {
