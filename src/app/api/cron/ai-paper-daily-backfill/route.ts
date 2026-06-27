@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import type { AiPaperDailyRunResult } from '@/types/automation'
 import { AdminHttpError } from '@/lib/admin/errors'
-import { listContentMarkdownPaths } from '@/lib/admin/github-client'
+import { listAllContentMarkdownPaths } from '@/lib/admin/shard-manager'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { buildAutomationHealth, getShanghaiDateContext, hasPublishedTodayByPrefix, parseLocalScheduleTime } from '@/lib/automation/daily-health'
 import { AI_PAPER_DAILY_BACKFILL_TIME, AI_PAPER_DAILY_SLUG_PREFIX } from '@/lib/automation/ai-paper/config'
@@ -49,7 +49,8 @@ export async function GET(request: NextRequest) {
   try {
     requireCronAuth(request)
 
-    const [loaded, paths] = await Promise.all([loadAiPaperDailyConfig(), listContentMarkdownPaths()])
+    const [loaded, pathMap] = await Promise.all([loadAiPaperDailyConfig(), listAllContentMarkdownPaths()])
+    const paths = Array.from(pathMap.keys())
     const today = getShanghaiDateContext()
     const mainSchedule = parseLocalScheduleTime(loaded.config.scheduleLocalTime)
     const backfillSchedule = parseLocalScheduleTime(AI_PAPER_DAILY_BACKFILL_TIME)

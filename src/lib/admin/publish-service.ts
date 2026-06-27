@@ -21,8 +21,11 @@ import {
   getRepoTextFile,
   hashBuffer,
   mergePullRequest,
-  upsertFile
+  upsertFile,
+  type GithubRepoTarget
 } from '@/lib/admin/github-client'
+import { getActiveShardEnv, findShardForPost, listAllContentMarkdownPaths, invalidateSlugShardCache } from '@/lib/admin/shard-manager'
+import { checkAndRotateShard } from '@/lib/admin/shard-rotation'
 import {
   adminPostWriteSchema,
   buildPostMarkdownPath,
@@ -61,6 +64,7 @@ function buildPrBody(input: {
 }
 
 async function createAndMaybeMergePR(params: {
+  target: GithubRepoTarget
   branch: string
   title: string
   body: string
@@ -76,14 +80,14 @@ async function createAndMaybeMergePR(params: {
     title: params.title,
     body: params.body,
     head: params.branch,
-    base: env.baseBranch
-  })
+    base: params.target.baseBranch
+  }, params.target)
 
   let merged = false
   let mergeMessage = 'Auto merge disabled'
 
   if (env.autoMerge) {
-    const mergeResult = await mergePullRequest(pr.number)
+    const mergeResult = await mergePullRequest(pr.number, params.target)
     merged = mergeResult.merged
     mergeMessage = mergeResult.message
   }
@@ -358,9 +362,26 @@ export async function publishPostChanges(input: {
     })
   }
 
-  const env = getAdminGithubEnv()
+  // Check if shard rotation is needed, then resolve the active shard
+  await checkAndRotateShard()
+  const activeShard = await getActiveShardEnv()
+  const env = getAdminGithubEnv() // still needed for autoMerge flag
+
+  // For new posts, check slug doesn't exist in any shard
+  const existingInActive = await getRepoTextFile(buildPostMarkdownPath(parsed.slug, 'zh'), activeShard.baseBranch, activeShard)
+  let writeTarget: GithubRepoTarget = activeShard
+
+  if (!existingInActive) {
+    // Not in active shard — check if it exists in another shard
+    const existingShard = await findShardForPost(parsed.slug)
+    if (existingShard) {
+      // Post exists in another shard — use that shard for updates
+      writeTarget = existingShard
+    }
+  }
+
   const repoCardsPath = buildRepoCardsPath(parsed.slug)
-  const existingRepoCardsFile = await getRepoTextFile(repoCardsPath, env.baseBranch)
+  const existingRepoCardsFile = await getRepoTextFile(repoCardsPath, writeTarget.baseBranch, writeTarget)
   const existingRepoCards = parseRepoCardsConfigOrDefault(existingRepoCardsFile?.content)
   const nextRepoCards = await resolveNextRepoCardsConfig({
     mode: parsed.mode,
@@ -403,7 +424,7 @@ export async function publishPostChanges(input: {
     const source = Array.from(uniqueChanges.values())[0]
     const targetLocale = oppositeLocale(source.locale)
     const targetPath = buildPostMarkdownPath(parsed.slug, targetLocale)
-    const existingTarget = await getRepoTextFile(targetPath, env.baseBranch)
+    const existingTarget = await getRepoTextFile(targetPath, writeTarget.baseBranch, writeTarget)
     const parsedExisting = parseExistingMarkdownOrNull(existingTarget?.content)
     const targetMissing = !existingTarget || !parsedExisting?.markdown.trim()
 
@@ -456,7 +477,7 @@ export async function publishPostChanges(input: {
   const existingStates = await Promise.all(
     changes.map(async change => {
       const targetPath = buildPostMarkdownPath(parsed.slug, change.locale)
-      const existing = await getRepoTextFile(targetPath, env.baseBranch)
+      const existing = await getRepoTextFile(targetPath, writeTarget.baseBranch, writeTarget)
       return { change, targetPath, existing }
     })
   )
@@ -469,7 +490,7 @@ export async function publishPostChanges(input: {
 
   const action: 'create' | 'update' = existingStates.every(state => !state.existing) ? 'create' : 'update'
   const branch = buildBranchName(action, parsed.slug)
-  await createBranch(branch)
+  await createBranch(branch, writeTarget)
 
   const changedPaths: string[] = []
   for (const state of existingStates) {
@@ -485,7 +506,7 @@ export async function publishPostChanges(input: {
       branch,
       message: `${action === 'create' ? 'create' : 'update'} ${state.targetPath}`,
       sha: state.existing?.sha
-    })
+    }, writeTarget)
 
     changedPaths.push(state.targetPath)
   }
@@ -499,7 +520,7 @@ export async function publishPostChanges(input: {
         branch,
         message: `update ${repoCardsPath}`,
         sha: existingRepoCardsFile?.sha
-      })
+      }, writeTarget)
 
       changedPaths.push(repoCardsPath)
     }
@@ -513,6 +534,7 @@ export async function publishPostChanges(input: {
   const prTitle = action === 'create' ? `发布文章：${mainTitle}` : `更新文章：${mainTitle}`
 
   const result = await createAndMaybeMergePR({
+    target: writeTarget,
     branch,
     title: prTitle,
     body: buildPrBody({
@@ -528,6 +550,11 @@ export async function publishPostChanges(input: {
       changedPaths
     }
   })
+
+  // Invalidate slug-shard cache on create so new slugs are discoverable
+  if (action === 'create') {
+    invalidateSlugShardCache()
+  }
 
   return {
     result,
@@ -548,12 +575,17 @@ export async function deletePostBySlug(input: {
 }): Promise<{ result: PublishResult; deletedPaths: string[] }> {
   const slug = slugSchema.parse(input.slug)
   const targetLocales: AdminLocale[] = input.locale === 'all' ? ['zh', 'en'] : [input.locale]
-  const env = getAdminGithubEnv()
+
+  // Find which shard contains this post
+  const postShard = await findShardForPost(slug)
+  if (!postShard) {
+    throw new AdminHttpError(404, 'NOT_FOUND', `Post not found in any shard: ${slug}`)
+  }
 
   const targets = await Promise.all(
     targetLocales.map(async locale => {
       const targetPath = buildPostMarkdownPath(slug, locale)
-      const existing = await getRepoTextFile(targetPath, env.baseBranch)
+      const existing = await getRepoTextFile(targetPath, postShard.baseBranch, postShard)
       return {
         locale,
         targetPath,
@@ -568,7 +600,7 @@ export async function deletePostBySlug(input: {
   }
 
   const repoCardsPath = buildRepoCardsPath(slug)
-  const repoCardsFile = await getRepoTextFile(repoCardsPath, env.baseBranch)
+  const repoCardsFile = await getRepoTextFile(repoCardsPath, postShard.baseBranch, postShard)
 
   let shouldDeleteRepoCards = false
   if (repoCardsFile) {
@@ -577,13 +609,13 @@ export async function deletePostBySlug(input: {
     } else {
       const otherLocale: AdminLocale = input.locale === 'zh' ? 'en' : 'zh'
       const otherPath = buildPostMarkdownPath(slug, otherLocale)
-      const otherFile = await getRepoTextFile(otherPath, env.baseBranch)
+      const otherFile = await getRepoTextFile(otherPath, postShard.baseBranch, postShard)
       shouldDeleteRepoCards = !otherFile
     }
   }
 
   const branch = buildBranchName('delete', slug)
-  await createBranch(branch)
+  await createBranch(branch, postShard)
 
   const deletedPaths = deletable.map(item => item.targetPath)
   for (const target of deletable) {
@@ -592,7 +624,7 @@ export async function deletePostBySlug(input: {
       branch,
       sha: target.existing!.sha,
       message: `delete ${target.targetPath}`
-    })
+    }, postShard)
   }
 
   if (shouldDeleteRepoCards && repoCardsFile) {
@@ -601,13 +633,14 @@ export async function deletePostBySlug(input: {
       branch,
       sha: repoCardsFile.sha,
       message: `delete ${repoCardsPath}`
-    })
+    }, postShard)
     deletedPaths.push(repoCardsPath)
   }
 
   const prTitle = `删除文章：${slug}`
 
   const result = await createAndMaybeMergePR({
+    target: postShard,
     branch,
     title: prTitle,
     body: buildPrBody({
@@ -623,6 +656,8 @@ export async function deletePostBySlug(input: {
       changedPaths: deletedPaths
     }
   })
+
+  invalidateSlugShardCache()
 
   return {
     result,
@@ -670,17 +705,19 @@ export async function uploadMedia(input: {
   const fingerprint = hashBuffer(input.buffer)
   const filePath = `public/images/uploads/${yyyy}/${mm}/${safeBase}-${fingerprint}.${ext}`
   const branch = buildBranchName('media', safeBase)
+  const primaryEnv = getAdminGithubEnv()
 
-  await createBranch(branch)
+  await createBranch(branch, primaryEnv)
 
   await upsertFile({
     path: filePath,
     contentBase64: encodeBufferBase64(input.buffer),
     branch,
     message: `upload media ${filePath}`
-  })
+  }, primaryEnv)
 
   const result = await createAndMaybeMergePR({
+    target: primaryEnv,
     branch,
     title: `上传图片：${path.basename(input.originalName)}`,
     body: buildPrBody({

@@ -7,16 +7,21 @@ const repo = (process.env.CONTENT_GITHUB_REPO || '').trim()
 const baseBranch = (process.env.CONTENT_GITHUB_BASE_BRANCH || 'main').trim().replace(/^refs\/heads\//, '')
 const token = (process.env.CONTENT_GITHUB_READ_TOKEN || process.env.CONTENT_GITHUB_WRITE_TOKEN || '').trim()
 
-const includePrefixes = ['content/posts/', 'content/system/', 'public/images/uploads/']
+const SYSTEM_PREFIXES = ['content/system/', 'public/images/uploads/']
+const POSTS_PREFIX = 'content/posts/'
 
 if (!owner || !repo || !token) {
   console.log('[content:pull] skipped (missing CONTENT_GITHUB_OWNER/CONTENT_GITHUB_REPO/CONTENT_GITHUB_READ_TOKEN or CONTENT_GITHUB_WRITE_TOKEN)')
   process.exit(0)
 }
 
-const apiBase = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
+function buildApiBase(repoName) {
+  return `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`
+}
 
-async function githubGetJson(endpoint) {
+const primaryApiBase = buildApiBase(repo)
+
+async function githubGetJson(apiBase, endpoint) {
   const response = await fetch(`${apiBase}${endpoint}`, {
     headers: {
       Accept: 'application/vnd.github+json',
@@ -35,20 +40,20 @@ async function githubGetJson(endpoint) {
   return response.json()
 }
 
-async function readRepoTree() {
-  const branchData = await githubGetJson(`/branches/${encodeURIComponent(baseBranch)}`)
+async function readRepoTree(apiBase, branch, includePrefixes) {
+  const branchData = await githubGetJson(apiBase, `/branches/${encodeURIComponent(branch)}`)
   const commitSha = branchData?.commit?.sha
   if (!commitSha) {
-    throw new Error('[content:pull] cannot resolve base branch sha')
+    throw new Error(`[content:pull] cannot resolve base branch sha for ${apiBase}`)
   }
 
-  const commit = await githubGetJson(`/git/commits/${encodeURIComponent(commitSha)}`)
+  const commit = await githubGetJson(apiBase, `/git/commits/${encodeURIComponent(commitSha)}`)
   const treeSha = commit?.tree?.sha
   if (!treeSha) {
-    throw new Error('[content:pull] cannot resolve tree sha')
+    throw new Error(`[content:pull] cannot resolve tree sha for ${apiBase}`)
   }
 
-  const tree = await githubGetJson(`/git/trees/${encodeURIComponent(treeSha)}?recursive=1`)
+  const tree = await githubGetJson(apiBase, `/git/trees/${encodeURIComponent(treeSha)}?recursive=1`)
   const items = Array.isArray(tree?.tree) ? tree.tree : []
 
   return items
@@ -57,14 +62,14 @@ async function readRepoTree() {
     .filter(pathInRepo => includePrefixes.some(prefix => pathInRepo.startsWith(prefix)))
 }
 
-async function fetchFileContent(pathInRepo) {
+async function fetchFileContent(apiBase, pathInRepo, branch) {
   const encodedPath = pathInRepo
     .split('/')
     .filter(Boolean)
     .map(segment => encodeURIComponent(segment))
     .join('/')
 
-  const file = await githubGetJson(`/contents/${encodedPath}?ref=${encodeURIComponent(baseBranch)}`)
+  const file = await githubGetJson(apiBase, `/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`)
   if (!file || file.type !== 'file') {
     throw new Error(`[content:pull] path is not a file: ${pathInRepo}`)
   }
@@ -110,18 +115,62 @@ async function removeStaleFiles(keptRepoPaths) {
   }
 }
 
-async function main() {
-  const repoPaths = await readRepoTree()
-  await removeStaleFiles(repoPaths)
+async function fetchShardRegistry() {
+  try {
+    const registryPath = 'content/system/shards.json'
+    const content = await fetchFileContent(primaryApiBase, registryPath, baseBranch)
+    const parsed = JSON.parse(content)
+    if (parsed && Array.isArray(parsed.shards) && parsed.shards.length > 0) {
+      return parsed
+    }
+    return null
+  } catch {
+    return null
+  }
+}
 
-  for (const repoPath of repoPaths) {
-    const absPath = path.join(process.cwd(), repoPath)
-    const content = await fetchFileContent(repoPath)
-    await ensureParentDir(absPath)
-    await fs.writeFile(absPath, content, 'utf8')
+function buildShardList(registry) {
+  if (!registry || !registry.shards) {
+    return [{ repo, branch: baseBranch, isPrimary: true }]
+  }
+  return registry.shards.map(shard => ({
+    repo: shard.repo,
+    branch: baseBranch,
+    isPrimary: shard.id === 'shard-001' || shard.repo === repo
+  }))
+}
+
+async function main() {
+  const registry = await fetchShardRegistry()
+  const shards = buildShardList(registry)
+
+  const allKeptPaths = []
+  let totalFiles = 0
+
+  for (const shard of shards) {
+    const shardApiBase = buildApiBase(shard.repo)
+    const prefixes = shard.isPrimary
+      ? [POSTS_PREFIX, ...SYSTEM_PREFIXES]
+      : [POSTS_PREFIX]
+
+    const repoPaths = await readRepoTree(shardApiBase, shard.branch, prefixes)
+    allKeptPaths.push(...repoPaths)
+
+    for (const repoPath of repoPaths) {
+      const absPath = path.join(process.cwd(), repoPath)
+      const content = await fetchFileContent(shardApiBase, repoPath, shard.branch)
+      await ensureParentDir(absPath)
+      await fs.writeFile(absPath, content, 'utf8')
+      totalFiles++
+    }
+
+    const label = shard.isPrimary ? 'primary' : 'shard'
+    console.log(`[content:pull] ${label} ${shard.repo}: synced ${repoPaths.length} files`)
   }
 
-  console.log(`[content:pull] synced ${repoPaths.length} files from ${owner}/${repo}@${baseBranch}`)
+  await removeStaleFiles(allKeptPaths)
+
+  console.log(`[content:pull] total: ${totalFiles} files from ${shards.length} shard(s)`)
 }
 
 main().catch(error => {

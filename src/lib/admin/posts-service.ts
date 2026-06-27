@@ -5,6 +5,7 @@ import { buildPostMarkdownPath, parseMarkdownFile } from '@/lib/admin/post-seria
 import { slugSchema } from '@/lib/content/schema'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { buildRepoCardsPath, buildDefaultRepoCardsConfig, parseRepoCardsConfigOrDefault } from '@/lib/blog/repo-cards-config'
+import { listAllContentMarkdownPaths, findShardForPost } from '@/lib/admin/shard-manager'
 
 const LOCALES: AdminLocale[] = ['zh', 'en']
 
@@ -45,15 +46,15 @@ export async function listAdminPosts(filters?: {
   keyword?: string
   status?: 'draft' | 'published' | 'all'
 }): Promise<AdminPostSummary[]> {
-  const paths = await listContentMarkdownPaths()
+  const pathShardMap = await listAllContentMarkdownPaths()
   const grouped = new Map<string, GroupedSummary>()
 
   await Promise.all(
-    paths.map(async path => {
+    Array.from(pathShardMap.entries()).map(async ([path, shardEnv]) => {
       const info = getPathInfo(path)
       if (!info) return
 
-      const file = await getRepoTextFile(path)
+      const file = await getRepoTextFile(path, undefined, shardEnv)
       if (!file) return
 
       const parsed = parseMarkdownFile(file.content, path)
@@ -132,6 +133,9 @@ export async function listAdminPosts(filters?: {
 export async function getAdminPostDetail(slugInput: string): Promise<AdminPostDetail> {
   const slug = slugSchema.parse(slugInput)
 
+  // Find which shard contains this post
+  const postShard = await findShardForPost(slug)
+
   const locales: Record<AdminLocale, AdminPostDetail['locales'][AdminLocale]> = {
     zh: {
       locale: 'zh' as const,
@@ -151,10 +155,14 @@ export async function getAdminPostDetail(slugInput: string): Promise<AdminPostDe
     }
   }
 
+  if (!postShard) {
+    throw new AdminHttpError(404, 'NOT_FOUND', `Post not found: ${slug}`)
+  }
+
   await Promise.all(
     LOCALES.map(async locale => {
       const path = buildPostMarkdownPath(slug, locale)
-      const file = await getRepoTextFile(path)
+      const file = await getRepoTextFile(path, undefined, postShard)
       if (!file) {
         return
       }
@@ -176,7 +184,7 @@ export async function getAdminPostDetail(slugInput: string): Promise<AdminPostDe
   }
 
   const repoCardsPath = buildRepoCardsPath(slug)
-  const repoCardsFile = await getRepoTextFile(repoCardsPath)
+  const repoCardsFile = await getRepoTextFile(repoCardsPath, undefined, postShard)
   const repoCards = parseRepoCardsConfigOrDefault(repoCardsFile?.content)
 
   return {

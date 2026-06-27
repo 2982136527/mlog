@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { AdminPostPayload, AiExecutionStep } from '@/types/admin'
 import type { AiPaperCandidate, AiPaperDailyRunResult, AiPaperEvidence, AutomationTriggerSource } from '@/types/automation'
 import { AdminHttpError } from '@/lib/admin/errors'
-import { listContentMarkdownPaths } from '@/lib/admin/github-client'
+import { listAllContentMarkdownPaths } from '@/lib/admin/shard-manager'
 import { publishPostChanges } from '@/lib/admin/publish-service'
 import { AI_PAPER_DAILY_SLUG_PREFIX } from '@/lib/automation/ai-paper/config'
 import { loadAiPaperDailyConfig } from '@/lib/automation/ai-paper/config-store'
@@ -210,7 +210,7 @@ export async function runAiPaperDailyAutomation(input: {
     }
   }
 
-  const existingPaths = await listContentMarkdownPaths()
+  const existingPaths = Array.from((await listAllContentMarkdownPaths()).keys())
   const slugSet = new Set(existingPaths.map(extractSlug).filter(Boolean) as string[])
   const todayExists = Array.from(slugSet).some(slug => slug.startsWith(`${AUTO_POST_PREFIX}${dateStamp}-`))
   if (todayExists) {

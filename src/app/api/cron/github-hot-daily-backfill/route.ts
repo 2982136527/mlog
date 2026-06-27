@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import type { GithubHotDailyConfig, GithubHotDailyRunResult } from '@/types/automation'
 import { AdminHttpError } from '@/lib/admin/errors'
-import { listContentMarkdownPaths } from '@/lib/admin/github-client'
+import { listAllContentMarkdownPaths } from '@/lib/admin/shard-manager'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { buildAutomationHealth, getShanghaiDateContext, hasPublishedTodayByPrefix } from '@/lib/automation/daily-health'
 import { BACKFILL_SCHEDULE_HOUR, DAILY_SCHEDULE_HOUR, GITHUB_HOT_DAILY_SLUG_PREFIX, INTEREST_PRESET_KEYWORDS } from '@/lib/automation/github-hot/config'
@@ -72,7 +72,8 @@ export async function GET(request: NextRequest) {
   try {
     requireCronAuth(request)
 
-    const [loaded, paths] = await Promise.all([loadGithubHotDailyConfig(), listContentMarkdownPaths()])
+    const [loaded, pathMap] = await Promise.all([loadGithubHotDailyConfig(), listAllContentMarkdownPaths()])
+    const paths = Array.from(pathMap.keys())
     const today = getShanghaiDateContext()
     const hasPublishedToday = hasPublishedTodayByPrefix(paths, GITHUB_HOT_DAILY_SLUG_PREFIX, today.dateStamp)
     const health = buildAutomationHealth({

@@ -12,7 +12,7 @@ import type {
   GithubRepoEvidence
 } from '@/types/automation'
 import { AdminHttpError } from '@/lib/admin/errors'
-import { listContentMarkdownPaths } from '@/lib/admin/github-client'
+import { listAllContentMarkdownPaths } from '@/lib/admin/shard-manager'
 import { publishPostChanges } from '@/lib/admin/publish-service'
 import { GITHUB_HOT_DAILY_SLUG_PREFIX, INTEREST_PRESET_KEYWORDS } from '@/lib/automation/github-hot/config'
 import { loadGithubHotDailyConfig } from '@/lib/automation/github-hot/config-store'
@@ -430,7 +430,7 @@ export async function runGithubHotDailyAutomation(input: {
     }
   }
 
-  const existingPaths = await listContentMarkdownPaths()
+  const existingPaths = Array.from((await listAllContentMarkdownPaths()).keys())
   const slugSet = new Set(existingPaths.map(extractSlug).filter(Boolean) as string[])
 
   const todayExists = Array.from(slugSet).some(slug => slug.startsWith(`${AUTO_POST_PREFIX}${dateStamp}-`))

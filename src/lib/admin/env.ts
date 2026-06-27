@@ -82,3 +82,25 @@ export function getAdminGithubEnv(): AdminGithubEnv {
     autoMerge
   }
 }
+
+export function getContentGithubShardPrefix(): string {
+  return trimEnv(process.env.CONTENT_GITHUB_SHARD_REPO_PREFIX) || trimEnv(process.env.CONTENT_GITHUB_REPO)
+}
+
+export function buildShardRepoEnv(repoName: string): GithubRepoEnv {
+  return {
+    owner: trimEnv(process.env.CONTENT_GITHUB_OWNER),
+    repo: repoName,
+    baseBranch: normalizeBranch(process.env.CONTENT_GITHUB_BASE_BRANCH || 'main'),
+    token: trimEnv(process.env.CONTENT_GITHUB_WRITE_TOKEN)
+  }
+}
+
+export function getContentGithubReadEnvForRepo(repoName: string): GithubRepoEnv {
+  return {
+    owner: trimEnv(process.env.CONTENT_GITHUB_OWNER),
+    repo: repoName,
+    baseBranch: normalizeBranch(process.env.CONTENT_GITHUB_BASE_BRANCH || 'main'),
+    token: trimEnv(process.env.CONTENT_GITHUB_READ_TOKEN) || trimEnv(process.env.CONTENT_GITHUB_WRITE_TOKEN)
+  }
+}

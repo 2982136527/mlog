@@ -281,6 +281,69 @@ export async function listPathsByPrefix(prefix: string, branch?: string, target?
     .sort((a, b) => a.localeCompare(b))
 }
 
+type GitHubRepoInfoResponse = {
+  size: number
+  default_branch: string
+  private: boolean
+}
+
+async function githubRequestAt<T>(url: string, token: string, options: RequestOptions = {}): Promise<{ data: T; status: number }> {
+  const response = await fetch(url, {
+    method: options.method || 'GET',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${token}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {})
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    cache: 'no-store'
+  })
+
+  const allowed = options.allowStatuses || []
+  const text = await response.text()
+  const parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {}
+
+  if (!response.ok && !allowed.includes(response.status)) {
+    const message = typeof parsed.message === 'string' ? parsed.message : `GitHub API request failed (${response.status})`
+    throw new AdminHttpError(response.status, 'GITHUB_API_ERROR', message)
+  }
+
+  return {
+    data: parsed as T,
+    status: response.status
+  }
+}
+
+export async function getRepoInfo(owner: string, repo: string, token: string): Promise<{ size: number; defaultBranch: string; private: boolean }> {
+  const { data } = await githubRequestAt<GitHubRepoInfoResponse>(
+    `${API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+    token
+  )
+  return {
+    size: data.size,
+    defaultBranch: data.default_branch,
+    private: data.private
+  }
+}
+
+export async function createRepo(params: { org: string; name: string; private: boolean; token: string }): Promise<void> {
+  await githubRequestAt(
+    `${API_BASE}/orgs/${encodeURIComponent(params.org)}/repos`,
+    params.token,
+    {
+      method: 'POST',
+      body: {
+        name: params.name,
+        private: params.private,
+        auto_init: true,
+        description: 'Auto-created content shard for mlog'
+      },
+      allowStatuses: [422]
+    }
+  )
+}
+
 export function buildBranchName(action: 'create' | 'update' | 'delete' | 'media' | 'automation' | 'tutorial' | 'mirror', slug: string): string {
   const stamp = Date.now().toString().slice(-8)
   const safeSlug = slug.replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-') || 'post'
