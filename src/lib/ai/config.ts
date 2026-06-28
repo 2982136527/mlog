@@ -27,6 +27,11 @@ export type AiRuntimeConfig = {
   qwen: OpenAICompatibleConfig | null
 }
 
+export type AiRuntimeAvailability = {
+  available: boolean
+  reason: string | null
+}
+
 function normalizeBaseUrl(value: string | undefined, fallback: string): string {
   const picked = (value || fallback).trim()
   return picked.replace(/\/+$/, '')
@@ -112,5 +117,26 @@ export function getAiRuntimeConfig(): AiRuntimeConfig {
     openai: readOpenAiConfig(),
     deepseek: readDeepseekConfig(),
     qwen: readQwenConfig()
+  }
+}
+
+export function getAiRuntimeAvailability(config = getAiRuntimeConfig()): AiRuntimeAvailability {
+  if (!config.enabled) {
+    return {
+      available: false,
+      reason: 'AI_ENABLE=false'
+    }
+  }
+
+  if (!config.gemini && !config.openai && !config.deepseek && !config.qwen) {
+    return {
+      available: false,
+      reason: 'no configured AI provider'
+    }
+  }
+
+  return {
+    available: true,
+    reason: null
   }
 }

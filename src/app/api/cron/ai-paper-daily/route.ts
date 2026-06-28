@@ -3,6 +3,7 @@ import { AdminHttpError } from '@/lib/admin/errors'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { runAiPaperDailyAutomation } from '@/lib/automation/ai-paper/service'
 import { saveAiPaperDailyLastRun } from '@/lib/automation/ai-paper/run-state-store'
+import { getAiRuntimeAvailability } from '@/lib/ai/config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -25,6 +26,21 @@ export async function GET(request: NextRequest) {
 
   try {
     requireCronAuth(request)
+    const aiAvailability = getAiRuntimeAvailability()
+    if (!aiAvailability.available) {
+      console.info('[cron][ai-paper-daily]', {
+        requestId,
+        status: 'SKIPPED_DISABLED',
+        reason: `ai unavailable: ${aiAvailability.reason}`
+      })
+
+      return ok(requestId, {
+        result: {
+          status: 'SKIPPED_DISABLED',
+          reason: `ai unavailable: ${aiAvailability.reason}`
+        }
+      })
+    }
 
     const result = await runAiPaperDailyAutomation({
       actor: 'system:cron',

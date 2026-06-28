@@ -8,6 +8,7 @@ import { BACKFILL_SCHEDULE_HOUR, DAILY_SCHEDULE_HOUR, GITHUB_HOT_DAILY_SLUG_PREF
 import { loadGithubHotDailyConfig } from '@/lib/automation/github-hot/config-store'
 import { saveGithubHotDailyLastRun } from '@/lib/automation/github-hot/run-state-store'
 import { runGithubHotDailyAutomation } from '@/lib/automation/github-hot/service'
+import { getAiRuntimeAvailability } from '@/lib/ai/config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -71,6 +72,21 @@ export async function GET(request: NextRequest) {
 
   try {
     requireCronAuth(request)
+    const aiAvailability = getAiRuntimeAvailability()
+    if (!aiAvailability.available) {
+      console.info('[cron][github-hot-daily-backfill]', {
+        requestId,
+        status: 'SKIPPED_DISABLED',
+        reason: `ai unavailable: ${aiAvailability.reason}`
+      })
+
+      return ok(requestId, {
+        result: {
+          status: 'SKIPPED_DISABLED',
+          reason: `ai unavailable: ${aiAvailability.reason}`
+        }
+      })
+    }
 
     const [loaded, pathMap] = await Promise.all([loadGithubHotDailyConfig(), listAllContentMarkdownPaths()])
     const paths = Array.from(pathMap.keys())

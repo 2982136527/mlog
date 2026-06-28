@@ -8,6 +8,7 @@ import { AI_PAPER_DAILY_BACKFILL_TIME, AI_PAPER_DAILY_SLUG_PREFIX } from '@/lib/
 import { loadAiPaperDailyConfig } from '@/lib/automation/ai-paper/config-store'
 import { saveAiPaperDailyLastRun } from '@/lib/automation/ai-paper/run-state-store'
 import { runAiPaperDailyAutomation } from '@/lib/automation/ai-paper/service'
+import { getAiRuntimeAvailability } from '@/lib/ai/config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -48,6 +49,21 @@ export async function GET(request: NextRequest) {
 
   try {
     requireCronAuth(request)
+    const aiAvailability = getAiRuntimeAvailability()
+    if (!aiAvailability.available) {
+      console.info('[cron][ai-paper-daily-backfill]', {
+        requestId,
+        status: 'SKIPPED_DISABLED',
+        reason: `ai unavailable: ${aiAvailability.reason}`
+      })
+
+      return ok(requestId, {
+        result: {
+          status: 'SKIPPED_DISABLED',
+          reason: `ai unavailable: ${aiAvailability.reason}`
+        }
+      })
+    }
 
     const [loaded, pathMap] = await Promise.all([loadAiPaperDailyConfig(), listAllContentMarkdownPaths()])
     const paths = Array.from(pathMap.keys())

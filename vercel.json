@@ -10,10 +10,6 @@
       "schedule": "0 2 * * *"
     },
     {
-      "path": "/api/cron/tutorial-sync",
-      "schedule": "10 0 * * *"
-    },
-    {
       "path": "/api/cron/ai-paper-daily",
       "schedule": "30 4 * * *"
     },

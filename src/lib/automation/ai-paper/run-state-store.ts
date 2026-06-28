@@ -141,6 +141,10 @@ function serializeLastRun(state: AiPaperDailyLastRunState): string {
   return `${JSON.stringify(state, null, 2)}\n`
 }
 
+function shouldPersistLastRun(result: AiPaperDailyRunResult): boolean {
+  return result.triggerSource === 'admin_manual'
+}
+
 export async function loadAiPaperDailyLastRun(): Promise<AiPaperDailyLastRunState | null> {
   const file = await getRepoTextFile(AI_PAPER_DAILY_LAST_RUN_PATH)
   if (!file) {
@@ -159,6 +163,10 @@ export async function saveAiPaperDailyLastRun(input: {
   actor: string
   result: AiPaperDailyRunResult
 }): Promise<void> {
+  if (!shouldPersistLastRun(input.result)) {
+    return
+  }
+
   const state: AiPaperDailyLastRunState = {
     requestId: input.requestId,
     actor: input.actor,

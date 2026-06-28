@@ -124,7 +124,7 @@ If required fields are missing, build fails with the source file path.
 | `ADMIN_AUTO_MERGE` | auto-merge PR after create, default `true` |
 | `CRON_SECRET` | bearer secret shared by cron routes (`/api/cron/github-hot-daily`, `/api/cron/github-hot-daily-fallback`, `/api/cron/ai-paper-daily`, `/api/cron/tutorial-sync`) |
 | `VERCEL_DEPLOY_HOOK_URL` | Vercel Deploy Hook URL; triggers production rebuild after merged content writes |
-| `TUTORIAL_SYNC_ENABLED` | enable tutorial sync cron, default `true` |
+| `TUTORIAL_SYNC_ENABLED` | enable tutorial sync cron, default `false` |
 | `PRIVACY_BLOCKLIST` | comma-separated sensitive words/domains for tutorial mirror blocking |
 | `AI_ENABLE` | enable server-side AI generation, default `true` |
 | `AI_PROVIDER_CHAIN` | provider fallback chain, default `gemini,openai,deepseek,qwen` |
@@ -330,7 +330,7 @@ If required fields are missing, build fails with the source file path.
 - Source of truth: blog content in private content repo
 - Every tutorial sync refreshes tutorial frontmatter `updated` to current `Asia/Shanghai` date
 - When sync status is `SYNCED` and tutorial source changes are merged, the system auto-triggers `VERCEL_DEPLOY_HOOK_URL` so production picks up the new date without manual redeploy.
-- Default scheduled check cadence: minute 10 of every hour (Vercel Cron, UTC).
+- Tutorial sync cron is disabled by default in this repo. To restore automation, add a schedule for `/api/cron/tutorial-sync` and set `TUTORIAL_SYNC_ENABLED=true`.
 - Mirror targets in public repo:
   - `docs/tutorials/mlog-open-source-deploy-guide.zh.md`
   - `docs/tutorials/mlog-open-source-deploy-guide.en.md`

@@ -167,6 +167,10 @@ function serializeLastRun(state: GithubHotDailyLastRunState): string {
   return `${JSON.stringify(state, null, 2)}\n`
 }
 
+function shouldPersistLastRun(result: GithubHotDailyRunResult): boolean {
+  return result.triggerSource === 'admin_manual'
+}
+
 export async function loadGithubHotDailyLastRun(): Promise<GithubHotDailyLastRunState | null> {
   const file = await getRepoTextFile(GITHUB_HOT_DAILY_LAST_RUN_PATH)
   if (!file) {
@@ -185,6 +189,10 @@ export async function saveGithubHotDailyLastRun(input: {
   actor: string
   result: GithubHotDailyRunResult
 }): Promise<void> {
+  if (!shouldPersistLastRun(input.result)) {
+    return
+  }
+
   const state: GithubHotDailyLastRunState = {
     requestId: input.requestId,
     actor: input.actor,

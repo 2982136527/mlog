@@ -16,7 +16,7 @@ function requireCronAuth(request: NextRequest) {
 }
 
 function isTutorialSyncEnabled(): boolean {
-  const raw = (process.env.TUTORIAL_SYNC_ENABLED || 'true').trim().toLowerCase()
+  const raw = (process.env.TUTORIAL_SYNC_ENABLED || 'false').trim().toLowerCase()
   return !['0', 'false', 'off', 'no'].includes(raw)
 }
 

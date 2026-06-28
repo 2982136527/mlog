@@ -124,7 +124,7 @@ updated?: ISO date
 | `ADMIN_AUTO_MERGE` | 创建 PR 后是否自动尝试合并（默认 `true`） |
 | `CRON_SECRET` | Cron Bearer 鉴权密钥 |
 | `VERCEL_DEPLOY_HOOK_URL` | 内容合并后触发生产部署的 Hook URL |
-| `TUTORIAL_SYNC_ENABLED` | 教程镜像定时开关（默认 `true`） |
+| `TUTORIAL_SYNC_ENABLED` | 教程镜像定时开关（默认 `false`） |
 | `PRIVACY_BLOCKLIST` | 教程镜像隐私拦截词（逗号分隔） |
 | `AI_ENABLE` | AI 功能开关（默认 `true`） |
 | `AI_PROVIDER_CHAIN` | Provider 主备链路（默认 `gemini,openai,deepseek,qwen`） |
@@ -247,7 +247,7 @@ updated?: ISO date
 - 教程源文在博客内容仓
 - 每次执行教程同步时，会按 `Asia/Shanghai` 刷新教程文章 `updated` 为当天日期
 - 同步状态为 `SYNCED` 且教程源文已合并时，会自动触发 `VERCEL_DEPLOY_HOOK_URL`，前台无需手动重部署
-- 默认定时检查频率：每小时第 10 分钟（Vercel Cron UTC）
+- 仓库默认关闭教程镜像 Cron；如需恢复自动检查，可自行重新添加 `/api/cron/tutorial-sync` 的调度并将 `TUTORIAL_SYNC_ENABLED=true`
 - 同步后镜像到公开仓：
   - `docs/tutorials/mlog-open-source-deploy-guide.zh.md`
   - `docs/tutorials/mlog-open-source-deploy-guide.en.md`
