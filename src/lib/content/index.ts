@@ -9,6 +9,52 @@ import { unique } from '@/lib/utils'
 import { postFrontmatterSchema } from '@/lib/content/schema'
 
 const CONTENT_ROOT = path.join(process.cwd(), 'content', 'posts')
+const GITHUB_OWNER = process.env.CONTENT_GITHUB_OWNER || ''
+const GITHUB_REPO = process.env.CONTENT_GITHUB_REPO || 'mlog-content'
+const GITHUB_TOKEN = process.env.CONTENT_GITHUB_READ_TOKEN || ''
+const GITHUB_BRANCH = process.env.CONTENT_GITHUB_BASE_BRANCH || 'main'
+
+async function fetchPostFromGithub(slug: string, locale: Locale): Promise<Post | null> {
+  if (!GITHUB_OWNER || !GITHUB_TOKEN) {
+    return null
+  }
+
+  try {
+    const url = `https://api.github.com/repos/${encodeURIComponent(GITHUB_OWNER)}/${encodeURIComponent(GITHUB_REPO)}/contents/${encodeURIComponent(`content/posts/${slug}/${locale}.md`)}?ref=${encodeURIComponent(GITHUB_BRANCH)}`
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Accept: 'application/vnd.github.v3.raw',
+        'User-Agent': 'mlog-content-fetcher'
+      },
+      cache: 'no-store'
+    })
+
+    if (!res.ok) {
+      return null
+    }
+
+    const raw = await res.text()
+    const parsed = matter(raw)
+    const validated = postFrontmatterSchema.safeParse(parsed.data)
+
+    if (!validated.success) {
+      return null
+    }
+
+    const minutes = readingTime(parsed.content).minutes
+
+    return {
+      slug,
+      locale,
+      frontmatter: validated.data as PostFrontmatter,
+      content: parsed.content,
+      readingTime: Math.max(1, Math.ceil(minutes))
+    }
+  } catch {
+    return null
+  }
+}
 
 function ensureContentRootExists(): void {
   if (!fs.existsSync(CONTENT_ROOT)) {
@@ -73,7 +119,16 @@ export function hasLocalePost(slug: string, locale: Locale): boolean {
 }
 
 export function getPost(locale: Locale, slug: string): Post | null {
-  return getAllPosts().find(post => post.slug === slug && post.locale === locale) ?? null
+  const local = getAllPosts().find(post => post.slug === slug && post.locale === locale)
+  if (local) return local
+  return null
+}
+
+// Async version that falls back to GitHub if not found locally
+export async function getPostAsync(locale: Locale, slug: string): Promise<Post | null> {
+  const local = getPost(locale, slug)
+  if (local) return local
+  return fetchPostFromGithub(slug, locale)
 }
 
 export function getLocalizedPost(locale: Locale, slug: string): LocalizedPost | null {

@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { isLocale } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
-import { getAllLocalizedRouteParams, getLocalizedPost, getPost, getPostNeighbors } from '@/lib/content'
+import { getAllLocalizedRouteParams, getLocalizedPost, getPostAsync, getPostNeighbors } from '@/lib/content'
 import { createLocaleMetadata } from '@/lib/metadata'
 import { renderMarkdown } from '@/lib/markdown'
 import { PostContent } from '@/components/blog/post-content'
@@ -54,7 +54,8 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
   }
 
   const dict = getDictionary(locale)
-  const post = getLocalizedPost(locale, slug)
+  const fallbackPost = getLocalizedPost(locale, slug)
+  const post = fallbackPost || await getPostAsync(locale, slug).then(p => p ? { ...p, requestedLocale: locale, isFallback: false } : null)
 
   if (!post) {
     notFound()
