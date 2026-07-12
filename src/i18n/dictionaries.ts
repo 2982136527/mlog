@@ -143,6 +143,23 @@ export type Dictionary = {
     siteSince: string
     statsFallbackSiteWide: string
   }
+  apiKey: {
+    title: string
+    description: string
+    nameLabel: string
+    generateButton: string
+    generateButtonGenerating: string
+    revokeButton: string
+    revokeConfirm: string
+    newKeyHint: string
+    copyButton: string
+    copiedText: string
+    lastUsed: string
+    neverUsed: string
+    empty: string
+    errorPrefix: string
+    created: string
+  }
 }
 
 const dictionaries: Record<Locale, Dictionary> = {
@@ -288,6 +305,23 @@ const dictionaries: Record<Locale, Dictionary> = {
       avgReadTime: '平均阅读时长',
       siteSince: '建站于',
       statsFallbackSiteWide: '当前为全站统计口径（博客页面过滤不可用时自动降级）'
+    },
+    apiKey: {
+      title: 'API 密钥',
+      description: '用于 AI Agent 自动发布文章的 API 密钥。',
+      nameLabel: '密钥名称',
+      generateButton: '生成新密钥',
+      generateButtonGenerating: '生成中...',
+      revokeButton: '撤销',
+      revokeConfirm: '确定要撤销此密钥吗？撤销后无法恢复。',
+      newKeyHint: '请立即复制此密钥，关闭后将无法再次查看。',
+      copyButton: '复制',
+      copiedText: '已复制',
+      lastUsed: '上次使用',
+      neverUsed: '从未使用',
+      empty: '暂无 API 密钥。',
+      errorPrefix: '操作失败',
+      created: '创建于'
     }
   },
   en: {
@@ -432,9 +466,27 @@ const dictionaries: Record<Locale, Dictionary> = {
       avgReadTime: 'Avg Read Time',
       siteSince: 'Site Since',
       statsFallbackSiteWide: 'Currently using site-wide scope (auto fallback when blog-page filtering is unavailable).'
+    },
+    apiKey: {
+      title: 'API Keys',
+      description: 'API keys for AI agents to auto-publish blog posts.',
+      nameLabel: 'Key Name',
+      generateButton: 'Generate New Key',
+      generateButtonGenerating: 'Generating...',
+      revokeButton: 'Revoke',
+      revokeConfirm: 'Are you sure you want to revoke this key? This action cannot be undone.',
+      newKeyHint: 'Copy this key now. You will not be able to see it again after closing.',
+      copyButton: 'Copy',
+      copiedText: 'Copied',
+      lastUsed: 'Last Used',
+      neverUsed: 'Never Used',
+      empty: 'No API keys yet.',
+      errorPrefix: 'Operation failed',
+      created: 'Created'
     }
   }
 }
+
 
 export function getDictionary(locale: Locale): Dictionary {
   return dictionaries[locale]

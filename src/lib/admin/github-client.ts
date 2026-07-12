@@ -184,9 +184,9 @@ export async function upsertFile(params: {
   branch: string
   message: string
   sha?: string
-}, target?: GithubRepoTarget): Promise<void> {
+}, target?: GithubRepoTarget): Promise<{ sha: string }> {
   const repoTarget = resolveRepoTarget(target)
-  await githubRequestForTarget(repoTarget, `/contents/${encodeSegments(params.path)}`, {
+  const result = await githubRequestForTarget<{ content: { sha: string } }>(repoTarget, `/contents/${encodeSegments(params.path)}`, {
     method: 'PUT',
     body: {
       message: params.message,
@@ -195,6 +195,7 @@ export async function upsertFile(params: {
       ...(params.sha ? { sha: params.sha } : {})
     }
   })
+  return { sha: result.data.content.sha }
 }
 
 export async function deleteFile(params: {

@@ -84,7 +84,23 @@ export function MeDashboard({ login, hasGistScope, locale }: MeDashboardProps) {
           cloudFailPrefix: '云同步失败',
           readTitle: '最近阅读历史',
           commentTitle: '最近评论交互',
-          empty: '暂无记录。'
+          empty: '暂无记录。',
+          apiKeyTitle: 'API 密钥',
+          apiKeyDescription: '用于 AI Agent 自动发布文章的 API 密钥。可在各 AI 客户端中配置为工具调用。',
+          apiKeyNameLabel: '密钥名称',
+          apiKeyGenerateButton: '生成新密钥',
+          apiKeyGenerating: '生成中...',
+          apiKeyRevokeButton: '撤销',
+          apiKeyRevokeConfirm: '确定要撤销此密钥吗？撤销后无法恢复。',
+          apiKeyNewKeyHint: '请立即复制此密钥，关闭后将无法再次查看。',
+          apiKeyCopyButton: '复制',
+          apiKeyCopiedText: '已复制',
+          apiKeyLastUsed: '上次使用',
+          apiKeyNeverUsed: '从未使用',
+          apiKeyEmpty: '暂无 API 密钥。',
+          apiKeyErrorPrefix: '操作失败',
+          apiKeyCreated: '创建于',
+          apiKeyCancel: '取消'
         }
       : {
           pageTitle: 'My',
@@ -106,7 +122,23 @@ export function MeDashboard({ login, hasGistScope, locale }: MeDashboardProps) {
           cloudFailPrefix: 'Cloud sync failed',
           readTitle: 'Recent Reading History',
           commentTitle: 'Recent Comment Interactions',
-          empty: 'No records yet.'
+          empty: 'No records yet.',
+          apiKeyTitle: 'API Keys',
+          apiKeyDescription: 'API keys for AI agents to auto-publish blog posts.',
+          apiKeyNameLabel: 'Key Name',
+          apiKeyGenerateButton: 'Generate New Key',
+          apiKeyGenerating: 'Generating...',
+          apiKeyRevokeButton: 'Revoke',
+          apiKeyRevokeConfirm: 'Are you sure you want to revoke this key? This action cannot be undone.',
+          apiKeyNewKeyHint: 'Copy this key now. You will not be able to see it again after closing.',
+          apiKeyCopyButton: 'Copy',
+          apiKeyCopiedText: 'Copied',
+          apiKeyLastUsed: 'Last Used',
+          apiKeyNeverUsed: 'Never Used',
+          apiKeyEmpty: 'No API keys yet.',
+          apiKeyErrorPrefix: 'Operation failed',
+          apiKeyCreated: 'Created',
+          apiKeyCancel: 'Cancel'
         }
   const [history, setHistory] = useState<UserHistoryPayload>(() => getLocalHistoryStore().history)
   const [pendingCount, setPendingCount] = useState<number>(() => getPendingCount())
@@ -114,6 +146,86 @@ export function MeDashboard({ login, hasGistScope, locale }: MeDashboardProps) {
   const [cloudEnabled, setCloudEnabled] = useState(hasGistScope)
   const [syncedAt, setSyncedAt] = useState<string | null>(() => getLocalHistoryStore().lastSyncedAt)
   const [message, setMessage] = useState<string | null>(null)
+
+  type ApiKey = {
+    id: string
+    key_prefix: string
+    name: string
+    created_at: string
+    last_used_at: string | null
+    is_active: boolean
+  }
+
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [newKeyPlainText, setNewKeyPlainText] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [keyName, setKeyName] = useState('')
+  const [showKeyForm, setShowKeyForm] = useState(false)
+  const [keyError, setKeyError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    let mounted = true
+    fetch('/api/user/api-keys')
+      .then(r => r.json())
+      .then(data => {
+        if (mounted && data.keys) setApiKeys(data.keys)
+      })
+      .catch(() => {})
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  async function handleGenerate() {
+    if (!keyName.trim()) return
+    setGenerating(true)
+    setKeyError(null)
+    try {
+      const res = await fetch('/api/user/api-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: keyName.trim() })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setKeyError(data?.error?.message || copy.apiKeyErrorPrefix)
+        return
+      }
+      setNewKeyPlainText(data.plainTextKey)
+      setShowKeyForm(false)
+      setKeyName('')
+      const listRes = await fetch('/api/user/api-keys')
+      const listData = await listRes.json()
+      if (listData.keys) setApiKeys(listData.keys)
+    } catch {
+      setKeyError(copy.apiKeyErrorPrefix)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function handleRevoke(id: string) {
+    if (!window.confirm(copy.apiKeyRevokeConfirm)) return
+    try {
+      const res = await fetch(`/api/user/api-keys?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setKeyError(data?.error?.message || copy.apiKeyErrorPrefix)
+        return
+      }
+      setApiKeys(prev => prev.filter(k => k.id !== id))
+    } catch {
+      setKeyError(copy.apiKeyErrorPrefix)
+    }
+  }
+
+  function handleCopy(text: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 3000)
+    }).catch(() => {})
+  }
 
   useEffect(() => {
     const refresh = () => {
@@ -283,6 +395,100 @@ export function MeDashboard({ login, hasGistScope, locale }: MeDashboardProps) {
           )}
         </div>
         {message ? <p className='mt-3 rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-ink-soft)]'>{message}</p> : null}
+      </section>
+
+      <section className='rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur'>
+        <h2 className='font-title text-2xl text-[var(--color-ink)]'>{copy.apiKeyTitle}</h2>
+        <p className='mt-2 text-sm text-[var(--color-ink-soft)]'>{copy.apiKeyDescription}</p>
+
+        {newKeyPlainText ? (
+          <div className='mt-3 rounded-xl border-2 border-yellow-400 bg-yellow-50 px-4 py-3'>
+            <p className='text-sm font-medium text-yellow-800'>{copy.apiKeyNewKeyHint}</p>
+            <div className='mt-2 flex items-center gap-2'>
+              <code className='flex-1 break-all rounded-lg bg-white px-3 py-2 text-sm font-mono text-[var(--color-ink)]'>{newKeyPlainText}</code>
+              <button
+                type='button'
+                onClick={() => handleCopy(newKeyPlainText)}
+                className='shrink-0 rounded-lg bg-[var(--color-brand)] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-brand-strong)]'>
+                {copied ? copy.apiKeyCopiedText : copy.apiKeyCopyButton}
+              </button>
+              <button
+                type='button'
+                onClick={() => setNewKeyPlainText(null)}
+                className='shrink-0 rounded-lg bg-[var(--color-border-strong)] px-2 py-2 text-sm text-[var(--color-ink-soft)] transition hover:text-[var(--color-ink)]'>
+                ✕
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className='mt-3 flex flex-wrap gap-2'>
+          {!showKeyForm ? (
+            <button
+              type='button'
+              onClick={() => setShowKeyForm(true)}
+              className='rounded-xl bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-brand-strong)]'>
+              {copy.apiKeyGenerateButton}
+            </button>
+          ) : (
+            <div className='flex w-full flex-wrap items-center gap-2'>
+              <input
+                value={keyName}
+                onChange={e => setKeyName(e.target.value)}
+                placeholder={copy.apiKeyNameLabel}
+                className='flex-1 rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-ink)] outline-none focus:border-[var(--color-brand)]'
+                onKeyDown={e => { if (e.key === 'Enter') handleGenerate() }}
+              />
+              <button
+                type='button'
+                onClick={handleGenerate}
+                disabled={generating || !keyName.trim()}
+                className='rounded-xl bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-brand-strong)] disabled:opacity-60'>
+                {generating ? copy.apiKeyGenerating : copy.apiKeyGenerateButton}
+              </button>
+              <button
+                type='button'
+                onClick={() => { setShowKeyForm(false); setKeyName('') }}
+                className='rounded-xl border border-[var(--color-border-strong)] bg-white px-4 py-2 text-sm text-[var(--color-ink-soft)] transition hover:text-[var(--color-ink)]'>
+                {copy.apiKeyCancel}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {keyError ? (
+          <p className='mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600'>{keyError}</p>
+        ) : null}
+
+        {apiKeys.length === 0 && !newKeyPlainText ? (
+          <p className='mt-3 text-sm text-[var(--color-ink-soft)]'>{copy.apiKeyEmpty}</p>
+        ) : (
+          <ul className='mt-3 space-y-2'>
+            {apiKeys.filter(k => k.is_active).map(key => (
+              <li key={key.id} className='rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-3 text-sm'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div className='min-w-0 flex-1'>
+                    <p className='font-medium text-[var(--color-ink)]'>{key.name}</p>
+                    <p className='mt-0.5 text-xs text-[var(--color-ink-soft)]'>
+                      <code className='font-mono'>{'mlog_'}{key.key_prefix}...</code>
+                      {' · '}{copy.apiKeyCreated}: {formatDateTime(key.created_at, locale)}
+                      {key.last_used_at
+                        ? ` · ${copy.apiKeyLastUsed}: ${formatDateTime(key.last_used_at, locale)}`
+                        : ` · ${copy.apiKeyNeverUsed}`
+                      }
+                    </p>
+                  </div>
+                  <button
+                    type='button'
+                    onClick={() => handleRevoke(key.id)}
+                    className='shrink-0 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-500 transition hover:bg-red-50'>
+                    {copy.apiKeyRevokeButton}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className='rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur'>

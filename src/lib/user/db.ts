@@ -102,6 +102,20 @@ async function ensureSchemaUnsafe(): Promise<void> {
   )`
 
   await sql`CREATE INDEX IF NOT EXISTS user_comment_activity_last_interacted_idx ON user_comment_activity(user_login, last_interacted_at DESC)`
+
+  await sql`CREATE TABLE IF NOT EXISTS user_api_keys (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_login TEXT NOT NULL REFERENCES user_profiles(login) ON DELETE CASCADE,
+    key_hash TEXT NOT NULL UNIQUE,
+    key_prefix TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at TIMESTAMPTZ NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
+  )`
+
+  await sql`CREATE INDEX IF NOT EXISTS user_api_keys_user_login_idx ON user_api_keys(user_login)`
+  await sql`CREATE INDEX IF NOT EXISTS user_api_keys_active_hash_idx ON user_api_keys(is_active, key_hash)`
 }
 
 export async function ensureUserAutomationSchema(): Promise<void> {
