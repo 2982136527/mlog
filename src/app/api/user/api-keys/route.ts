@@ -5,6 +5,7 @@ import { getAuthSession } from '@/lib/auth'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { ensureUserAutomationSchema } from '@/lib/user/db'
+import { ensureUserProfile } from '@/lib/user/db'
 
 export async function GET() {
   const requestId = createRequestId()
@@ -66,6 +67,7 @@ export async function POST(request: NextRequest) {
     const keyPrefix = rawKey.slice(5, 13)
 
     await ensureUserAutomationSchema()
+    await ensureUserProfile(login)
 
     const result = await sql<{ id: string; created_at: string }>`
       INSERT INTO user_api_keys (user_login, key_hash, key_prefix, name)
