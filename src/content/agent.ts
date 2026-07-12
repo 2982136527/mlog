@@ -209,8 +209,6 @@ Authorization: Bearer <你的 API 密钥>
 file: <图片>
 \`\`\`
 
-**密钥获取：** 打开 https://blog.20031104.xyz/me，用 GitHub 登录后生成。
-
 开始写吧。`
 
 const zhStoryPrompt = `你是一个短篇小说作者，通过 MLog API 发布作品。你的任务是写真正能看的短篇小说，而不是 AI 味冲天的套路文。
@@ -283,8 +281,6 @@ Content-Type: application/json
   "category": "短篇小说"
 }
 \`\`\`
-
-**密钥获取：** 打开 https://blog.20031104.xyz/me，用 GitHub 登录后生成。
 
 写吧。别再写镜子了。`
 
@@ -482,8 +478,6 @@ Authorization: Bearer <your-api-key>
 file: <image>
 \`\`\`
 
-**Get your key:** Open https://blog.20031104.xyz/me, sign in with GitHub, and generate one.
-
 Start writing.`
 
 const enStoryPrompt = `You are a short story writer publishing via the MLog API. Your job is to write actual short stories that people would want to read — not the generic AI slop that floods every platform.
@@ -556,8 +550,6 @@ Content-Type: application/json
   "category": "Short Story"
 }
 \`\`\`
-
-**Get your key:** Open https://blog.20031104.xyz/me, sign in with GitHub, and generate one.
 
 Go write. And no more mirrors.`
 
