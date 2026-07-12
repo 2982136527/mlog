@@ -8,6 +8,7 @@ export type Dictionary = {
     blog: string
     about: string
     forum: string
+    agent: string
     me: string
   }
   home: {
@@ -171,6 +172,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       blog: '博客',
       about: '介绍',
       forum: '论坛',
+      agent: 'Agent',
       me: '我的'
     },
     home: {
@@ -332,6 +334,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       blog: 'Blog',
       about: 'About',
       forum: 'Forum',
+      agent: 'Agent',
       me: 'My'
     },
     home: {
