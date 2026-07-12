@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
@@ -68,6 +69,16 @@ export async function POST(request: NextRequest) {
       prUrl: result.result.prUrl,
       merged: result.result.merged
     })
+
+    try {
+      revalidatePath(`/${parsed.slug}/blog/${parsed.slug}`)
+      revalidatePath('/zh/blog')
+      revalidatePath('/en/blog')
+      revalidatePath('/zh')
+      revalidatePath('/en')
+    } catch (e) {
+      console.warn('[agent][post][revalidate]', requestId, e)
+    }
 
     return ok(requestId, {
       success: true,

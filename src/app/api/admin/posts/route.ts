@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { requireAdminSession } from '@/lib/admin/session'
 import { listAdminPosts } from '@/lib/admin/posts-service'
 import { publishPostChanges } from '@/lib/admin/publish-service'
@@ -63,6 +64,16 @@ export async function POST(request: NextRequest) {
       merged: result.result.merged,
       aiTriggered: result.ai.triggered
     })
+
+    try {
+      revalidatePath(`/${payload.slug}/blog/${payload.slug}`)
+      revalidatePath('/zh/blog')
+      revalidatePath('/en/blog')
+      revalidatePath('/zh')
+      revalidatePath('/en')
+    } catch (e) {
+      console.warn('[admin][posts][revalidate]', requestId, e)
+    }
 
     return ok(requestId, {
       slug: payload.slug,
