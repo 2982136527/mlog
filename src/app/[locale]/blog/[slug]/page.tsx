@@ -4,7 +4,6 @@ import { notFound } from 'next/navigation'
 import { isLocale } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
 import {
-  getAllLocalizedRouteParams,
   getLocalizedPostAsync,
   getPostAsync,
   getPostNeighborsAsync,
@@ -25,10 +24,6 @@ import {
 
 type BlogDetailProps = {
   params: Promise<{ locale: string; slug: string }>
-}
-
-export function generateStaticParams() {
-  return getAllLocalizedRouteParams()
 }
 
 export async function generateMetadata({ params }: BlogDetailProps): Promise<Metadata> {
