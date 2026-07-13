@@ -10,7 +10,7 @@ MPic already stores image binaries in a dedicated public GitHub repository and e
 
 ## Decision
 
-MLog remains the only application shell and authentication authority. It owns a small media domain behind a provider interface; the first provider writes immutable, content-addressed images to MPic's existing image repository through server-only `IMAGE_GITHUB_*` credentials.
+MLog remains the only application shell and authentication authority. It owns a small media domain behind a provider interface; the first provider writes immutable, content-addressed images to a dedicated image repository through server-only `IMAGE_GITHUB_*` credentials.
 
 The default namespace is:
 
@@ -20,7 +20,7 @@ uploads/blog/<sha256-prefix>/<sha256>.<ext>
 
 New media uploads do not create a content PR, modify `public/images/uploads/**`, or call a Vercel Deploy Hook. Article Markdown stores an absolute HTTPS media URL only after the provider confirms that at least one approved public candidate is available.
 
-MLog does not write MPic's existing `data/images-*` indexes in the first cut. Two separately deployed applications must not evolve the same sharded JSON schema independently. If blog uploads must appear in the MPic gallery later, MPic will expose a scoped, rate-limited, idempotent internal API and remain the single writer for its index.
+MLog uses a dedicated image repository, not MPic's repo. Two separately deployed applications must not manage capacity or evolve the same index schema from different codebases. If MLog images must later appear in the MPic gallery, MPic will expose a scoped, rate-limited, idempotent internal API and remain the single writer for its index.
 
 ## Invariants
 
