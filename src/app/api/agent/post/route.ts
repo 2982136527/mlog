@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
 
     const frontmatterBase = {
       date,
+      publishedAt: date,
       tags: parsed.tags,
       category: parsed.category,
       draft: false

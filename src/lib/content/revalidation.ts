@@ -49,9 +49,18 @@ export async function warmupPublishedPages(
 
   const uniquePaths = [...new Set(paths)]
 
-  await Promise.allSettled(
-    uniquePaths.map(p =>
-      fetch(`${baseUrl}${p}`, { signal: AbortSignal.timeout(15_000) }).catch(() => undefined),
-    ),
-  )
+  const fireWarmup = () =>
+    Promise.allSettled(
+      uniquePaths.map(p =>
+        fetch(`${baseUrl}${p}`, { signal: AbortSignal.timeout(15_000) }).catch(() => undefined),
+      ),
+    )
+
+  // Round 1: immediately, so that ISR kicks off rendering right away.
+  await fireWarmup()
+
+  // Round 2: after a short delay, to catch any GitHub tarball propagation lag.
+  // Without this, the first render may still serve stale content.
+  await new Promise(resolve => setTimeout(resolve, 2_000))
+  await fireWarmup()
 }
