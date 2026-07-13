@@ -6,7 +6,7 @@
     "dev": "next dev",
     "content:pull": "node scripts/content-pull.mjs",
     "media:migrate": "node scripts/media-migrate.mjs",
-    "build": "pnpm content:pull && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
