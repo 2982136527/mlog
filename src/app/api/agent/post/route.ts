@@ -78,15 +78,19 @@ export async function POST(request: NextRequest) {
       cacheInvalidated: result.result.cacheInvalidated
     })
 
-    const merged = result.result.merged
+   const merged = result.result.merged
+
+    // Always try to warm up after a successful merge, even if branch sync 
+    // or cache invalidation haven't fully propagated yet. The warmup has 
+    // built-in retries and the tarball CDN typically catches up within seconds.
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      `${request.nextUrl.protocol}//${request.nextUrl.host}`
+    await warmupPublishedPages(baseUrl, parsed.slug).catch(() => undefined)
+
     const refreshPending = merged && (!result.result.branchSynchronized || !result.result.cacheInvalidated)
     const published = merged && !refreshPending
-    if (published) {
-      const baseUrl =
-        process.env.NEXT_PUBLIC_SITE_URL ||
-        `${request.nextUrl.protocol}//${request.nextUrl.host}`
-      await warmupPublishedPages(baseUrl, parsed.slug).catch(() => undefined)
-    }
+
     return ok(requestId, {
       success: published,
       status: published ? 'published' : refreshPending ? 'refresh_pending' : 'pending_review',

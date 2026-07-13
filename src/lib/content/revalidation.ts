@@ -56,11 +56,14 @@ export async function warmupPublishedPages(
       ),
     )
 
-  // Round 1: immediately, so that ISR kicks off rendering right away.
-  await fireWarmup()
-
-  // Round 2: after a short delay, to catch any GitHub tarball propagation lag.
-  // Without this, the first render may still serve stale content.
-  await new Promise(resolve => setTimeout(resolve, 2_000))
-  await fireWarmup()
+  // Three rounds with increasing delays to account for GitHub tarball CDN propagation:
+  // Round 1: immediate — kick off ISR rendering ASAP
+  // Round 2: 3s later — tarball should be ready by now in most cases
+  // Round 3: 6s later — catch the long tail of propagation
+  for (const delayMs of [0, 3_000, 6_000]) {
+    if (delayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, delayMs))
+    }
+    await fireWarmup()
+  }
 }
