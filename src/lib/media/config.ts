@@ -24,6 +24,8 @@ export type MediaConfig = {
   requestTimeoutMs: number
   maxRetries: number
   maxRepositoryBytes?: number
+  rotationThreshold: number
+  repoPrefix: string
   limits: MediaImageLimits
 }
 
@@ -39,6 +41,9 @@ export const DEFAULT_MEDIA_LIMITS: MediaImageLimits = {
 }
 
 export const DEFAULT_MAX_REPOSITORY_BYTES = Math.floor(3.5 * 1024 * 1024 * 1024)
+
+export const DEFAULT_ROTATION_THRESHOLD = 0.9
+export const DEFAULT_REPO_PREFIX = 'mlog-images'
 
 const OWNER_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/
 const REPO_RE = /^[A-Za-z0-9._-]{1,100}$/
@@ -168,6 +173,8 @@ export function readMediaConfig(env: MediaEnv = process.env): MediaConfig {
     requestTimeoutMs: 8_000,
     maxRetries: 2,
     maxRepositoryBytes: configuredMaxBytes,
+    rotationThreshold: Number(env.IMAGE_GITHUB_ROTATION_THRESHOLD || DEFAULT_ROTATION_THRESHOLD),
+    repoPrefix: (env.IMAGE_GITHUB_REPO_PREFIX || DEFAULT_REPO_PREFIX).trim(),
     limits: { ...DEFAULT_MEDIA_LIMITS }
   }
 }

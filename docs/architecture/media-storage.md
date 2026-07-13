@@ -126,3 +126,56 @@ The `media:migrate` script re-writes legacy `/images/uploads/` URLs to provider-
 | Global daily bytes | `MEDIA_GLOBAL_DAILY_BYTES` | 50 MB |
 | Fork safety | SHA-256 + dedup | Idempotent |
 ```
+
+### Automatic Repo Rotation
+
+When an image repository approaches its capacity limit, MLog can automatically create a new GitHub repository and switch uploads to it.
+
+**Trigger.** Before every upload, the `assertRepositoryCapacity` check estimates the current repository size via the GitHub API. If `currentBytes + incomingBytes` exceeds `maxRepositoryBytes × rotationThreshold`, rotation is triggered.
+
+**Process.**
+
+1. Read the active repo from the `image_repo_registry` Postgres table.
+2. Determine the next repo index (`max(existing numbers) + 1`).
+3. Create a new GitHub repo named `{IMAGE_GITHUB_REPO_PREFIX}-{index}` via `POST /user/repos`.
+4. Mark the old repo as inactive (`deactivated_at = NOW()`).
+5. Insert the new repo into the registry as the active one.
+6. The upload handler's config is updated in-memory so the put goes to the new repo.
+
+If rotation succeeds the caller never sees a capacity error — the new repo receives the upload transparently.
+
+**If rotation fails** (permissions, API error, naming conflict) the original capacity check fires and the upload is rejected with `MEDIA_REPOSITORY_CAPACITY_EXCEEDED`.
+
+**Configuration**
+
+| Variable | Default | Description |
+|---|---|---|
+| `IMAGE_GITHUB_ROTATION_THRESHOLD` | `0.9` | Fraction of `maxRepositoryBytes` that triggers rotation. Set to `0` to disable. |
+| `IMAGE_GITHUB_REPO_PREFIX` | `mlog-images` | Prefix for auto-created repo names. Repos are named `{prefix}-1`, `{prefix}-2`, etc. |
+| `IMAGE_GITHUB_MAX_REPOSITORY_BYTES` | ~3.5 GB | Hard capacity limit. Combined with threshold to determine when to rotate. |
+
+**Post-rotation visibility.** Old images remain accessible through:
+- Their stored CDN/GitHub URLs in the `media_assets` table locator.
+- `IMAGE_GITHUB_REPO_HISTORY` for URL resolution of assets not in the database (e.g. migration artefacts).
+
+The old repo is not deleted. Images already uploaded to it continue to resolve from GitHub, jsDelivr, and any configured custom CDN.
+
+**Database table `image_repo_registry`**
+
+Created automatically on first media operation. Schema:
+
+```sql
+CREATE TABLE IF NOT EXISTS image_repo_registry (
+  id SERIAL PRIMARY KEY,
+  owner TEXT NOT NULL,
+  repo TEXT NOT NULL,
+  branch TEXT NOT NULL DEFAULT 'main',
+  path_prefix TEXT NOT NULL DEFAULT 'uploads/blog',
+  is_active BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  deactivated_at TIMESTAMP WITH TIME ZONE,
+  UNIQUE(owner, repo)
+);
+```
+
+The initial active entry is seeded from the `IMAGE_GITHUB_OWNER` and `IMAGE_GITHUB_REPO` env vars at first startup.

@@ -2,6 +2,7 @@ import 'server-only'
 import { createHash } from 'node:crypto'
 import { assertMediaObjectPath, type MediaConfig } from './config'
 import { MediaError } from './errors'
+import { ensureActiveRepoCapacity } from './repo-rotation'
 import type {
   DeletedMediaObject,
   DeleteMediaObjectInput,
@@ -310,6 +311,21 @@ export class GitHubMediaStorage implements MediaStorage {
 
   private async assertRepositoryCapacity(incomingBytes: number, path: string, requestId: string): Promise<void> {
     if (!this.config.maxRepositoryBytes) return
+
+    // Try automatic repo rotation before failing completely.
+    if (this.config.rotationThreshold > 0 && this.config.rotationThreshold <= 1) {
+      try {
+        const active = await ensureActiveRepoCapacity(this.config.github.token, incomingBytes)
+        if (active.repo !== this.config.github.repo) {
+          this.config.github.repo = active.repo
+          this.config.github.branch = active.branch
+        }
+        return
+      } catch {
+        // rotation failed — fall through to the original capacity check
+      }
+    }
+
     const { owner, repo } = this.config.github
     const response = await this.request(
       `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
@@ -329,13 +345,20 @@ export class GitHubMediaStorage implements MediaStorage {
     }
     const repositoryBytes = Math.ceil(sizeKb! * 1024)
     if (repositoryBytes + incomingBytes > this.config.maxRepositoryBytes) {
-      throw new MediaError({
-        status: 507,
-        code: 'MEDIA_REPOSITORY_CAPACITY_EXCEEDED',
-        message: 'The configured image repository reached its safe capacity threshold. Rotate or change the media repository before uploading.',
-        retryable: false
-      })
+      throw this.capacityExceededError()
     }
+  }
+
+  private capacityExceededError(): MediaError {
+    const suggestedAction = this.config.rotationThreshold > 0
+      ? 'Auto-rotation failed. Check IMAGE_GITHUB_TOKEN permissions and IMAGE_GITHUB_REPO_PREFIX.'
+      : 'Set IMAGE_GITHUB_ROTATION_THRESHOLD to enable auto-rotation, increase IMAGE_GITHUB_MAX_REPOSITORY_BYTES, or manually rotate.'
+    return new MediaError({
+      status: 507,
+      code: 'MEDIA_REPOSITORY_CAPACITY_EXCEEDED',
+      message: `The image repository reached its capacity. ${suggestedAction}`,
+      retryable: false,
+    })
   }
 
   private async getObject(path: string, requestId: string): Promise<GithubContentResponse | null> {

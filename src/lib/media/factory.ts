@@ -3,6 +3,7 @@ import { readMediaConfig } from './config'
 import { GitHubMediaStorage } from './github-provider'
 import { createPostgresMediaRateLimiter } from './rate-limit'
 import { MediaUploadService } from './service'
+import { ensureRepoSchema, ensureRepoRegistry } from './repo-rotation'
 import type { MediaProviderLocator } from './types'
 
 let uploadService: MediaUploadService | null = null
@@ -13,6 +14,7 @@ export function getMediaStorage(): GitHubMediaStorage {
   if (!mediaStorage) {
     const config = readMediaConfig()
     mediaStorage = new GitHubMediaStorage(config)
+    seedRepoRegistry(config)
   }
   return mediaStorage
 }
@@ -29,9 +31,25 @@ export function getMediaStorageFor(locator: MediaProviderLocator): GitHubMediaSt
   let storage = historicalStorage.get(key)
   if (!storage) {
     storage = new GitHubMediaStorage(config)
+    seedRepoRegistry(config)
     historicalStorage.set(key, storage)
   }
   return storage
+}
+
+async function seedRepoRegistry(config: ReturnType<typeof readMediaConfig>): Promise<void> {
+  try {
+    await ensureRepoSchema()
+    await ensureRepoRegistry({
+      owner: config.github.owner,
+      repo: config.github.repo,
+      branch: config.github.branch,
+      pathPrefix: config.pathPrefix,
+    })
+  } catch {
+    // Non-blocking — if the registry table isn't available, rotation can't
+    // happen but regular uploads still work.
+  }
 }
 
 export function getMediaUploadService(): MediaUploadService {

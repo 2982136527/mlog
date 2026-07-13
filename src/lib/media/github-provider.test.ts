@@ -15,6 +15,8 @@ const config: MediaConfig = {
   cdnBaseUrl: 'https://img.example.com/base',
   requestTimeoutMs: 1_000,
   maxRetries: 2,
+  rotationThreshold: 0,
+  repoPrefix: 'test-images',
   limits: {
     maxInputBytes: 1_000,
     maxOutputBytes: 1_000,

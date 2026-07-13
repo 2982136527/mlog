@@ -10,6 +10,8 @@ const config: MediaConfig = {
   pathPrefix: 'uploads/blog',
   requestTimeoutMs: 1_000,
   maxRetries: 0,
+  rotationThreshold: 0,
+  repoPrefix: 'test-images',
   limits: {
     maxInputBytes: 1_000_000,
     maxOutputBytes: 1_000_000,
