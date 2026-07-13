@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { requireAdminSession } from '@/lib/admin/session'
 import { getAdminPostDetail } from '@/lib/admin/posts-service'
 import { deletePostBySlug } from '@/lib/admin/publish-service'
@@ -15,6 +16,10 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ slug: 
 
     return ok(requestId, detail)
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      const first = error.issues[0]
+      return fail(requestId, 400, 'INVALID_INPUT', `${first.path.join('.')}: ${first.message}`)
+    }
     if (error instanceof AdminHttpError) {
       return fail(requestId, error.status, error.code, error.message, error.extra)
     }
@@ -30,8 +35,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     const { login } = await requireAdminSession()
     const { slug } = await params
-    const localeRaw = request.nextUrl.searchParams.get('locale') || 'all'
-    const locale = localeRaw === 'zh' || localeRaw === 'en' || localeRaw === 'all' ? localeRaw : 'all'
+    const locale = z.enum(['zh', 'en', 'all']).parse(request.nextUrl.searchParams.get('locale') ?? 'all')
 
     const result = await deletePostBySlug({
       slug,
@@ -57,6 +61,10 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       publish: result.result
     })
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      const first = error.issues[0]
+      return fail(requestId, 400, 'INVALID_INPUT', `${first.path.join('.')}: ${first.message}`)
+    }
     if (error instanceof AdminHttpError) {
       return fail(requestId, error.status, error.code, error.message, error.extra)
     }

@@ -9,6 +9,7 @@ export type PostFrontmatter = {
   cover?: string
   draft?: boolean
   updated?: string
+  publishedAt?: string
 }
 
 export type Post = {

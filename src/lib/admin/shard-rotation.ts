@@ -1,14 +1,11 @@
-import {
-  buildShardRepoEnv,
-  getContentGithubShardPrefix,
-  getAdminGithubEnv
-} from '@/lib/admin/env'
+import { getContentGithubShardPrefix, getAdminGithubEnv } from '@/lib/admin/env'
 import { createRepo, getRepoInfo } from '@/lib/admin/github-client'
 import {
   loadShardRegistry,
   saveShardRegistry,
   invalidateShardRegistryCache,
   invalidateSlugShardCache,
+  MAX_CONTENT_SHARDS,
   type ShardRegistry,
   type ShardEntry
 } from '@/lib/admin/shard-manager'
@@ -17,6 +14,7 @@ const SIZE_THRESHOLD_KB = 4 * 1024 * 1024 // 4GB in KB
 const CHECK_COOLDOWN_MS = 60 * 60 * 1000 // 1 hour
 const REPO_POLL_INTERVAL_MS = 2000
 const REPO_POLL_MAX_ATTEMPTS = 15
+const localSizeChecks = new Map<string, number>()
 
 function nextShardId(registry: ShardRegistry): string {
   const maxNum = registry.shards.reduce((max, shard) => {
@@ -63,7 +61,7 @@ async function waitForRepoReady(owner: string, repo: string, token: string): Pro
 }
 
 export async function checkAndRotateShard(): Promise<{ rotated: boolean; newShard?: ShardEntry }> {
-  const registry = await loadShardRegistry()
+  const registry = structuredClone(await loadShardRegistry())
   const activeShard = registry.shards.find(s => s.id === registry.activeShardId)
 
   if (!activeShard) {
@@ -71,7 +69,10 @@ export async function checkAndRotateShard(): Promise<{ rotated: boolean; newShar
   }
 
   // Cooldown: skip if checked recently
-  const lastCheck = new Date(activeShard.lastSizeCheckAt).getTime()
+  const lastCheck = Math.max(
+    new Date(activeShard.lastSizeCheckAt).getTime(),
+    localSizeChecks.get(activeShard.repo) || 0
+  )
   if (Date.now() - lastCheck < CHECK_COOLDOWN_MS) {
     return { rotated: false }
   }
@@ -82,6 +83,7 @@ export async function checkAndRotateShard(): Promise<{ rotated: boolean; newShar
   try {
     const info = await getRepoInfo(env.owner, activeShard.repo, env.token)
     sizeKB = info.size
+    localSizeChecks.set(activeShard.repo, Date.now())
   } catch (error) {
     console.warn(`[shard-rotation] Failed to check repo size: ${error instanceof Error ? error.message : error}`)
     return { rotated: false }
@@ -93,6 +95,9 @@ export async function checkAndRotateShard(): Promise<{ rotated: boolean; newShar
   registry.updatedAt = new Date().toISOString()
 
   if (sizeKB < SIZE_THRESHOLD_KB) {
+    if (!env.autoMerge) {
+      return { rotated: false }
+    }
     // Under threshold, just save updated metadata
     try {
       await saveShardRegistry(registry)
@@ -100,6 +105,15 @@ export async function checkAndRotateShard(): Promise<{ rotated: boolean; newShar
       console.warn(`[shard-rotation] Failed to save registry metadata: ${error instanceof Error ? error.message : error}`)
     }
     return { rotated: false }
+  }
+
+  if (!env.autoMerge) {
+    console.warn('[shard-rotation] Rotation skipped because ADMIN_AUTO_MERGE is disabled.')
+    return { rotated: false }
+  }
+
+  if (registry.shards.length >= MAX_CONTENT_SHARDS) {
+    throw new Error(`Shard limit reached (${MAX_CONTENT_SHARDS}); automatic rotation is disabled.`)
   }
 
   // Over threshold — create new shard
@@ -133,7 +147,10 @@ export async function checkAndRotateShard(): Promise<{ rotated: boolean; newShar
     registry.activeShardId = newId
     registry.updatedAt = now
 
-    await saveShardRegistry(registry)
+    const publish = await saveShardRegistry(registry)
+    if (!publish.merged) {
+      throw new Error(`Registry PR was not merged: ${publish.mergeMessage}`)
+    }
     invalidateShardRegistryCache()
     invalidateSlugShardCache()
 
@@ -141,12 +158,8 @@ export async function checkAndRotateShard(): Promise<{ rotated: boolean; newShar
     return { rotated: true, newShard }
   } catch (error) {
     console.error(`[shard-rotation] Failed to create new shard repo ${newRepoName}: ${error instanceof Error ? error.message : error}`)
-    // Still try to save the updated size metadata
-    try {
-      await saveShardRegistry(registry)
-    } catch {
-      // Ignore secondary failure
-    }
-    return { rotated: false }
+    invalidateShardRegistryCache()
+    invalidateSlugShardCache()
+    throw error
   }
 }

@@ -1,59 +1,20 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import matter from 'gray-matter'
 import readingTime from 'reading-time'
 import { cache } from 'react'
 import { defaultLocale, type Locale, locales } from '@/i18n/config'
 import type { LocalizedPost, Post, PostFrontmatter } from '@/types/content'
+import type { RepoCardsConfig } from '@/types/repo-cards'
 import { unique } from '@/lib/utils'
 import { postFrontmatterSchema } from '@/lib/content/schema'
+import { parsePostMatter } from '@/lib/content/frontmatter'
+import { getRemoteContentSnapshot } from '@/lib/content/remote-snapshot'
+import { buildDefaultRepoCardsConfig, getRepoCardsConfigFromLocal } from '@/lib/blog/repo-cards-config'
 
 const CONTENT_ROOT = path.join(process.cwd(), 'content', 'posts')
-const GITHUB_OWNER = process.env.CONTENT_GITHUB_OWNER || ''
-const GITHUB_REPO = process.env.CONTENT_GITHUB_REPO || 'mlog-content'
-const GITHUB_TOKEN = process.env.CONTENT_GITHUB_READ_TOKEN || ''
-const GITHUB_BRANCH = process.env.CONTENT_GITHUB_BASE_BRANCH || 'main'
 
-async function fetchPostFromGithub(slug: string, locale: Locale): Promise<Post | null> {
-  if (!GITHUB_OWNER || !GITHUB_TOKEN) {
-    return null
-  }
-
-  try {
-    const url = `https://api.github.com/repos/${encodeURIComponent(GITHUB_OWNER)}/${encodeURIComponent(GITHUB_REPO)}/contents/${encodeURIComponent(`content/posts/${slug}/${locale}.md`)}?ref=${encodeURIComponent(GITHUB_BRANCH)}`
-    const res = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-        Accept: 'application/vnd.github.v3.raw',
-        'User-Agent': 'mlog-content-fetcher'
-      },
-      cache: 'no-store'
-    })
-
-    if (!res.ok) {
-      return null
-    }
-
-    const raw = await res.text()
-    const parsed = matter(raw)
-    const validated = postFrontmatterSchema.safeParse(parsed.data)
-
-    if (!validated.success) {
-      return null
-    }
-
-    const minutes = readingTime(parsed.content).minutes
-
-    return {
-      slug,
-      locale,
-      frontmatter: validated.data as PostFrontmatter,
-      content: parsed.content,
-      readingTime: Math.max(1, Math.ceil(minutes))
-    }
-  } catch {
-    return null
-  }
+export function isPublicPost(post: Post): boolean {
+  return !post.frontmatter.draft
 }
 
 function ensureContentRootExists(): void {
@@ -64,7 +25,7 @@ function ensureContentRootExists(): void {
 
 function readMarkdownFile(filePath: string, locale: Locale, slug: string): Post {
   const raw = fs.readFileSync(filePath, 'utf8')
-  const parsed = matter(raw)
+  const parsed = parsePostMatter(raw)
   const validated = postFrontmatterSchema.safeParse(parsed.data)
 
   if (!validated.success) {
@@ -72,101 +33,93 @@ function readMarkdownFile(filePath: string, locale: Locale, slug: string): Post 
     throw new Error(`Invalid frontmatter in ${filePath} (${slug}/${locale}): ${issues}`)
   }
 
-  const minutes = readingTime(parsed.content).minutes
-
   return {
     slug,
     locale,
     frontmatter: validated.data as PostFrontmatter,
     content: parsed.content,
-    readingTime: Math.max(1, Math.ceil(minutes))
+    readingTime: Math.max(1, Math.ceil(readingTime(parsed.content).minutes))
   }
 }
 
-function readAllPostsUnsafe(): Post[] {
+function readAllLocalPosts(): Post[] {
   ensureContentRootExists()
-
+  const posts: Post[] = []
   const slugDirs = fs
     .readdirSync(CONTENT_ROOT, { withFileTypes: true })
     .filter(entry => entry.isDirectory())
     .map(entry => entry.name)
 
-  const posts: Post[] = []
-
   for (const slug of slugDirs) {
     for (const locale of locales) {
       const filePath = path.join(CONTENT_ROOT, slug, `${locale}.md`)
-      if (!fs.existsSync(filePath)) {
-        continue
+      if (fs.existsSync(filePath)) {
+        posts.push(readMarkdownFile(filePath, locale, slug))
       }
-      posts.push(readMarkdownFile(filePath, locale, slug))
     }
   }
-
   return posts
 }
 
-export const getAllPosts = cache((): Post[] => {
-  return readAllPostsUnsafe()
-})
+const getAllLocalPosts = cache(readAllLocalPosts)
 
-export const getAllSlugs = cache((): string[] => {
-  return unique(getAllPosts().map(post => post.slug)).sort((a, b) => a.localeCompare(b))
-})
-
-export function hasLocalePost(slug: string, locale: Locale): boolean {
-  return getAllPosts().some(post => post.slug === slug && post.locale === locale)
+type PublicContentSnapshot = {
+  posts: Post[]
+  repoCardsBySlug: Record<string, RepoCardsConfig>
+  remote: boolean
 }
 
-export function getPost(locale: Locale, slug: string): Post | null {
-  const local = getAllPosts().find(post => post.slug === slug && post.locale === locale)
-  if (local) return local
-  return null
+const getPublicContentSnapshot = cache(async (): Promise<PublicContentSnapshot> => {
+  const remote = await getRemoteContentSnapshot()
+  if (remote) {
+    return { ...remote, remote: true }
+  }
+
+  return {
+    posts: getAllLocalPosts(),
+    repoCardsBySlug: {},
+    remote: false
+  }
+})
+
+export async function getAllPostsAsync(): Promise<Post[]> {
+  return (await getPublicContentSnapshot()).posts.filter(isPublicPost)
 }
 
-// Async version that falls back to GitHub if not found locally
 export async function getPostAsync(locale: Locale, slug: string): Promise<Post | null> {
-  const local = getPost(locale, slug)
-  if (local) return local
-  return fetchPostFromGithub(slug, locale)
+  return (await getAllPostsAsync()).find(post => post.slug === slug && post.locale === locale) ?? null
 }
 
-export function getLocalizedPost(locale: Locale, slug: string): LocalizedPost | null {
-  const exact = getPost(locale, slug)
-
+export async function getLocalizedPostAsync(locale: Locale, slug: string): Promise<LocalizedPost | null> {
+  const exact = await getPostAsync(locale, slug)
   if (exact) {
-    return {
-      ...exact,
-      requestedLocale: locale,
-      isFallback: false
-    }
+    return { ...exact, requestedLocale: locale, isFallback: false }
   }
 
   if (locale !== defaultLocale) {
-    const fallback = getPost(defaultLocale, slug)
+    const fallback = await getPostAsync(defaultLocale, slug)
     if (fallback) {
-      return {
-        ...fallback,
-        requestedLocale: locale,
-        isFallback: true
-      }
+      return { ...fallback, requestedLocale: locale, isFallback: true }
     }
   }
-
   return null
 }
 
-function sortByDateDesc(posts: Post[]): Post[] {
+function getPostSortTime(post: Post): number {
+  const value = post.frontmatter.publishedAt || post.frontmatter.updated || post.frontmatter.date
+  return Date.parse(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00+08:00` : value)
+}
+
+export function sortPostsByDateDesc(posts: Post[]): Post[] {
   return [...posts].sort((a, b) => {
-    return new Date(b.frontmatter.date).getTime() - new Date(a.frontmatter.date).getTime()
+    const aTime = getPostSortTime(a)
+    const bTime = getPostSortTime(b)
+    return bTime - aTime || a.slug.localeCompare(b.slug) || a.locale.localeCompare(b.locale)
   })
 }
 
-export function getPostsByLocale(locale: Locale, options?: { includeDraft?: boolean }): Post[] {
-  const includeDraft = options?.includeDraft ?? false
-  const scoped = getAllPosts().filter(post => post.locale === locale)
-  const visible = includeDraft ? scoped : scoped.filter(post => !post.frontmatter.draft)
-  return sortByDateDesc(visible)
+export async function getPostsByLocaleAsync(locale: Locale): Promise<Post[]> {
+  return sortPostsByDateDesc((await getAllPostsAsync()).filter(post => post.locale === locale))
 }
 
 export function paginatePosts(posts: Post[], page: number, pageSize: number): {
@@ -182,10 +135,9 @@ export function paginatePosts(posts: Post[], page: number, pageSize: number): {
   const totalPages = Math.max(1, Math.ceil(total / normalizedPageSize))
   const safePage = Math.min(normalizedPage, totalPages)
   const start = (safePage - 1) * normalizedPageSize
-  const end = start + normalizedPageSize
 
   return {
-    items: posts.slice(start, end),
+    items: posts.slice(start, start + normalizedPageSize),
     page: safePage,
     pageSize: normalizedPageSize,
     total,
@@ -193,62 +145,66 @@ export function paginatePosts(posts: Post[], page: number, pageSize: number): {
   }
 }
 
-export function getPostNeighbors(locale: Locale, slug: string): {
+export async function getPostNeighborsAsync(locale: Locale, slug: string): Promise<{
   prev: Post | null
   next: Post | null
-} {
-  const posts = getPostsByLocale(locale)
+}> {
+  const posts = await getPostsByLocaleAsync(locale)
   const index = posts.findIndex(post => post.slug === slug)
-
   if (index === -1) {
     return { prev: null, next: null }
   }
-
   return {
     prev: posts[index + 1] ?? null,
     next: posts[index - 1] ?? null
   }
 }
 
-export function getLocaleTags(locale: Locale): string[] {
-  const tags = getPostsByLocale(locale).flatMap(post => post.frontmatter.tags)
+export async function getLocaleTagsAsync(locale: Locale): Promise<string[]> {
+  const tags = (await getPostsByLocaleAsync(locale)).flatMap(post => post.frontmatter.tags)
   return unique(tags).sort((a, b) => a.localeCompare(b))
 }
 
-export function getLocaleCategories(locale: Locale): string[] {
-  const categories = getPostsByLocale(locale).map(post => post.frontmatter.category)
+export async function getLocaleCategoriesAsync(locale: Locale): Promise<string[]> {
+  const categories = (await getPostsByLocaleAsync(locale)).map(post => post.frontmatter.category)
   return unique(categories).sort((a, b) => a.localeCompare(b))
 }
 
-export function getLatestPost(locale: Locale): Post | null {
-  return getPostsByLocale(locale)[0] ?? null
+export async function getLatestPostAsync(locale: Locale): Promise<Post | null> {
+  return (await getPostsByLocaleAsync(locale))[0] ?? null
 }
 
-export function getCategoryCounts(locale: Locale): Array<{ name: string; count: number }> {
+export async function getCategoryCountsAsync(locale: Locale): Promise<Array<{ name: string; count: number }>> {
   const counts = new Map<string, number>()
-  for (const post of getPostsByLocale(locale)) {
+  for (const post of await getPostsByLocaleAsync(locale)) {
     counts.set(post.frontmatter.category, (counts.get(post.frontmatter.category) ?? 0) + 1)
   }
-
   return Array.from(counts.entries())
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 }
 
-export function getTagCounts(locale: Locale): Array<{ name: string; count: number }> {
+export async function getTagCountsAsync(locale: Locale): Promise<Array<{ name: string; count: number }>> {
   const counts = new Map<string, number>()
-  for (const post of getPostsByLocale(locale)) {
+  for (const post of await getPostsByLocaleAsync(locale)) {
     for (const tag of post.frontmatter.tags) {
       counts.set(tag, (counts.get(tag) ?? 0) + 1)
     }
   }
-
   return Array.from(counts.entries())
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
 }
 
+export async function getRepoCardsConfigAsync(slug: string): Promise<RepoCardsConfig> {
+  const snapshot = await getPublicContentSnapshot()
+  if (snapshot.remote) {
+    return snapshot.repoCardsBySlug[slug] ?? buildDefaultRepoCardsConfig()
+  }
+  return getRepoCardsConfigFromLocal(slug)
+}
+
 export function getAllLocalizedRouteParams(): Array<{ locale: Locale; slug: string }> {
-  const slugs = getAllSlugs()
+  const slugs = unique(getAllLocalPosts().filter(isPublicPost).map(post => post.slug)).sort((a, b) => a.localeCompare(b))
   return locales.flatMap(locale => slugs.map(slug => ({ locale, slug })))
 }

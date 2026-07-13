@@ -62,9 +62,9 @@ export const aboutContentByLocale: Record<Locale, AboutPageContent> = {
           'Git 即内容源：内容变更可审计、可评审、可回滚',
           '统一设计系统：前台与后台共享玻璃态 token 与组件语言',
           '发布链路 PR 化：自动创建 PR、自动尝试合并、失败可人工接管',
-          '部署联动：内容合并后可自动触发部署，避免“已发布但前台未更新”'
+          '发布联动：内容合并后刷新运行时缓存，无需等待 Vercel 重新构建'
         ],
-        tags: ['Auditability', 'Observability', 'Glassmorphism', 'Deploy Hook']
+        tags: ['Auditability', 'Observability', 'Glassmorphism', 'Runtime Cache']
       },
       {
         id: 'innovation',
@@ -129,9 +129,9 @@ export const aboutContentByLocale: Record<Locale, AboutPageContent> = {
           'Git as source of truth: all content changes are reviewable, traceable, and rollback-friendly',
           'Unified glassmorphism language shared between public pages and admin interfaces',
           'PR-based publishing with auto-merge attempt and manual fallback',
-          'Deploy linkage after merged content updates to avoid stale production content'
+          'Runtime cache invalidation after merged content updates, with no Vercel rebuild required'
         ],
-        tags: ['Auditability', 'Observability', 'Glassmorphism', 'Deploy Hook']
+        tags: ['Auditability', 'Observability', 'Glassmorphism', 'Runtime Cache']
       },
       {
         id: 'innovation',

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getLiveCardForPost, LIVE_CARD_CACHE_TTL_SECONDS, LiveCardHttpError } from '@/lib/blog/live-card'
+import { getLiveCardForPost, LiveCardHttpError } from '@/lib/blog/live-card'
 
 export const runtime = 'nodejs'
 
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(payload, {
       headers: {
-        'Cache-Control': `public, s-maxage=${LIVE_CARD_CACHE_TTL_SECONDS}, stale-while-revalidate=${LIVE_CARD_CACHE_TTL_SECONDS}`
+        'Cache-Control': 'private, no-store'
       }
     })
   } catch (error) {

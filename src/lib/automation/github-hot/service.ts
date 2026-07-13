@@ -525,9 +525,11 @@ export async function runGithubHotDailyAutomation(input: {
       requestId: input.requestId,
       forcedTags: [...AUTO_FIXED_TAGS]
     })
+    const merged = published.result.merged
+    const refreshPending = merged && (!published.result.branchSynchronized || !published.result.cacheInvalidated)
 
     return {
-      status: 'PUBLISHED',
+      status: !merged ? 'PENDING_REVIEW' : refreshPending ? 'REFRESH_PENDING' : 'PUBLISHED',
       dateStamp,
       dateIso,
       bypassedDailyLimit: todayExists && Boolean(input.forceRunToday),
@@ -541,6 +543,11 @@ export async function runGithubHotDailyAutomation(input: {
       selectedScore: candidate.scoreInfo,
       selectedRepo: candidate,
       slug,
+      ...(!merged
+        ? { reason: published.result.mergeMessage || 'post PR is awaiting review' }
+        : refreshPending
+          ? { reason: 'post merged, but branch visibility or runtime cache refresh is pending' }
+          : {}),
       changedPaths: published.changedPaths,
       publish: published.result,
       fixedTags: [...AUTO_FIXED_TAGS],

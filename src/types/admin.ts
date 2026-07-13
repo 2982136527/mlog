@@ -29,6 +29,7 @@ export type AdminPostFrontmatterInput = {
   cover?: string
   draft?: boolean
   updated?: string
+  publishedAt?: string
 }
 
 export type AdminPostPayload = {
@@ -41,6 +42,7 @@ export type AdminPostPayload = {
 export type AdminPostSubmitRequest = {
   slug: string
   mode: AdminSubmitMode
+  expectedAction: 'create' | 'update'
   changes: Array<AdminPostPayload>
   repoCards?: AdminRepoCardsInput
 }
@@ -51,6 +53,10 @@ export type PublishResult = {
   prUrl: string
   merged: boolean
   mergeMessage?: string
+  mergeCommitSha?: string
+  branchSynchronized?: boolean
+  cacheInvalidated?: boolean
+  deploymentRequired: boolean
   deploy?: DeployTriggerResult
 }
 

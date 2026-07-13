@@ -42,6 +42,17 @@ type StatsTotals = {
   totaltime: number
 }
 
+class UmamiHttpError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+let loggedAuthFailure = false
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
@@ -111,6 +122,10 @@ function deriveUmamiApiBaseUrl(): string {
 }
 
 function resolveUmamiContext(): UmamiContext | null {
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return null
+  }
+
   const websiteId = (process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID || '').trim()
   const token = (process.env.UMAMI_API_TOKEN || '').trim()
   const apiBaseUrl = deriveUmamiApiBaseUrl()
@@ -150,12 +165,13 @@ async function fetchUmamiJson<T>(context: UmamiContext, suffix: string, params: 
       Authorization: `Bearer ${context.token}`,
       'x-umami-api-key': context.token
     },
-    next: { revalidate: 600 }
+    next: { revalidate: 600 },
+    signal: AbortSignal.timeout(5_000)
   })
 
   if (!response.ok) {
     const body = (await response.text()).slice(0, 240)
-    throw new Error(`Umami API ${response.status} for ${suffix}: ${body}`)
+    throw new UmamiHttpError(response.status, `Umami API ${response.status} for ${suffix}: ${body}`)
   }
 
   return (await response.json()) as T
@@ -253,6 +269,13 @@ async function getFooterStatsUncached(): Promise<FooterStats> {
       return toFooterStats({ startDate: context.startDate }, 'blog', blogTotals)
     }
   } catch (error) {
+    if (error instanceof UmamiHttpError && (error.status === 401 || error.status === 403)) {
+      if (!loggedAuthFailure) {
+        console.warn('[footer-stats] Umami authentication failed; stats are disabled until the API token is updated.')
+        loggedAuthFailure = true
+      }
+      return toFooterStats({ startDate: context.startDate }, 'blog', null)
+    }
     console.warn('[footer-stats] Failed to build blog-only stats, fallback to site-wide stats', error)
   }
 

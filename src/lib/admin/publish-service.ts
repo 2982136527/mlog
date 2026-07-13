@@ -14,28 +14,28 @@ import { AdminHttpError } from '@/lib/admin/errors'
 import {
   buildBranchName,
   createBranch,
-  createPullRequest,
   deleteFile,
   encodeBufferBase64,
   encodeTextBase64,
   getRepoTextFile,
   hashBuffer,
-  mergePullRequest,
   upsertFile,
   type GithubRepoTarget
 } from '@/lib/admin/github-client'
-import { getActiveShardEnv, findShardForPost, listAllContentMarkdownPaths, invalidateSlugShardCache } from '@/lib/admin/shard-manager'
+import { getActiveShardEnv, findShardForPost, invalidateSlugShardCache } from '@/lib/admin/shard-manager'
 import { checkAndRotateShard } from '@/lib/admin/shard-rotation'
 import {
   adminPostWriteSchema,
   buildPostMarkdownPath,
   normalizeAdminFrontmatterInput,
   parseMarkdownFile,
+  resolvePublishedAt,
   serializeMarkdownFile
 } from '@/lib/admin/post-serializer'
 import { AiRunnerError, runAiFrontmatterEnrich, runAiTranslate } from '@/lib/ai/runner'
 import { slugSchema } from '@/lib/content/schema'
-import { triggerVercelDeployHook } from '@/lib/deploy/vercel-hook'
+import { createAndMaybeMergePR } from '@/lib/admin/pr-publish'
+import { assertPublicationMediaReady } from '@/lib/media/publication-guard'
 import {
   buildRepoCardsPath,
   normalizeAdminRepoCardsInput,
@@ -61,54 +61,6 @@ function buildPrBody(input: {
     '变更文件：',
     ...input.changedPaths.map(p => `- ${p}`)
   ].join('\n')
-}
-
-async function createAndMaybeMergePR(params: {
-  target: GithubRepoTarget
-  branch: string
-  title: string
-  body: string
-  deployContext: {
-    requestId: string
-    action: string
-    changedPaths: string[]
-  }
-}): Promise<PublishResult> {
-  const env = getAdminGithubEnv()
-
-  const pr = await createPullRequest({
-    title: params.title,
-    body: params.body,
-    head: params.branch,
-    base: params.target.baseBranch
-  }, params.target)
-
-  let merged = false
-  let mergeMessage = 'Auto merge disabled'
-
-  if (env.autoMerge) {
-    const mergeResult = await mergePullRequest(pr.number, params.target)
-    merged = mergeResult.merged
-    mergeMessage = mergeResult.message
-  }
-
-  let deploy: PublishResult['deploy']
-  if (merged) {
-    deploy = await triggerVercelDeployHook({
-      requestId: params.deployContext.requestId,
-      reason: params.deployContext.action,
-      changedPaths: params.deployContext.changedPaths
-    })
-  }
-
-  return {
-    branch: params.branch,
-    prNumber: pr.number,
-    prUrl: pr.html_url,
-    merged,
-    mergeMessage,
-    deploy
-  }
 }
 
 function oppositeLocale(locale: AdminLocale): AdminLocale {
@@ -277,6 +229,7 @@ function toSerializableFrontmatter(locale: AdminLocale, frontmatter: AdminPostFr
   cover?: string
   draft?: boolean
   updated?: string
+  publishedAt?: string
 } {
   const normalized = normalizeAdminFrontmatterInput(frontmatter)
   const summary = normalizeText(normalized.summary)
@@ -295,11 +248,12 @@ function toSerializableFrontmatter(locale: AdminLocale, frontmatter: AdminPostFr
     category,
     cover: normalizeText(normalized.cover),
     draft: normalized.draft,
-    updated: normalizeText(normalized.updated)
+    updated: normalizeText(normalized.updated),
+    publishedAt: normalizeText(normalized.publishedAt)
   }
 }
 
-function parseExistingMarkdownOrNull(raw: string | undefined): { markdown: string } | null {
+function parseExistingMarkdownOrNull(raw: string | undefined): ReturnType<typeof parseMarkdownFile> | null {
   if (!raw) {
     return null
   }
@@ -337,6 +291,7 @@ export async function publishPostChanges(input: {
   actor: string
   requestId: string
   forcedTags?: string[]
+  expectedAction?: 'create' | 'update'
 }): Promise<{ result: PublishResult; changedPaths: string[]; ai: AdminAiResult }> {
   const parsed = adminPostWriteSchema.parse({
     slug: input.slug,
@@ -357,7 +312,10 @@ export async function publishPostChanges(input: {
 
     uniqueChanges.set(change.locale, {
       ...change,
-      frontmatter: normalizedFrontmatter,
+      frontmatter: {
+        ...normalizedFrontmatter,
+        draft: parsed.mode === 'draft'
+      },
       markdown: change.markdown.trim()
     })
   }
@@ -365,19 +323,25 @@ export async function publishPostChanges(input: {
   // Check if shard rotation is needed, then resolve the active shard
   await checkAndRotateShard()
   const activeShard = await getActiveShardEnv()
-  const env = getAdminGithubEnv() // still needed for autoMerge flag
-
   // For new posts, check slug doesn't exist in any shard
   const existingInActive = await getRepoTextFile(buildPostMarkdownPath(parsed.slug, 'zh'), activeShard.baseBranch, activeShard)
   let writeTarget: GithubRepoTarget = activeShard
+  let existingShard: GithubRepoTarget | null = existingInActive ? activeShard : null
 
   if (!existingInActive) {
     // Not in active shard — check if it exists in another shard
-    const existingShard = await findShardForPost(parsed.slug)
+    existingShard = await findShardForPost(parsed.slug)
     if (existingShard) {
       // Post exists in another shard — use that shard for updates
       writeTarget = existingShard
     }
+  }
+
+  if (input.expectedAction === 'create' && existingShard) {
+    throw new AdminHttpError(409, 'POST_ALREADY_EXISTS', `Post already exists: ${parsed.slug}`)
+  }
+  if (input.expectedAction === 'update' && !existingShard) {
+    throw new AdminHttpError(404, 'NOT_FOUND', `Post not found: ${parsed.slug}`)
   }
 
   const repoCardsPath = buildRepoCardsPath(parsed.slug)
@@ -453,7 +417,8 @@ export async function publishPostChanges(input: {
             category: translation.payload.category,
             cover: source.frontmatter.cover,
             draft: source.frontmatter.draft,
-            updated: source.frontmatter.updated
+            updated: source.frontmatter.updated,
+            publishedAt: source.frontmatter.publishedAt
           }
         })
       } catch (error) {
@@ -473,6 +438,7 @@ export async function publishPostChanges(input: {
   }
 
   const changes = Array.from(uniqueChanges.values())
+  await assertPublicationMediaReady(changes)
 
   const existingStates = await Promise.all(
     changes.map(async change => {
@@ -488,13 +454,24 @@ export async function publishPostChanges(input: {
     }
   }
 
-  const action: 'create' | 'update' = existingStates.every(state => !state.existing) ? 'create' : 'update'
+  const action: 'create' | 'update' = existingShard ? 'update' : 'create'
+  const publishedAt = new Date().toISOString()
   const branch = buildBranchName(action, parsed.slug)
   await createBranch(branch, writeTarget)
 
   const changedPaths: string[] = []
   for (const state of existingStates) {
-    const serialized = serializeMarkdownFile(toSerializableFrontmatter(state.change.locale, state.change.frontmatter), state.change.markdown)
+    const existingFrontmatter = parseExistingMarkdownOrNull(state.existing?.content)?.frontmatter
+    const serializedFrontmatter = {
+      ...state.change.frontmatter,
+      publishedAt: resolvePublishedAt({
+        mode: parsed.mode,
+        existing: existingFrontmatter || null,
+        incoming: state.change.frontmatter.publishedAt,
+        now: publishedAt
+      })
+    }
+    const serialized = serializeMarkdownFile(toSerializableFrontmatter(state.change.locale, serializedFrontmatter), state.change.markdown)
 
     if (state.existing && state.existing.content === serialized) {
       continue
@@ -544,7 +521,7 @@ export async function publishPostChanges(input: {
       changedPaths,
       action
     }),
-    deployContext: {
+    publishContext: {
       requestId: input.requestId,
       action: `post-${action}`,
       changedPaths
@@ -650,7 +627,7 @@ export async function deletePostBySlug(input: {
       changedPaths: deletedPaths,
       action: `delete-${input.locale}`
     }),
-    deployContext: {
+    publishContext: {
       requestId: input.requestId,
       action: `post-delete-${input.locale}`,
       changedPaths: deletedPaths
@@ -669,8 +646,24 @@ const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
-  'image/gif': 'gif',
-  'image/svg+xml': 'svg'
+  'image/gif': 'gif'
+}
+
+function hasValidImageSignature(buffer: Buffer, mimeType: string): boolean {
+  if (mimeType === 'image/png') {
+    return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  }
+  if (mimeType === 'image/jpeg') {
+    return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
+  }
+  if (mimeType === 'image/gif') {
+    const signature = buffer.subarray(0, 6).toString('ascii')
+    return signature === 'GIF87a' || signature === 'GIF89a'
+  }
+  if (mimeType === 'image/webp') {
+    return buffer.length >= 12 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  }
+  return false
 }
 
 function sanitizeFileBase(input: string): string {
@@ -695,6 +688,9 @@ export async function uploadMedia(input: {
 
   if (!ext) {
     throw new AdminHttpError(400, 'INVALID_MEDIA_TYPE', `Unsupported file type: ${input.mimeType}`)
+  }
+  if (!hasValidImageSignature(input.buffer, input.mimeType)) {
+    throw new AdminHttpError(400, 'INVALID_FILE', `File content does not match media type: ${input.mimeType}`)
   }
 
   const date = new Date()
@@ -727,7 +723,7 @@ export async function uploadMedia(input: {
       changedPaths: [filePath],
       action: 'upload-media'
     }),
-    deployContext: {
+    publishContext: {
       requestId: input.requestId,
       action: 'media-upload',
       changedPaths: [filePath]

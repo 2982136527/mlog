@@ -1,9 +1,9 @@
 import type { MetadataRoute } from 'next'
-import { locales } from '@/i18n/config'
-import { getAllSlugs, getLocalizedPost } from '@/lib/content'
+import { defaultLocale, locales } from '@/i18n/config'
+import { getAllPostsAsync } from '@/lib/content'
 import { getSiteUrl } from '@/lib/site'
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl()
   const now = new Date()
 
@@ -34,18 +34,20 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7
   })
 
-  const slugs = getAllSlugs()
+  const posts = await getAllPostsAsync()
+  const slugs = Array.from(new Set(posts.map(post => post.slug))).sort((a, b) => a.localeCompare(b))
   const postPages: MetadataRoute.Sitemap = locales.flatMap(locale => {
     return slugs
       .map(slug => {
-        const post = getLocalizedPost(locale, slug)
+        const post = posts.find(item => item.slug === slug && item.locale === locale)
+          ?? (locale === defaultLocale ? null : posts.find(item => item.slug === slug && item.locale === defaultLocale))
         if (!post) {
           return null
         }
 
         return {
           url: `${siteUrl}/${locale}/blog/${slug}`,
-          lastModified: post.frontmatter.updated ? new Date(post.frontmatter.updated) : new Date(post.frontmatter.date),
+          lastModified: new Date(post.frontmatter.updated || post.frontmatter.publishedAt || post.frontmatter.date),
           changeFrequency: 'weekly' as const,
           priority: 0.7
         }
@@ -55,3 +57,5 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [...staticPages, ...postPages]
 }
+
+export const revalidate = 60

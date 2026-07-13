@@ -1,10 +1,11 @@
 import 'server-only'
 import { unstable_cache } from 'next/cache'
 import { isLocale, type Locale } from '@/i18n/config'
-import { getLocalizedPost } from '@/lib/content'
+import { getLocalizedPostAsync, getRepoCardsConfigAsync } from '@/lib/content'
 import { fetchGithubRepoLiveSnapshot, GithubRepoLiveSnapshotError } from '@/lib/automation/github-hot/evidence'
 import type { LiveCardErrorCode, LiveCardResponse } from '@/types/analytics'
-import { extractGithubRepoFromMarkdown, getRepoCardsConfigFromLocal, parseGithubRepoUrl } from '@/lib/blog/repo-cards-config'
+import { extractGithubRepoFromMarkdown, parseGithubRepoUrl } from '@/lib/blog/repo-cards-config'
+import type { RepoCardsConfig } from '@/types/repo-cards'
 import { isHotDailyTags } from '@/lib/blog/static-snapshot'
 
 export const LIVE_CARD_CACHE_TTL_SECONDS = 600
@@ -31,6 +32,7 @@ function getRepoIdentityForLiveCard(input: {
   slug: string
   isHotDaily: boolean
   markdown: string
+  repoCards: RepoCardsConfig
 }): RepoIdentity {
   if (input.isHotDaily) {
     const parsed = extractGithubRepoFromMarkdown(input.markdown)
@@ -46,7 +48,7 @@ function getRepoIdentityForLiveCard(input: {
     }
   }
 
-  const repoCards = getRepoCardsConfigFromLocal(input.slug)
+  const repoCards = input.repoCards
   if (!repoCards.enabled || !repoCards.repoUrl) {
     throw new LiveCardHttpError(404, 'NOT_LIVE_CARD_POST', 'Live cards are not enabled for this post.')
   }
@@ -77,15 +79,17 @@ export async function getLiveCardForPost(input: { locale: string; slug: string }
   }
 
   const locale: Locale = localeRaw
-  const post = getLocalizedPost(locale, slug)
+  const post = await getLocalizedPostAsync(locale, slug)
   if (!post) {
     throw new LiveCardHttpError(404, 'POST_NOT_FOUND', 'Post not found.')
   }
 
+  const repoCards = await getRepoCardsConfigAsync(post.slug)
   const repo = getRepoIdentityForLiveCard({
     slug: post.slug,
     isHotDaily: isHotDailyTags(post.frontmatter.tags),
-    markdown: post.content
+    markdown: post.content,
+    repoCards
   })
 
   let liveSnapshot: Awaited<ReturnType<typeof getCachedRepoSnapshot>>

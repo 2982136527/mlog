@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 import { randomUUID, createHash } from 'node:crypto'
 import { sql } from '@vercel/postgres'
-import { getAuthSession } from '@/lib/auth'
 import { AdminHttpError } from '@/lib/admin/errors'
+import { requireAdminSession } from '@/lib/admin/session'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { ensureUserAutomationSchema } from '@/lib/user/db'
 import { ensureUserProfile } from '@/lib/user/db'
@@ -11,12 +11,7 @@ export async function GET() {
   const requestId = createRequestId()
 
   try {
-    const session = await getAuthSession()
-    const login = session?.user?.login?.trim()
-
-    if (!login) {
-      return fail(requestId, 401, 'UNAUTHORIZED', 'Authentication required.')
-    }
+    const { login } = await requireAdminSession()
 
     await ensureUserAutomationSchema()
 
@@ -48,12 +43,7 @@ export async function POST(request: NextRequest) {
   const requestId = createRequestId()
 
   try {
-    const session = await getAuthSession()
-    const login = session?.user?.login?.trim()
-
-    if (!login) {
-      return fail(requestId, 401, 'UNAUTHORIZED', 'Authentication required.')
-    }
+    const { login } = await requireAdminSession()
 
     const body = await request.json().catch(() => ({}))
     const name = typeof body.name === 'string' ? body.name.trim().slice(0, 100) : ''
@@ -99,12 +89,7 @@ export async function DELETE(request: NextRequest) {
   const requestId = createRequestId()
 
   try {
-    const session = await getAuthSession()
-    const login = session?.user?.login?.trim()
-
-    if (!login) {
-      return fail(requestId, 401, 'UNAUTHORIZED', 'Authentication required.')
-    }
+    const { login } = await requireAdminSession()
 
     const id = request.nextUrl.searchParams.get('id')
 

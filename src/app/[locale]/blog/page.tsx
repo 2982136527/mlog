@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { isLocale } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
-import { getLocaleCategories, getLocaleTags, getPostsByLocale, paginatePosts } from '@/lib/content'
+import { getLocaleCategoriesAsync, getLocaleTagsAsync, getPostsByLocaleAsync, paginatePosts } from '@/lib/content'
 import { createLocaleMetadata } from '@/lib/metadata'
 import { PostCard } from '@/components/blog/post-card'
 import { PostListFilters } from '@/components/blog/post-list-filters'
@@ -51,9 +51,11 @@ export default async function BlogListPage({ params, searchParams }: BlogListPro
   const selectedCategory = query.category?.trim() || ''
   const pageNumber = Number(query.page ?? '1')
 
-  const posts = getPostsByLocale(locale)
-  const tags = getLocaleTags(locale)
-  const categories = getLocaleCategories(locale)
+  const [posts, tags, categories] = await Promise.all([
+    getPostsByLocaleAsync(locale),
+    getLocaleTagsAsync(locale),
+    getLocaleCategoriesAsync(locale)
+  ])
 
   const filtered = posts.filter(post => {
     const matchesQuery =
@@ -99,3 +101,5 @@ export default async function BlogListPage({ params, searchParams }: BlogListPro
     </div>
   )
 }
+
+export const revalidate = 60

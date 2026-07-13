@@ -1,13 +1,29 @@
 import type { AdminLocale, AdminPostDetail, AdminPostSummary } from '@/types/admin'
 import type { PostFrontmatter } from '@/types/content'
-import { listContentMarkdownPaths, getRepoTextFile } from '@/lib/admin/github-client'
+import { getRepoTextFile } from '@/lib/admin/github-client'
 import { buildPostMarkdownPath, parseMarkdownFile } from '@/lib/admin/post-serializer'
 import { slugSchema } from '@/lib/content/schema'
 import { AdminHttpError } from '@/lib/admin/errors'
+import { getDateIsoInTimeZone } from '@/lib/date'
 import { buildRepoCardsPath, buildDefaultRepoCardsConfig, parseRepoCardsConfigOrDefault } from '@/lib/blog/repo-cards-config'
 import { listAllContentMarkdownPaths, findShardForPost } from '@/lib/admin/shard-manager'
 
 const LOCALES: AdminLocale[] = ['zh', 'en']
+const ADMIN_LIST_FETCH_CONCURRENCY = 8
+
+async function forEachWithConcurrency<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {
+  let nextIndex = 0
+
+  async function runWorker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex
+      nextIndex += 1
+      await worker(items[index])
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => runWorker()))
+}
 
 function getPathInfo(path: string): { slug: string; locale: AdminLocale } | null {
   const matched = path.match(/^content\/posts\/([^/]+)\/(zh|en)\.md$/)
@@ -22,7 +38,7 @@ function getPathInfo(path: string): { slug: string; locale: AdminLocale } | null
 }
 
 function defaultFrontmatter(): PostFrontmatter {
-  const date = new Date().toISOString().slice(0, 10)
+  const date = getDateIsoInTimeZone()
   return {
     title: '',
     date,
@@ -49,8 +65,10 @@ export async function listAdminPosts(filters?: {
   const pathShardMap = await listAllContentMarkdownPaths()
   const grouped = new Map<string, GroupedSummary>()
 
-  await Promise.all(
-    Array.from(pathShardMap.entries()).map(async ([path, shardEnv]) => {
+  await forEachWithConcurrency(
+    Array.from(pathShardMap.entries()),
+    ADMIN_LIST_FETCH_CONCURRENCY,
+    async ([path, shardEnv]) => {
       const info = getPathInfo(path)
       if (!info) return
 
@@ -73,7 +91,7 @@ export async function listAdminPosts(filters?: {
       next.summaries.push(parsed.frontmatter.summary)
 
       grouped.set(info.slug, next)
-    })
+    }
   )
 
   const keyword = (filters?.keyword || '').trim().toLowerCase()

@@ -1,11 +1,13 @@
 'use client'
 
-import type React from 'react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { AdminLocale, AdminPostDetail, AdminPostFrontmatterInput, AdminPostLocaleData, AdminPostPayload, AdminSubmitMode, AiExecutionStep } from '@/types/admin'
+import type { AdminMediaAsset } from '@/types/media'
+import { getDateIsoInTimeZone } from '@/lib/date'
+import { AdminMediaDialog } from '@/components/admin/admin-media-dialog'
 
 type AdminPostEditorProps = {
   mode: 'new' | 'edit'
@@ -26,8 +28,40 @@ type RepoCardsDraftState = {
   repoUrl: string
 }
 
+type MediaInsertionTarget = {
+  locale: AdminLocale
+  start: number
+  end: number
+}
+
+function escapeMarkdownAlt(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/([\[\]])/g, '\\$1').trim() || 'image'
+}
+
+function insertMediaMarkdown(markdown: string, target: MediaInsertionTarget, asset: AdminMediaAsset, alt: string): {
+  markdown: string
+  cursor: number
+} {
+  if (!asset.url) return { markdown, cursor: target.start }
+
+  const start = Math.max(0, Math.min(target.start, markdown.length))
+  const end = Math.max(start, Math.min(target.end, markdown.length))
+  const before = markdown.slice(0, start)
+  const after = markdown.slice(end)
+  const prefix = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : ''
+  const suffix = after && !after.startsWith('\n\n') ? (after.startsWith('\n') ? '\n' : '\n\n') : ''
+  const safeUrl = asset.url.replaceAll('<', '%3C').replaceAll('>', '%3E')
+  const snippet = `![${escapeMarkdownAlt(alt)}](<${safeUrl}>)`
+  const inserted = `${prefix}${snippet}${suffix}`
+
+  return {
+    markdown: `${before}${inserted}${after}`,
+    cursor: before.length + prefix.length + snippet.length
+  }
+}
+
 function todayDate() {
-  return new Date().toISOString().slice(0, 10)
+  return getDateIsoInTimeZone()
 }
 
 function defaultFrontmatter(): AdminPostFrontmatterInput {
@@ -73,7 +107,8 @@ function ensureFrontmatter(frontmatter: AdminPostFrontmatterInput): AdminPostFro
     tags,
     category: (frontmatter.category || '').trim(),
     cover: (frontmatter.cover || '').trim(),
-    updated: (frontmatter.updated || todayDate()).trim()
+    updated: (frontmatter.updated || todayDate()).trim(),
+    publishedAt: frontmatter.publishedAt?.trim()
   }
 }
 
@@ -123,6 +158,7 @@ function summarizeAiSteps(steps: AiExecutionStep[]): string {
 
 export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
   const router = useRouter()
+  const markdownTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [slug, setSlug] = useState(initial.slug)
   const [activeLocale, setActiveLocale] = useState<AdminLocale>('zh')
   const [state, setState] = useState<LocaleStateMap>({
@@ -135,7 +171,8 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
   })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
+  const [mediaDialogOpen, setMediaDialogOpen] = useState(false)
+  const [mediaTarget, setMediaTarget] = useState<MediaInsertionTarget | null>(null)
 
   const current = state[activeLocale]
   const normalizedSlug = useMemo(() => normalizeSlug(slug), [slug])
@@ -194,7 +231,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
         if (!localeState.markdown.trim() && !localeState.frontmatter.title.trim()) {
           return
         }
-        changes.push(buildChange(locale))
+        changes.push(buildChange(locale, false))
       })
 
       if (changes.length === 0) {
@@ -237,6 +274,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
         body: JSON.stringify({
           slug: normalizedSlug,
           mode: submitMode,
+          expectedAction: mode === 'new' ? 'create' : 'update',
           changes,
           repoCards: {
             enabled: repoCards.enabled,
@@ -247,7 +285,7 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
 
       const data = (await response.json()) as {
         error?: { message?: string; ai?: { steps?: AiExecutionStep[] } }
-        publish?: { merged: boolean; prUrl: string }
+        publish?: { merged: boolean; prUrl: string; branchSynchronized?: boolean; cacheInvalidated?: boolean }
         ai?: { steps?: AiExecutionStep[] }
       }
 
@@ -255,13 +293,20 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
         throw new Error(data.error?.message || '发布失败')
       }
 
-      const actionLabel = submitMode === 'draft' ? '草稿保存成功' : data.publish?.merged ? '发布成功，PR 已自动合并' : `已创建 PR，待处理：${data.publish?.prUrl || ''}`
+      const refreshPending = data.publish?.merged && (!data.publish.branchSynchronized || !data.publish.cacheInvalidated)
+      const actionLabel = refreshPending
+        ? 'PR 已合并，内容分支同步或缓存刷新中'
+        : submitMode === 'draft'
+          ? '草稿保存成功'
+          : data.publish?.merged
+            ? '发布成功，PR 已自动合并'
+            : `已创建 PR，待处理：${data.publish?.prUrl || ''}`
       const aiSummary = summarizeAiSteps(data.ai?.steps || [])
       setMessage(`${actionLabel}\n${aiSummary}`)
 
-      if (mode === 'new') {
+      if (mode === 'new' && data.publish?.merged && !refreshPending) {
         router.replace(`/admin/edit/${encodeURIComponent(normalizedSlug)}`)
-      } else {
+      } else if (mode === 'edit' && data.publish?.merged && !refreshPending) {
         window.location.assign(`/admin/edit/${encodeURIComponent(normalizedSlug)}`)
       }
     } catch (error) {
@@ -293,14 +338,15 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
 
       const data = (await response.json()) as {
         error?: { message?: string }
-        publish?: { merged: boolean; prUrl: string }
+        publish?: { merged: boolean; prUrl: string; branchSynchronized?: boolean; cacheInvalidated?: boolean }
       }
 
       if (!response.ok) {
         throw new Error(data.error?.message || '删除失败')
       }
 
-      if (scope === 'all') {
+      const refreshPending = data.publish?.merged && (!data.publish.branchSynchronized || !data.publish.cacheInvalidated)
+      if (scope === 'all' && !refreshPending) {
         router.replace('/admin')
         return
       }
@@ -314,7 +360,11 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
           markdown: ''
         }
       }))
-      setMessage(data.publish?.merged ? '已删除并自动合并' : `已创建删除 PR：${data.publish?.prUrl || ''}`)
+      setMessage(refreshPending
+        ? '删除 PR 已合并，内容分支同步或缓存刷新中'
+        : data.publish?.merged
+          ? '已删除并自动合并'
+          : `已创建删除 PR：${data.publish?.prUrl || ''}`)
       router.refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '删除失败')
@@ -323,45 +373,61 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
     }
   }
 
-  const handleUploadImage: React.ChangeEventHandler<HTMLInputElement> = async event => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  const openMediaDialog = () => {
+    const textarea = markdownTextareaRef.current
+    const markdown = state[activeLocale].markdown
+    setMediaTarget({
+      locale: activeLocale,
+      start: textarea?.selectionStart ?? markdown.length,
+      end: textarea?.selectionEnd ?? markdown.length
+    })
+    setMediaDialogOpen(true)
+  }
 
-    setUploading(true)
-    setMessage(null)
+  const handleInsertMedia = (asset: AdminMediaAsset, alt: string) => {
+    if (!asset.available || !asset.url || !mediaTarget) return
 
-    try {
-      const formData = new FormData()
-      formData.set('file', file)
-      if (normalizedSlug) {
-        formData.set('slug', normalizedSlug)
+    const target = mediaTarget
+    let nextCursor = target.start
+    setState(prev => {
+      const localeState = prev[target.locale]
+      const inserted = insertMediaMarkdown(localeState.markdown, target, asset, alt)
+      nextCursor = inserted.cursor
+      return {
+        ...prev,
+        [target.locale]: {
+          ...localeState,
+          markdown: inserted.markdown
+        }
       }
+    })
+    setMediaDialogOpen(false)
+    setMessage(`图片已插入 ${target.locale.toUpperCase()} 正文`)
 
-      const response = await fetch('/api/admin/media', {
-        method: 'POST',
-        body: formData
+    if (target.locale === activeLocale) {
+      window.requestAnimationFrame(() => {
+        markdownTextareaRef.current?.focus()
+        markdownTextareaRef.current?.setSelectionRange(nextCursor, nextCursor)
       })
-      const data = (await response.json()) as { error?: { message?: string }; markdown?: string; publish?: { merged: boolean; prUrl: string } }
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || '上传失败')
-      }
-
-      if (data.markdown) {
-        updateMarkdown(`${current.markdown.trimEnd()}\n\n${data.markdown}\n`)
-      }
-
-      if (data.publish?.merged) {
-        setMessage('图片上传成功并已合并，可直接插入正文')
-      } else {
-        setMessage(`图片已提交 PR，待处理：${data.publish?.prUrl || ''}`)
-      }
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : '上传失败')
-    } finally {
-      setUploading(false)
-      event.target.value = ''
     }
+  }
+
+  const handleSetCover = (asset: AdminMediaAsset) => {
+    if (!asset.available || !asset.url || !mediaTarget) return
+
+    const targetLocale = mediaTarget.locale
+    setState(prev => ({
+      ...prev,
+      [targetLocale]: {
+        ...prev[targetLocale],
+        frontmatter: {
+          ...prev[targetLocale].frontmatter,
+          cover: asset.url || undefined
+        }
+      }
+    }))
+    setMediaDialogOpen(false)
+    setMessage(`已设置 ${targetLocale.toUpperCase()} 封面`)
   }
 
   const tagsValue = (current.frontmatter.tags || []).join(', ')
@@ -495,15 +561,18 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
       </div>
 
       <div className='rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur'>
-        <div className='mb-3 flex items-center justify-between'>
+        <div className='mb-3 flex flex-wrap items-center justify-between gap-2'>
           <h2 className='font-title text-2xl text-[var(--color-ink)]'>Markdown ({activeLocale.toUpperCase()})</h2>
-          <label className='rounded-lg border border-[var(--color-border-strong)] bg-white px-3 py-2 text-xs text-[var(--color-ink-soft)]'>
-            {uploading ? '上传中...' : '上传图片'}
-            <input type='file' accept='image/*' className='hidden' onChange={handleUploadImage} disabled={uploading} />
-          </label>
+          <button
+            type='button'
+            onClick={openMediaDialog}
+            className='rounded-lg border border-[var(--color-border-strong)] bg-white px-3 py-2 text-xs text-[var(--color-ink-soft)] transition hover:border-[var(--color-brand)] hover:text-[var(--color-ink)]'>
+            打开媒体库
+          </button>
         </div>
 
         <textarea
+          ref={markdownTextareaRef}
           value={current.markdown}
           onChange={event => updateMarkdown(event.target.value)}
           rows={18}
@@ -564,6 +633,14 @@ export function AdminPostEditor({ mode, initial }: AdminPostEditorProps) {
           {message && <p className='mt-4 rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-ink-soft)]'>{message}</p>}
         </div>
       </div>
+
+      <AdminMediaDialog
+        open={mediaDialogOpen}
+        slug={normalizedSlug || undefined}
+        onClose={() => setMediaDialogOpen(false)}
+        onInsert={handleInsertMedia}
+        onSetCover={handleSetCover}
+      />
     </div>
   )
 }

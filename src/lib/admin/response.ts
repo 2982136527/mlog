@@ -4,8 +4,8 @@ export function createRequestId(): string {
   return crypto.randomUUID()
 }
 
-export function ok<T extends Record<string, unknown>>(requestId: string, payload: T) {
-  return NextResponse.json({ requestId, ...payload })
+export function ok<T extends Record<string, unknown>>(requestId: string, payload: T, init?: ResponseInit) {
+  return NextResponse.json({ requestId, ...payload }, init)
 }
 
 export function fail(requestId: string, status: number, code: string, message: string, extra?: Record<string, unknown>) {

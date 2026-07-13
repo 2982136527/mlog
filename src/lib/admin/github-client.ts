@@ -48,6 +48,7 @@ type GitHubPullResponse = {
 type GitHubMergeResponse = {
   merged: boolean
   message: string
+  sha?: string | null
 }
 
 type RequestOptions = {
@@ -247,7 +248,8 @@ export async function mergePullRequest(prNumber: number, target?: GithubRepoTarg
 
   return {
     merged: Boolean(data.merged),
-    message: typeof data.message === 'string' ? data.message : 'merge failed'
+    message: typeof data.message === 'string' ? data.message : 'merge failed',
+    sha: typeof data.sha === 'string' && data.sha.trim() ? data.sha.trim() : undefined
   }
 }
 

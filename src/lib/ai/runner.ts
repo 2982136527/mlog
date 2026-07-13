@@ -469,6 +469,9 @@ function buildUserTopicPostPrompt(input: {
   locale: AdminLocale
   dateIso: string
   topic: string
+  minLength: number
+  maxLength: number
+  qualityFeedback?: string[]
 }): { systemPrompt: string; userPrompt: string } {
   return {
     systemPrompt:
@@ -482,6 +485,7 @@ function buildUserTopicPostPrompt(input: {
       '- tags: 3-6 concise searchable tags.',
       '- category: one concise category phrase.',
       '- markdown should be structured with headings and practical sections.',
+      `- markdown body should contain ${input.minLength}-${input.maxLength} Chinese characters.`,
       '- do not fabricate citation URLs or numeric claims.',
       '',
       `Publish date: ${input.dateIso}`,
@@ -494,6 +498,9 @@ function buildUserTopicPostPrompt(input: {
       '- 风险与边界',
       '- 小结',
       '',
+      ...(input.qualityFeedback && input.qualityFeedback.length > 0
+        ? ['Previous draft failed checks. You MUST fix all items below:', ...input.qualityFeedback.map(item => `- ${item}`), '']
+        : []),
       'Output JSON only.'
     ].join('\n')
   }
@@ -646,12 +653,18 @@ export async function runAiUserTopicPostGenerate(input: {
   locale: AdminLocale
   dateIso: string
   topic: string
+  minLength: number
+  maxLength: number
+  qualityFeedback?: string[]
   runtimeConfig: AiRuntimeConfig
 }): Promise<{ payload: AiPaperGeneratedPost; steps: AiExecutionStep[] }> {
   const prompts = buildUserTopicPostPrompt({
     locale: input.locale,
     dateIso: input.dateIso,
-    topic: input.topic
+    topic: input.topic,
+    minLength: input.minLength,
+    maxLength: input.maxLength,
+    qualityFeedback: input.qualityFeedback
   })
 
   const result = await runAiTaskWithFallback({

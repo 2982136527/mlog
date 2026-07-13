@@ -45,9 +45,7 @@ async function handle(request: NextRequest) {
       status: result.status,
       sourceHash: result.sourceHash,
       prUrl: result.publicMirrorPublish?.prUrl,
-      deployTriggered: result.deploy?.triggered,
-      deploySuccess: result.deploy?.success,
-      deployStatus: result.deploy?.status
+      cacheInvalidated: result.contentPublish?.cacheInvalidated
     })
 
     return ok(requestId, {

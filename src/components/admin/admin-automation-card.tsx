@@ -63,11 +63,13 @@ function summarizeRunResult(result: GithubHotDailyRunResult): string {
     const repoText = result.selectedRepo?.fullName ? `仓库：${result.selectedRepo.fullName}` : '仓库：-'
     const slugText = result.slug ? `Slug：${result.slug}` : 'Slug：-'
     const prText = result.publish?.prUrl ? `PR：${result.publish.prUrl}` : 'PR：-'
-    const deployText = result.publish?.deploy?.success
-      ? '部署：已触发'
-      : result.publish?.deploy?.triggered
-        ? `部署触发失败：${result.publish.deploy.message || 'unknown'}`
-        : '部署：未触发（缺少 VERCEL_DEPLOY_HOOK_URL 或未合并）'
+    const deployText = result.publish?.deploymentRequired === false
+      ? '部署：无需（正文缓存已刷新）'
+      : result.publish?.deploy?.success
+        ? '部署：已触发'
+        : result.publish?.deploy?.triggered
+          ? `部署触发失败：${result.publish.deploy.message || 'unknown'}`
+          : '部署：未触发（缺少 VERCEL_DEPLOY_HOOK_URL 或未合并）'
     const fixedTagText = result.fixedTags && result.fixedTags.length > 0 ? `固定标签：${result.fixedTags.join(', ')}` : '固定标签：-'
     const qualityText = result.quality
       ? `质量门禁：${result.quality.passed ? '通过' : '未通过'}（重试 ${result.quality.retryCount} 次）`
@@ -460,11 +462,13 @@ export function AdminAutomationCard() {
             )}
           </p>
           <p>
-            自动部署：{lastRun.result.publish?.deploy?.success
-              ? '已触发'
-              : lastRun.result.publish?.deploy?.triggered
-                ? `触发失败（${lastRun.result.publish.deploy.message || 'unknown'}）`
-                : '未触发'}
+            自动部署：{lastRun.result.publish?.deploymentRequired === false
+              ? '无需部署'
+              : lastRun.result.publish?.deploy?.success
+                ? '已触发'
+                : lastRun.result.publish?.deploy?.triggered
+                  ? `触发失败（${lastRun.result.publish.deploy.message || 'unknown'}）`
+                  : '未触发'}
           </p>
           <p>主题回退：{lastRun.result.usedTopicFallback ? '是' : '否'}</p>
           <p>说明：{lastRun.result.reason || '-'}</p>

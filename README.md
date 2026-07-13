@@ -15,7 +15,7 @@ MLog 是一个基于 Next.js 16 App Router 的双语博客系统（`/zh`、`/en`
 
 ## 环境要求
 
-- Node.js 20+
+- Node.js 24+
 - pnpm 10+
 
 ## 本地启动
@@ -28,7 +28,11 @@ pnpm dev
 
 打开 [http://localhost:3000](http://localhost:3000)，根路径会重定向到 `/zh`。
 
-生产构建时，`pnpm build` 会先执行 `pnpm content:pull`（配置了内容仓变量时），用于拉取私有内容。
+生产构建时，`pnpm build` 会先执行 `pnpm content:pull`（配置了内容仓变量时）。同步按内容分片下载单个 GitHub tarball，以一致快照完成首次预渲染；迁移完成前，它仍会安装历史 `public/images/uploads` 静态资源，保证已有 `/images/uploads/**` URL 不失效。后续文章更新不依赖重新构建。运行时一旦配置远端内容仓，读取、鉴权或解析失败会直接 fail closed，不会回退到可能重新公开已删除或已撤稿文章的构建快照。
+
+公开页面统一读取带 60 秒兜底缓存的 GitHub 运行时内容快照；快照在 Data Cache 中压缩存储，并受下载、解压、文件数和总时长上限保护。普通文章、草稿状态和 `repo-cards.json` 的 PR 通过应用合并成功后会立即失效首页、列表、详情、RSS 与 sitemap 缓存；在 GitHub 手动合并或从站外改内容时，缓存过期后的首次访问会触发后台刷新，随后请求读取新内容。新草稿仍不会出现在公开页面，把已发布文章改为草稿则会在刷新后隐藏。
+
+上述内容变更不会调用 Vercel Deploy Hook，也不需要重新构建。新的 Admin/Agent 图片上传会直接写入 `IMAGE_GITHUB_*` 指定的公开图仓，使用内容哈希不可变路径；它们不创建图片 PR、不修改内容仓，也不调用 Deploy Hook。`VERCEL_DEPLOY_HOOK_URL` 仅为迁移期历史 `public/images/uploads/**` 流程保留，不能用于新媒体链路。Vercel 项目只应绑定代码仓，内容仓和图仓都不能绑定为自动部署来源。教程 docs 镜像也不主动调用 Hook；如果公开镜像仓就是 Vercel 绑定的代码仓，Git 集成仍可能因镜像 PR 合并创建一次部署，建议把镜像迁到不绑定 Vercel 的独立公开仓。
 
 ## 主题切换（前台）
 
@@ -58,6 +62,8 @@ pnpm dev
 - `/api/cron/github-hot-daily-fallback`（Vercel Cron 兜底入口）
 - `/api/cron/ai-paper-daily`（AI 论文速读 Cron）
 - `/api/cron/tutorial-sync`（教程镜像 Cron）
+- `/api/cron/daily-blog`（每日主题文章 Cron）
+- `/api/agent`、`/api/agent/post`、`/api/agent/upload`、`/api/agent/media/[id]`（仅管理员密钥可写/读媒体状态）
 - `/api/blog/live-card?locale=zh|en&slug=<slug>`（文章实时快照 API）
 - `/api/user/history`（读取用户云端历史）
 - `/api/user/history/sync`（同步本地历史到私有 Gist）
@@ -75,6 +81,7 @@ category: string
 cover?: string
 draft?: boolean
 updated?: ISO date
+publishedAt?: ISO timestamp（系统维护）
 ```
 
 缺少必填字段会在构建阶段失败，并给出具体文件路径。
@@ -98,6 +105,9 @@ updated?: ISO date
 |---|---|
 | `NEXT_PUBLIC_SITE_URL` | 站点绝对 URL，用于 metadata 与 RSS |
 | `NEXTAUTH_URL` | 登录回调基础 URL（本地如 `http://localhost:3000`） |
+| `POSTGRES_URL` | Postgres 连接串；Agent 密钥、媒体元数据和上传限流必需，Vercel 环境推荐使用 |
+| `DATABASE_URL` | 旧代码路径兼容字段；当前媒体与 Agent 数据链路仍必须配置 `POSTGRES_URL`，不能只填此项 |
+| `MEDIA_RATE_LIMIT_HMAC_SECRET` | 媒体限流键的服务端 HMAC 密钥，至少 32 个字符且不得暴露给客户端 |
 | `NEXT_PUBLIC_GISCUS_REPO` | Giscus 仓库（`owner/repo`） |
 | `NEXT_PUBLIC_GISCUS_REPO_ID` | Giscus repo ID |
 | `NEXT_PUBLIC_GISCUS_CATEGORY` | Giscus 分类名 |
@@ -117,13 +127,19 @@ updated?: ISO date
 | `CONTENT_GITHUB_BASE_BRANCH` | 私有内容仓基线分支（默认 `main`） |
 | `CONTENT_GITHUB_WRITE_TOKEN` | 私有内容仓写入 token |
 | `CONTENT_GITHUB_READ_TOKEN` | 私有内容仓读取 token |
+| `IMAGE_GITHUB_OWNER` | 公开图仓 owner，可直接复用 MPic 的图仓配置 |
+| `IMAGE_GITHUB_REPO` | 公开图仓 repo |
+| `IMAGE_GITHUB_BRANCH` | 图仓分支（默认 `main`） |
+| `IMAGE_GITHUB_TOKEN` | 图仓写入 token，仅服务端使用，授予目标仓 Contents 写权限 |
+| `IMAGE_GITHUB_PATH_PREFIX` | MLog 在图仓中的隔离前缀（默认 `uploads/blog`） |
+| `NEXT_PUBLIC_CDN_BASE_URL` | 可选；映射图仓根目录的公开 HTTPS CDN 基址，未配置时仍会探测 jsDelivr 与 GitHub Raw |
 | `PUBLIC_GITHUB_OWNER` | 公开代码/docs 仓 owner |
 | `PUBLIC_GITHUB_REPO` | 公开代码/docs 仓 repo |
 | `PUBLIC_GITHUB_BASE_BRANCH` | 公开仓基线分支（默认 `main`） |
 | `PUBLIC_GITHUB_WRITE_TOKEN` | 公开仓写入 token（教程镜像） |
 | `ADMIN_AUTO_MERGE` | 创建 PR 后是否自动尝试合并（默认 `true`） |
 | `CRON_SECRET` | Cron Bearer 鉴权密钥 |
-| `VERCEL_DEPLOY_HOOK_URL` | 内容合并后触发生产部署的 Hook URL |
+| `VERCEL_DEPLOY_HOOK_URL` | 迁移期兼容变量；仅供历史 `public/images/uploads/**` 流程使用，新 Admin/Agent 媒体、文章、草稿、repo-cards 和教程镜像均不调用 |
 | `TUTORIAL_SYNC_ENABLED` | 教程镜像定时开关（默认 `false`） |
 | `PRIVACY_BLOCKLIST` | 教程镜像隐私拦截词（逗号分隔） |
 | `AI_ENABLE` | AI 功能开关（默认 `true`） |
@@ -152,11 +168,13 @@ updated?: ISO date
 
 - 使用 GitHub OAuth（`next-auth`）+ 白名单授权。
 - `/admin` 与 `/api/admin/*` 全部仅管理员可访问。
-- 发布链路：编辑 -> 新分支改动 -> 创建 PR -> 尝试自动合并 -> 合并后部署。
+- 内容发布链路：编辑 -> 新分支改动 -> 创建 PR -> 尝试自动合并 -> 运行时内容快照缓存立即失效。普通文章、草稿状态和 repo-cards 不触发 Vercel 构建。
+- 新媒体链路：Admin/Agent -> 校验与处理图片 -> 直接写入专用图仓 -> 可用性探测 -> `ready`。它不创建图片 PR、不触发 Vercel 构建；只有 `ready` 且 `available=true` 的 URL 才能写入正文或封面。
 
 ## 用户中心（登录 + 记录）
 
 - 任意 GitHub 登录用户可访问 `/me`。
+- 只有严格管理员可以创建 Agent API 密钥和调用写接口。
 - 默认记录方式：浏览器本地存储（`localStorage`）。
 - 用户中心展示“最近阅读历史”和“最近评论交互记录”。
 - 可选启用云同步：用户授权 `gist` 后，同步到自己的私有 Gist（无需数据库）。
@@ -170,11 +188,16 @@ updated?: ISO date
 - `GET /api/admin/posts/[slug]`
 - `POST /api/admin/posts`
 - `DELETE /api/admin/posts/[slug]?locale=zh|en|all`
-- `POST /api/admin/media`
+- `GET|POST /api/admin/media`
+- `GET|DELETE /api/admin/media/[id]`
 - `GET /api/admin/automation/github-hot-daily`
 - `PUT /api/admin/automation/github-hot-daily`
 - `POST /api/admin/automation/github-hot-daily/run`
 - `GET /api/admin/automation/github-hot-daily/candidates`
+- `GET|PUT /api/admin/automation/daily-blog`
+- `POST /api/admin/automation/daily-blog/run`
+- `GET|PUT /api/admin/automation/ai-paper-daily`
+- `POST /api/admin/automation/ai-paper-daily/run`
 - `POST /api/admin/tutorials/mlog-open-source/sync`
 
 `POST /api/admin/posts` 支持普通文章手动启用 repo 双卡：
@@ -183,6 +206,7 @@ updated?: ISO date
 {
   "slug": "post-slug",
   "mode": "publish",
+  "expectedAction": "create",
   "changes": [],
   "repoCards": {
     "enabled": true,
@@ -190,6 +214,12 @@ updated?: ISO date
   }
 }
 ```
+
+`expectedAction` 必须是 `create` 或 `update`：创建已有 slug 返回 `409`，更新不存在的 slug 返回 `404`。Agent 发文只有在 merge SHA 已出现在基线分支且公开缓存失效成功后才返回 `200/published`；否则返回 `202/pending_review` 或 `202/refresh_pending`。
+
+媒体上传使用 `multipart/form-data`，`file` 必填、`alt` 可选。上传接口在媒体已经可公开读取时返回 `200/201`、`status=ready`、`available=true` 和非空 `url/markdown`；CDN 尚未可用时返回 `202 processing`、`available=false`、`url=null` 及 `poll.url`。调用方必须携带原认证信息，按 `Retry-After` 或 `poll.afterMs` 请求该轮询地址；只有最终得到 `ready + available=true` 后才能引用图片。媒体状态与限流计数保存在 Postgres，首次运行会创建所需表和索引，因此数据库角色需要相应 DDL 权限；数据库或限流不可用时上传会 fail closed。
+
+迁移完成并通过全站零 404 验证前，历史 `/images/uploads/**` 和构建期 `content:pull` 保持兼容；不要提前删除旧文件或关闭旧资源拉取。
 
 ## AI 写作增强
 
@@ -207,7 +237,16 @@ updated?: ISO date
 - 空叠加词时：按预设主题池“同日固定随机”
 - 同日唯一 + 历史仓库去重
 - 自动标签：`ai-auto`、`github-hot`
-- 合并后可自动触发部署（`VERCEL_DEPLOY_HOOK_URL`）
+- 文章合并后通过运行时 GitHub 内容快照和缓存失效上线，不触发 Deploy Hook
+
+## 每日主题文章自动化
+
+- 执行时间：`Asia/Shanghai 09:00`（Cron UTC `0 1 * * *`）
+- 默认关闭，配置存放于 `content/system/automation/daily-blog.json`
+- 可在 `/admin` 启用、编辑主题池/排除项/长度范围并手动执行
+- 支持主题池、排除主题、正文长度范围、同日去重和一次质量重写
+- 配置与运行状态写入均遵循内容仓基线分支和 SHA 并发控制
+- 自动文章合并后使用同一运行时内容快照发布链路，无需重新构建
 
 ## AI 论文速读自动化（非 GitHub）
 
@@ -217,7 +256,7 @@ updated?: ISO date
 - 同日唯一 + 历史论文去重
 - 自动标签：`ai-paper`、`paper-daily`
 - 发布策略：AI 质检 + 低质量自动重写 1 次 + 通过后自动直发
-- 合并后自动触发部署（`VERCEL_DEPLOY_HOOK_URL`）
+- 文章合并后通过运行时内容快照和缓存失效上线，不触发 Deploy Hook
 
 ### 日报质量策略
 
@@ -246,7 +285,8 @@ updated?: ISO date
 - 白名单仅 `mlog-open-source-deploy-guide`
 - 教程源文在博客内容仓
 - 每次执行教程同步时，会按 `Asia/Shanghai` 刷新教程文章 `updated` 为当天日期
-- 同步状态为 `SYNCED` 且教程源文已合并时，会自动触发 `VERCEL_DEPLOY_HOOK_URL`，前台无需手动重部署
+- 教程源文属于普通文章内容，合并后由运行时快照刷新，本身不需要重新构建
+- 教程同步还会把白名单文档写入公开仓，但不会显式调用 Deploy Hook。`docs/tutorials/**` 不参与站点构建；如果该公开仓同时是 Vercel 绑定的代码仓，Git 集成仍可能因镜像 PR 合并创建部署。要消除这类无效构建，应把教程镜像迁到不绑定 Vercel 的独立公开仓
 - 仓库默认关闭教程镜像 Cron；如需恢复自动检查，可自行重新添加 `/api/cron/tutorial-sync` 的调度并将 `TUTORIAL_SYNC_ENABLED=true`
 - 同步后镜像到公开仓：
   - `docs/tutorials/mlog-open-source-deploy-guide.zh.md`
@@ -258,6 +298,9 @@ updated?: ISO date
 - `401 UNAUTHORIZED`：未登录
 - `403 FORBIDDEN`：账号不在管理员白名单
 - `409 SHA_CONFLICT`：编辑基线与远端冲突，刷新后重试
+- `429 MEDIA_RATE_LIMITED`：媒体上传超过限额，按 `Retry-After` 重试
+- `MEDIA_RATE_LIMIT_UNAVAILABLE`：Postgres 或限流密钥不可用，上传被拒绝
+- `MEDIA_CONFIG_INVALID`：专用图仓、CDN 或媒体安全配置不完整
 - `GITHUB_API_ERROR`：GitHub 操作失败（常见于 merge 被保护规则阻断）
 - `AI_CONFIG_ERROR` / `AI_PROVIDER_UNAVAILABLE` / `AI_OUTPUT_INVALID` / `AI_GENERATION_FAILED` / `AI_TIMEOUT`
 - `INVALID_AUTOMATION_CONFIG` / `INVALID_AUTOMATION_LAST_RUN`

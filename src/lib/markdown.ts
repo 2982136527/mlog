@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import remarkRehype from 'remark-rehype'
 import rehypeSlug from 'rehype-slug'
 import rehypeHighlight from 'rehype-highlight'
+import rehypeSanitize from 'rehype-sanitize'
 import rehypeStringify from 'rehype-stringify'
 import { visit } from 'unist-util-visit'
 import { toString } from 'mdast-util-to-string'
@@ -42,6 +43,7 @@ export async function renderMarkdown(markdown: string): Promise<{ html: string; 
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkRehype)
+    .use(rehypeSanitize)
     .use(rehypeSlug)
     .use(rehypeHighlight)
     .use(rehypeStringify)

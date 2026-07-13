@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server'
-import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { validateAgentRequest } from '@/lib/agent/auth'
 import { publishPostChanges } from '@/lib/admin/publish-service'
+import { getDateIsoInTimeZone } from '@/lib/date'
+import { isAllowedPublicMediaUrl } from '@/lib/media/public-url'
+import { warmupPublishedPages } from '@/lib/content/revalidation'
 
 const contentSchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -19,7 +21,9 @@ const agentPostSchema = z.object({
   tags: z.array(z.string().trim().min(1)).min(1).max(10),
   category: z.string().trim().min(1),
   date: z.string().trim().optional(),
-  cover: z.string().trim().optional()
+  cover: z.string().trim().max(2048)
+    .refine(value => !value || isAllowedPublicMediaUrl(value), '必须使用已配置图床/CDN URL 或 /images 路径')
+    .optional()
 })
 
 export async function POST(request: NextRequest) {
@@ -33,7 +37,7 @@ export async function POST(request: NextRequest) {
     })
 
     const parsed = agentPostSchema.parse(body)
-    const date = parsed.date || new Date().toISOString().split('T')[0]
+    const date = parsed.date || getDateIsoInTimeZone()
 
     const frontmatterBase = {
       date,
@@ -58,7 +62,8 @@ export async function POST(request: NextRequest) {
         }
       ],
       actor: userLogin,
-      requestId
+      requestId,
+      expectedAction: 'create'
     })
 
     console.info('[agent][post][POST]', {
@@ -67,28 +72,31 @@ export async function POST(request: NextRequest) {
       slug: parsed.slug,
       changedPaths: result.changedPaths,
       prUrl: result.result.prUrl,
-      merged: result.result.merged
+      merged: result.result.merged,
+      branchSynchronized: result.result.branchSynchronized,
+      cacheInvalidated: result.result.cacheInvalidated
     })
 
-    try {
-      revalidatePath(`/${parsed.slug}/blog/${parsed.slug}`)
-      revalidatePath('/zh/blog')
-      revalidatePath('/en/blog')
-      revalidatePath('/zh')
-      revalidatePath('/en')
-    } catch (e) {
-      console.warn('[agent][post][revalidate]', requestId, e)
+    const merged = result.result.merged
+    const refreshPending = merged && (!result.result.branchSynchronized || !result.result.cacheInvalidated)
+    const published = merged && !refreshPending
+    if (published) {
+      const baseUrl =
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        `${request.nextUrl.protocol}//${request.nextUrl.host}`
+      await warmupPublishedPages(baseUrl, parsed.slug).catch(() => undefined)
     }
-
     return ok(requestId, {
-      success: true,
+      success: published,
+      status: published ? 'published' : refreshPending ? 'refresh_pending' : 'pending_review',
       slug: parsed.slug,
       pr: {
         number: result.result.prNumber,
         url: result.result.prUrl,
         merged: result.result.merged
-      }
-    })
+      },
+      publish: result.result
+    }, { status: published ? 200 : 202 })
   } catch (error) {
     if (error instanceof z.ZodError) {
       const first = error.issues[0]

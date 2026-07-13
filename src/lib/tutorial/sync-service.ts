@@ -2,22 +2,18 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { AdminPostPayload, PublishResult } from '@/types/admin'
 import { TUTORIAL_SLUG, type TutorialSyncResult, type TutorialSyncState } from '@/types/tutorial'
-import { getAdminGithubEnv, getContentGithubReadEnv, getContentGithubWriteEnv, getPublicGithubWriteEnv, type GithubRepoEnv } from '@/lib/admin/env'
+import { getContentGithubReadEnv, getContentGithubWriteEnv, getPublicGithubWriteEnv, type GithubRepoEnv } from '@/lib/admin/env'
 import { AdminHttpError } from '@/lib/admin/errors'
 import {
   buildBranchName,
   createBranch,
-  createPullRequest,
   encodeTextBase64,
-  getBranchHeadSha,
   getRepoTextFile,
-  mergePullRequest,
-  upsertFile,
-  type GithubRepoTarget
+  upsertFile
 } from '@/lib/admin/github-client'
 import { parseMarkdownFile, serializeMarkdownFile } from '@/lib/admin/post-serializer'
 import { publishPostChanges } from '@/lib/admin/publish-service'
-import { triggerVercelDeployHook } from '@/lib/deploy/vercel-hook'
+import { createAndMaybeMergePR } from '@/lib/admin/pr-publish'
 import { applyPrivacyGuard } from '@/lib/tutorial/privacy-guard'
 
 const TUTORIAL_SYNC_STATE_PATH = 'content/system/tutorial-sync.json'
@@ -75,46 +71,6 @@ function buildPrBody(input: {
   return [`操作者：${input.actor}`, `请求ID：${input.requestId}`, `操作：${input.action}`, '', '变更文件：', ...input.paths.map(path => `- ${path}`)].join('\n')
 }
 
-async function createAndMaybeMergePR(input: {
-  target: GithubRepoTarget
-  branch: string
-  title: string
-  body: string
-}): Promise<PublishResult> {
-  const { autoMerge } = getAdminGithubEnv()
-
-  const pr = await createPullRequest(
-    {
-      title: input.title,
-      body: input.body,
-      head: input.branch,
-      base: input.target.baseBranch
-    },
-    input.target
-  )
-
-  let merged = false
-  let mergeMessage = 'Auto merge disabled'
-
-  if (autoMerge) {
-    const result = await mergePullRequest(pr.number, input.target)
-    merged = result.merged
-    mergeMessage = result.message
-  }
-
-  return {
-    branch: input.branch,
-    prNumber: pr.number,
-    prUrl: pr.html_url,
-    merged,
-    mergeMessage
-  }
-}
-
-function isMergedOrMissing(result: PublishResult | undefined): boolean {
-  return !result || result.merged
-}
-
 async function ensureTutorialLocales(input: {
   actor: 'admin' | 'system'
   requestId: string
@@ -158,6 +114,15 @@ async function ensureTutorialLocales(input: {
     actor: input.actor,
     requestId: input.requestId
   })
+
+  if (!publish.result.merged || !publish.result.branchSynchronized || !publish.result.cacheInvalidated) {
+    return {
+      zhRaw: zhFile.content,
+      enRaw: '',
+      contentPublish: publish.result,
+      aiSteps: publish.ai.steps
+    }
+  }
 
   const refreshedEn = await getRepoTextFile(TUTORIAL_EN_PATH, undefined, input.contentRead)
   if (!refreshedEn?.content?.trim()) {
@@ -259,7 +224,12 @@ async function refreshTutorialUpdatedDate(input: {
       requestId: input.requestId,
       action: 'tutorial-update-date',
       paths: changedPaths
-    })
+    }),
+    publishContext: {
+      requestId: input.requestId,
+      action: 'tutorial-update-date',
+      changedPaths
+    }
   })
 
   return {
@@ -359,10 +329,17 @@ async function mirrorTutorialToPublic(input: {
       requestId: input.requestId,
       action: 'tutorial-public-mirror',
       paths: changedPaths
-    })
+    }),
+    publishContext: {
+      requestId: input.requestId,
+      action: 'tutorial-public-mirror',
+      changedPaths
+    }
   })
 
-  const lastMirrorCommitSha = await getBranchHeadSha(branch, input.publicWrite).catch(() => undefined)
+  const lastMirrorCommitSha = publish.merged && publish.branchSynchronized
+    ? publish.mergeCommitSha
+    : undefined
 
   return {
     docsPaths: [MIRROR_ZH_PATH, MIRROR_EN_PATH],
@@ -405,7 +382,12 @@ async function saveTutorialSyncState(input: {
       requestId: input.requestId,
       action: 'tutorial-sync-state',
       paths: [TUTORIAL_SYNC_STATE_PATH]
-    })
+    }),
+    publishContext: {
+      requestId: input.requestId,
+      action: 'tutorial-sync-state',
+      changedPaths: [TUTORIAL_SYNC_STATE_PATH]
+    }
   })
 }
 
@@ -428,6 +410,31 @@ export async function runTutorialSync(input: {
     contentRead
   })
 
+  if (ensured.contentPublish && !ensured.contentPublish.merged) {
+    return {
+      status: 'PENDING_REVIEW',
+      slug: TUTORIAL_SLUG,
+      sourceHash: hashSource({ zhRaw: ensured.zhRaw, enRaw: ensured.enRaw }),
+      blogPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH],
+      docsPaths: [MIRROR_ZH_PATH, MIRROR_EN_PATH],
+      contentPublish: ensured.contentPublish,
+      reason: ensured.contentPublish.mergeMessage || 'Tutorial translation PR is awaiting review.',
+      aiSteps: ensured.aiSteps
+    }
+  }
+  if (ensured.contentPublish && (!ensured.contentPublish.branchSynchronized || !ensured.contentPublish.cacheInvalidated)) {
+    return {
+      status: 'REFRESH_PENDING',
+      slug: TUTORIAL_SLUG,
+      sourceHash: hashSource({ zhRaw: ensured.zhRaw, enRaw: ensured.enRaw }),
+      blogPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH],
+      docsPaths: [MIRROR_ZH_PATH, MIRROR_EN_PATH],
+      contentPublish: ensured.contentPublish,
+      reason: 'Tutorial translation merged, but branch visibility or cache refresh is still pending.',
+      aiSteps: ensured.aiSteps
+    }
+  }
+
   const refreshed = await refreshTutorialUpdatedDate({
     actor: input.actor,
     requestId: input.requestId,
@@ -444,9 +451,9 @@ export async function runTutorialSync(input: {
   const state = await loadTutorialSyncState(contentRead)
   const sourcePublish = refreshed.contentPublish || ensured.contentPublish
 
-  if (!input.force && state?.sourceHash === sourceHash) {
+  if (sourcePublish && !sourcePublish.merged) {
     return {
-      status: 'SKIPPED_NO_SOURCE_CHANGE',
+      status: 'PENDING_REVIEW',
       slug: TUTORIAL_SLUG,
       sourceHash,
       blogPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH],
@@ -454,6 +461,21 @@ export async function runTutorialSync(input: {
       updatedDateApplied: refreshed.updatedDateApplied,
       updatedDateChanged: refreshed.updatedDateChanged,
       contentPublish: sourcePublish,
+      reason: sourcePublish.mergeMessage || 'Tutorial content PR is awaiting review.',
+      aiSteps: ensured.aiSteps
+    }
+  }
+  if (sourcePublish && (!sourcePublish.branchSynchronized || !sourcePublish.cacheInvalidated)) {
+    return {
+      status: 'REFRESH_PENDING',
+      slug: TUTORIAL_SLUG,
+      sourceHash,
+      blogPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH],
+      docsPaths: [MIRROR_ZH_PATH, MIRROR_EN_PATH],
+      updatedDateApplied: refreshed.updatedDateApplied,
+      updatedDateChanged: refreshed.updatedDateChanged,
+      contentPublish: sourcePublish,
+      reason: 'Tutorial content merged, but branch visibility or cache refresh is still pending.',
       aiSteps: ensured.aiSteps
     }
   }
@@ -474,13 +496,58 @@ export async function runTutorialSync(input: {
     throw new AdminHttpError(502, 'TUTORIAL_MIRROR_FAILED', error instanceof Error ? error.message : 'Failed to mirror tutorial docs.')
   }
 
+  if (mirrorResult.publish && !mirrorResult.publish.merged) {
+    return {
+      status: 'PENDING_REVIEW',
+      slug: TUTORIAL_SLUG,
+      sourceHash,
+      blogPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH],
+      docsPaths: mirrorResult.docsPaths,
+      updatedDateApplied: refreshed.updatedDateApplied,
+      updatedDateChanged: refreshed.updatedDateChanged,
+      contentPublish: sourcePublish,
+      publicMirrorPublish: mirrorResult.publish,
+      reason: mirrorResult.publish.mergeMessage || 'Tutorial mirror PR is awaiting review.',
+      aiSteps: ensured.aiSteps
+    }
+  }
+  if (mirrorResult.publish && !mirrorResult.publish.branchSynchronized) {
+    return {
+      status: 'REFRESH_PENDING',
+      slug: TUTORIAL_SLUG,
+      sourceHash,
+      blogPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH],
+      docsPaths: mirrorResult.docsPaths,
+      updatedDateApplied: refreshed.updatedDateApplied,
+      updatedDateChanged: refreshed.updatedDateChanged,
+      contentPublish: sourcePublish,
+      publicMirrorPublish: mirrorResult.publish,
+      reason: 'Tutorial mirror merged, but the public base branch has not exposed the merge commit yet.',
+      aiSteps: ensured.aiSteps
+    }
+  }
+
+  if (!input.force && state?.sourceHash === sourceHash && !mirrorResult.publish) {
+    return {
+      status: 'SKIPPED_NO_SOURCE_CHANGE',
+      slug: TUTORIAL_SLUG,
+      sourceHash,
+      blogPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH],
+      docsPaths: mirrorResult.docsPaths,
+      updatedDateApplied: refreshed.updatedDateApplied,
+      updatedDateChanged: refreshed.updatedDateChanged,
+      contentPublish: sourcePublish,
+      aiSteps: ensured.aiSteps
+    }
+  }
+
   const now = new Date().toISOString()
   const nextState: TutorialSyncState = {
     slug: TUTORIAL_SLUG,
     sourceHash,
     lastSyncedAt: now,
     lastSyncedBy: input.actor,
-    lastPublicMirrorCommit: mirrorResult.lastMirrorCommitSha
+    lastPublicMirrorCommit: mirrorResult.lastMirrorCommitSha || state?.lastPublicMirrorCommit
   }
 
   const statePublish = await saveTutorialSyncState({
@@ -490,18 +557,38 @@ export async function runTutorialSync(input: {
     contentWrite
   })
 
-  const deploy =
-    isMergedOrMissing(ensured.contentPublish) && isMergedOrMissing(refreshed.contentPublish)
-      ? await triggerVercelDeployHook({
-          requestId: input.requestId,
-          reason: 'tutorial-sync',
-          changedPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH]
-        })
-      : {
-          triggered: false,
-          success: false,
-          message: 'Tutorial source PR is not merged; deploy skipped.'
-        }
+  if (statePublish && !statePublish.merged) {
+    return {
+      status: 'PENDING_REVIEW',
+      slug: TUTORIAL_SLUG,
+      sourceHash,
+      blogPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH],
+      docsPaths: mirrorResult.docsPaths,
+      updatedDateApplied: refreshed.updatedDateApplied,
+      updatedDateChanged: refreshed.updatedDateChanged,
+      contentPublish: sourcePublish,
+      publicMirrorPublish: mirrorResult.publish,
+      statePublish,
+      reason: statePublish.mergeMessage || 'Tutorial sync-state PR is awaiting review.',
+      aiSteps: ensured.aiSteps
+    }
+  }
+  if (statePublish && !statePublish.branchSynchronized) {
+    return {
+      status: 'REFRESH_PENDING',
+      slug: TUTORIAL_SLUG,
+      sourceHash,
+      blogPaths: [TUTORIAL_ZH_PATH, TUTORIAL_EN_PATH],
+      docsPaths: mirrorResult.docsPaths,
+      updatedDateApplied: refreshed.updatedDateApplied,
+      updatedDateChanged: refreshed.updatedDateChanged,
+      contentPublish: sourcePublish,
+      publicMirrorPublish: mirrorResult.publish,
+      statePublish,
+      reason: 'Tutorial sync state merged, but the content base branch has not exposed the merge commit yet.',
+      aiSteps: ensured.aiSteps
+    }
+  }
 
   return {
     status: 'SYNCED',
@@ -514,7 +601,6 @@ export async function runTutorialSync(input: {
     contentPublish: sourcePublish,
     publicMirrorPublish: mirrorResult.publish,
     statePublish,
-    deploy,
     aiSteps: ensured.aiSteps
   }
 }

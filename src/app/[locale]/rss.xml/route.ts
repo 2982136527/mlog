@@ -1,6 +1,7 @@
 import { isLocale } from '@/i18n/config'
-import { getPostsByLocale } from '@/lib/content'
+import { getPostsByLocaleAsync } from '@/lib/content'
 import { formatRfc822 } from '@/lib/date'
+import { escapeXmlText, toXmlCdata } from '@/lib/rss'
 import { getSiteUrl } from '@/lib/site'
 
 export async function GET(_: Request, { params }: { params: Promise<{ locale: string }> }) {
@@ -11,12 +12,13 @@ export async function GET(_: Request, { params }: { params: Promise<{ locale: st
   }
 
   const siteUrl = getSiteUrl()
-  const posts = getPostsByLocale(locale)
+  const posts = await getPostsByLocaleAsync(locale)
 
   const items = posts
     .map(post => {
       const url = `${siteUrl}/${locale}/blog/${post.slug}`
-      return `\n<item>\n<title><![CDATA[${post.frontmatter.title}]]></title>\n<link>${url}</link>\n<guid>${url}</guid>\n<pubDate>${formatRfc822(post.frontmatter.date)}</pubDate>\n<description><![CDATA[${post.frontmatter.summary}]]></description>\n</item>`
+      const safeUrl = escapeXmlText(url)
+      return `\n<item>\n<title>${toXmlCdata(post.frontmatter.title)}</title>\n<link>${safeUrl}</link>\n<guid>${safeUrl}</guid>\n<pubDate>${formatRfc822(post.frontmatter.publishedAt || post.frontmatter.date)}</pubDate>\n<description>${toXmlCdata(post.frontmatter.summary)}</description>\n</item>`
     })
     .join('\n')
 
@@ -28,3 +30,5 @@ export async function GET(_: Request, { params }: { params: Promise<{ locale: st
     }
   })
 }
+
+export const revalidate = 60

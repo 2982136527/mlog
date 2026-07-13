@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getAuthSession } from '@/lib/auth'
 import { MeDashboard } from '@/components/user/me-dashboard'
 import type { Locale } from '@/i18n/config'
+import { isAdminLogin } from '@/lib/admin/permissions'
 
 type MePageProps = {
   searchParams: Promise<{
@@ -27,5 +28,5 @@ export default async function MePage({ searchParams }: MePageProps) {
     redirect(`/me/login?${query.toString()}`)
   }
 
-  return <MeDashboard login={login} hasGistScope={Boolean(session.user.hasGistScope)} locale={locale} />
+  return <MeDashboard login={login} hasGistScope={Boolean(session.user.hasGistScope)} locale={locale} canManageAgentKeys={isAdminLogin(login)} />
 }

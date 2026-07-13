@@ -90,6 +90,8 @@ export type GithubHotCandidateScore = {
 
 export type GithubHotRunStatus =
   | 'PUBLISHED'
+  | 'PENDING_REVIEW'
+  | 'REFRESH_PENDING'
   | 'SKIPPED_DISABLED'
   | 'SKIPPED_ALREADY_PUBLISHED_TODAY'
   | 'SKIPPED_ALREADY_HEALTHY'
@@ -205,6 +207,8 @@ export type AiPaperEvidence = {
 
 export type AiPaperRunStatus =
   | 'PUBLISHED'
+  | 'PENDING_REVIEW'
+  | 'REFRESH_PENDING'
   | 'SKIPPED_DISABLED'
   | 'SKIPPED_ALREADY_PUBLISHED_TODAY'
   | 'SKIPPED_ALREADY_HEALTHY'
@@ -252,4 +256,65 @@ export type AiPaperGeneratedPost = {
   tags: string[]
   category: string
   markdown: string
+}
+
+// ─── Daily Blog Automation ───
+
+export type DailyBlogConfig = {
+  enabled: boolean
+  topicCategories: string[]
+  customTopics: string[]
+  excludeTopics: string[]
+  minLength: number
+  maxLength: number
+  source: 'ai_generated_daily'
+  timezone: 'Asia/Shanghai'
+  scheduleLocalHour: 9
+  updatedAt: string
+  updatedBy: 'admin' | 'system'
+}
+
+export type DailyBlogConfigUpdate = {
+  enabled: boolean
+  topicCategories?: string[]
+  customTopics?: string[]
+  excludeTopics?: string[]
+  minLength?: number
+  maxLength?: number
+}
+
+export type DailyBlogRunStatus =
+  | 'PUBLISHED'
+  | 'PENDING_REVIEW'
+  | 'REFRESH_PENDING'
+  | 'SKIPPED_DISABLED'
+  | 'SKIPPED_ALREADY_PUBLISHED_TODAY'
+  | 'SKIPPED_NO_TOPIC'
+  | 'SKIPPED_GENERATION_FAILED'
+
+export type DailyBlogRunResult = {
+  status: DailyBlogRunStatus
+  dateStamp: string
+  dateIso: string
+  triggerSource: AutomationTriggerSource
+  slug?: string
+  selectedTopic?: string
+  topicSource?: 'custom' | 'category'
+  reason?: string
+  changedPaths?: string[]
+  publish?: PublishResult
+  ai?: AdminAiResult
+  fixedTags?: string[]
+  quality?: {
+    passed: boolean
+    retryCount: number
+    failedChecks: string[]
+  }
+}
+
+export type DailyBlogLastRunState = {
+  requestId: string
+  actor: string
+  runAt: string
+  result: DailyBlogRunResult
 }

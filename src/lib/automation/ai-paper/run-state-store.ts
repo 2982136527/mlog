@@ -21,6 +21,8 @@ const lastRunSchema = z.object({
   result: z.object({
     status: z.enum([
       'PUBLISHED',
+      'PENDING_REVIEW',
+      'REFRESH_PENDING',
       'SKIPPED_DISABLED',
       'SKIPPED_ALREADY_PUBLISHED_TODAY',
       'SKIPPED_ALREADY_HEALTHY',
@@ -62,6 +64,10 @@ const lastRunSchema = z.object({
         prUrl: z.string(),
         merged: z.boolean(),
         mergeMessage: z.string().optional(),
+        mergeCommitSha: z.string().optional(),
+        branchSynchronized: z.boolean().optional(),
+        cacheInvalidated: z.boolean().optional(),
+        deploymentRequired: z.boolean().optional(),
         deploy: z
           .object({
             triggered: z.boolean(),

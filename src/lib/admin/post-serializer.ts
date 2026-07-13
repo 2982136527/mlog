@@ -4,7 +4,9 @@ import type { AdminLocale } from '@/types/admin'
 import type { AdminPostFrontmatterInput } from '@/types/admin'
 import type { PostFrontmatter } from '@/types/content'
 import { postFrontmatterSchema, slugSchema } from '@/lib/content/schema'
+import { parsePostMatter } from '@/lib/content/frontmatter'
 import { parseGithubRepoUrl } from '@/lib/blog/repo-cards-config'
+import { isAllowedPublicMediaUrl } from '@/lib/media/public-url'
 
 function isValidGithubRepoUrl(value: string): boolean {
   try {
@@ -23,7 +25,7 @@ export function buildPostMarkdownPath(slug: string, locale: AdminLocale): string
 }
 
 export function parseMarkdownFile(raw: string, fileLabel: string): { frontmatter: PostFrontmatter; markdown: string } {
-  const parsed = matter(raw)
+  const parsed = parsePostMatter(raw)
   const validated = postFrontmatterSchema.safeParse(parsed.data)
 
   if (!validated.success) {
@@ -45,20 +47,27 @@ export function serializeMarkdownFile(frontmatter: PostFrontmatter, markdown: st
 }
 
 export const adminPostFrontmatterInputSchema = z.object({
-  title: z.string().trim().min(1),
+  title: z.string().trim().min(1).max(240),
   date: z
     .string()
     .trim()
     .refine(value => !Number.isNaN(Date.parse(value)), 'date must be a valid ISO 8601 date string'),
-  summary: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  category: z.string().optional(),
-  cover: z.string().trim().optional(),
+  summary: z.string().max(2000).optional(),
+  tags: z.array(z.string().max(64)).max(20).optional(),
+  category: z.string().max(120).optional(),
+  cover: z.string().trim().max(2048)
+    .refine(value => !value || isAllowedPublicMediaUrl(value), 'cover must use the configured media repository/CDN or /images path')
+    .optional(),
   draft: z.boolean().optional(),
   updated: z
     .string()
     .trim()
     .refine(value => !Number.isNaN(Date.parse(value)), 'updated must be a valid ISO 8601 date string')
+    .optional(),
+  publishedAt: z
+    .string()
+    .trim()
+    .refine(value => !Number.isNaN(Date.parse(value)), 'publishedAt must be a valid ISO 8601 date string')
     .optional()
 })
 
@@ -104,6 +113,25 @@ export const adminPostWriteSchema = z.object({
   repoCards: adminRepoCardsInputSchema.optional()
 })
 
+export const adminPostSubmitSchema = adminPostWriteSchema.extend({
+  expectedAction: z.enum(['create', 'update'])
+})
+
+export function resolvePublishedAt(input: {
+  mode: 'publish' | 'draft'
+  existing: Pick<PostFrontmatter, 'draft' | 'publishedAt'> | null
+  incoming?: string
+  now: string
+}): string | undefined {
+  if (input.mode === 'draft') {
+    return input.existing?.publishedAt || input.incoming
+  }
+  if (!input.existing || input.existing.draft) {
+    return input.now
+  }
+  return input.existing.publishedAt || input.incoming
+}
+
 export function normalizeAdminFrontmatterInput(frontmatter: AdminPostFrontmatterInput): AdminPostFrontmatterInput {
   return {
     title: frontmatter.title.trim(),
@@ -113,6 +141,7 @@ export function normalizeAdminFrontmatterInput(frontmatter: AdminPostFrontmatter
     category: frontmatter.category?.trim(),
     cover: frontmatter.cover?.trim(),
     draft: frontmatter.draft,
-    updated: frontmatter.updated?.trim()
+    updated: frontmatter.updated?.trim(),
+    publishedAt: frontmatter.publishedAt?.trim()
   }
 }

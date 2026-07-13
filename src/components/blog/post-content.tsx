@@ -7,6 +7,7 @@ import { TagChip } from '@/components/ui/tag-chip'
 import { PostLiveCard } from '@/components/blog/post-live-card'
 import { PostStaticCard } from '@/components/blog/post-static-card'
 import { PostViewTracker } from '@/components/blog/post-view-tracker'
+import { PostCover } from '@/components/blog/post-cover'
 
 type PostContentProps = {
   locale: Locale
@@ -22,6 +23,12 @@ export function PostContent({ locale, post, html, showRepoCards = false, staticS
   return (
     <article className='prose-wrap min-w-0 rounded-3xl border border-white/65 bg-white/65 p-6 shadow-[0_24px_65px_-38px_rgba(120,45,20,0.4)] backdrop-blur sm:p-10'>
       <PostViewTracker locale={locale} slug={post.slug} title={post.frontmatter.title} />
+      <PostCover
+        src={post.frontmatter.cover}
+        alt={post.frontmatter.title}
+        priority
+        className='mb-7 aspect-[16/9] w-full rounded-lg border border-white/70'
+      />
       <div className='mb-4 flex flex-wrap gap-2'>
         <TagChip>{post.frontmatter.category}</TagChip>
         {post.frontmatter.tags.map(tag => (

@@ -3,14 +3,19 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { isLocale } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
-import { getAllLocalizedRouteParams, getLocalizedPost, getPost, getPostAsync, getPostNeighbors } from '@/lib/content'
+import {
+  getAllLocalizedRouteParams,
+  getLocalizedPostAsync,
+  getPostAsync,
+  getPostNeighborsAsync,
+  getRepoCardsConfigAsync
+} from '@/lib/content'
 import { createLocaleMetadata } from '@/lib/metadata'
 import { renderMarkdown } from '@/lib/markdown'
 import { PostContent } from '@/components/blog/post-content'
 import { PostToc } from '@/components/blog/post-toc'
 import { PostFallbackNotice } from '@/components/blog/post-fallback-notice'
 import { GiscusComments } from '@/components/blog/giscus-comments'
-import { getRepoCardsConfigFromLocal } from '@/lib/blog/repo-cards-config'
 import {
   extractHotDailyStaticSnapshot,
   isHotDailyTags,
@@ -33,7 +38,7 @@ export async function generateMetadata({ params }: BlogDetailProps): Promise<Met
     return {}
   }
 
-  const post = getLocalizedPost(locale, slug)
+  const post = await getLocalizedPostAsync(locale, slug)
   if (!post) {
     return {}
   }
@@ -42,7 +47,8 @@ export async function generateMetadata({ params }: BlogDetailProps): Promise<Met
     locale,
     title: post.frontmatter.title,
     description: post.frontmatter.summary,
-    path: `/${locale}/blog/${slug}`
+    path: `/${locale}/blog/${slug}`,
+    image: post.frontmatter.cover
   })
 }
 
@@ -54,14 +60,17 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
   }
 
   const dict = getDictionary(locale)
-  const fallbackPost = getLocalizedPost(locale, slug)
-  const post = fallbackPost || await getPostAsync(locale, slug).then(p => p ? { ...p, requestedLocale: locale, isFallback: false } : null)
+  const post = await getLocalizedPostAsync(locale, slug)
 
   if (!post) {
     notFound()
   }
 
-  const repoCardsConfig = getRepoCardsConfigFromLocal(post.slug)
+  const [repoCardsConfig, zhSource, neighbors] = await Promise.all([
+    getRepoCardsConfigAsync(post.slug),
+    getPostAsync('zh', post.slug),
+    getPostNeighborsAsync(post.locale, post.slug)
+  ])
   const isHotDaily = isHotDailyTags(post.frontmatter.tags)
   const showRepoCards = isHotDaily || repoCardsConfig.enabled
 
@@ -75,14 +84,12 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
       return null
     }
 
-    const zhSource = getPost('zh', post.slug)
     const sourcePost = zhSource || post
     return extractHotDailyStaticSnapshot(sourcePost.content, sourcePost.frontmatter.updated || sourcePost.frontmatter.date)
   })()
 
   const renderInput = showRepoCards ? stripConfirmedFactsSection(post.content).markdown : post.content
   const { html, toc } = await renderMarkdown(renderInput)
-  const neighbors = getPostNeighbors(post.locale, post.slug)
 
   return (
     <div className='pb-10'>
@@ -123,3 +130,5 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
     </div>
   )
 }
+
+export const revalidate = 60

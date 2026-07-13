@@ -7,7 +7,7 @@ import { slugSchema } from '@/lib/content/schema'
 import type { AdminRepoCardsInput, RepoCardsConfig } from '@/types/repo-cards'
 
 const CONTENT_ROOT = path.join(process.cwd(), 'content', 'posts')
-const GITHUB_REPO_IN_TEXT_RE = /https:\/\/github\.com\/[^\s<)"'`\\]+/gi
+const GITHUB_REPO_IN_TEXT_RE = /https:\/\/github\.com\/[a-z0-9_.-]+\/[a-z0-9_.-]+/gi
 
 const repoCardsConfigSchema = z.object({
   enabled: z.boolean(),

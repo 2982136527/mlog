@@ -15,7 +15,7 @@ MLog is a bilingual (`/zh`, `/en`) blog built with Next.js 16 App Router.
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 24+
 - pnpm 10+
 
 ## Quick Start
@@ -28,7 +28,11 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000), it redirects to `/zh`.
 
-For production builds, `pnpm build` runs `pnpm content:pull` first to sync private content (if content repo env vars are configured).
+For production builds, `pnpm build` runs `pnpm content:pull` first. Each content shard is downloaded as one GitHub tarball and installed as a consistent snapshot for initial prerendering. Until media migration is verified, it also installs historical `public/images/uploads` assets so existing `/images/uploads/**` URLs keep working. Later article updates do not depend on another build. Once runtime remote content is configured, read, authentication, or parsing failures fail closed instead of falling back to a build snapshot that could re-expose a deleted or withdrawn post.
+
+Public routes read a runtime GitHub content snapshot with a 60-second fallback cache. The Data Cache payload is compressed and guarded by aggregate download, expansion, file-count, and wall-clock budgets. When the application merges a PR for a normal post, draft state, or `repo-cards.json`, it immediately invalidates home, list, detail, RSS, and sitemap caches. For a manual GitHub merge or out-of-band edit, the first request after cache expiry starts a background refresh and subsequent requests read the new snapshot. New drafts remain excluded from public routes; changing a published post to draft hides it after refresh.
+
+These content changes do not call a Vercel Deploy Hook and do not require a rebuild. New Admin/Agent uploads write immutable, content-addressed files directly to the public repository configured by `IMAGE_GITHUB_*`; they create no image PR, do not modify the content repository, and never call the Deploy Hook. `VERCEL_DEPLOY_HOOK_URL` remains only for the migration-period legacy `public/images/uploads/**` workflow. Connect only the code repository to Vercel; never connect the content or image repository as an automatic deployment source. Tutorial docs mirroring does not call the Hook either. If the public mirror repository is also the Vercel-connected code repository, its Git integration may still create a deployment when the mirror PR merges; use a separate public mirror repository to eliminate that build.
 
 ## Theme Toggle (Public Site)
 
@@ -58,6 +62,8 @@ For production builds, `pnpm build` runs `pnpm content:pull` first to sync priva
 - `/api/cron/github-hot-daily-fallback` (Vercel cron fallback entry, bearer protected)
 - `/api/cron/ai-paper-daily` (AI paper digest cron entry, bearer protected)
 - `/api/cron/tutorial-sync` (Vercel cron entry, bearer protected)
+- `/api/cron/daily-blog` (daily topic post cron entry, bearer protected)
+- `/api/agent`, `/api/agent/post`, `/api/agent/upload`, `/api/agent/media/[id]` (an administrator key is required for writes and media-status reads)
 - `/api/blog/live-card?locale=zh|en&slug=<slug>` (public read-only live snapshot API for hot-daily posts)
 - `/api/user/history` (load user cloud history)
 - `/api/user/history/sync` (sync local history to private Gist)
@@ -75,6 +81,7 @@ category: string
 cover?: string
 draft?: boolean
 updated?: ISO date
+publishedAt?: ISO timestamp (system managed)
 ```
 
 If required fields are missing, build fails with the source file path.
@@ -98,6 +105,9 @@ If required fields are missing, build fails with the source file path.
 |---|---|
 | `NEXT_PUBLIC_SITE_URL` | absolute site URL for metadata and feeds |
 | `NEXTAUTH_URL` | auth callback base URL (local: `http://localhost:3000`) |
+| `POSTGRES_URL` | Postgres connection string required for Agent keys, durable media state, and upload rate limiting; recommended on Vercel |
+| `DATABASE_URL` | legacy compatibility for older paths; current media and Agent data still require `POSTGRES_URL` and cannot use this alone |
+| `MEDIA_RATE_LIMIT_HMAC_SECRET` | server-only HMAC secret for media rate-limit keys; at least 32 characters |
 | `NEXT_PUBLIC_GISCUS_REPO` | giscus repo (`owner/repo`) |
 | `NEXT_PUBLIC_GISCUS_REPO_ID` | giscus repo ID |
 | `NEXT_PUBLIC_GISCUS_CATEGORY` | giscus category |
@@ -117,13 +127,19 @@ If required fields are missing, build fails with the source file path.
 | `CONTENT_GITHUB_BASE_BRANCH` | private content base branch, default `main` |
 | `CONTENT_GITHUB_WRITE_TOKEN` | private content repo write token |
 | `CONTENT_GITHUB_READ_TOKEN` | private content repo read token |
+| `IMAGE_GITHUB_OWNER` | public image-repository owner; the existing MPic repository configuration can be reused |
+| `IMAGE_GITHUB_REPO` | public image-repository name |
+| `IMAGE_GITHUB_BRANCH` | image-repository branch, default `main` |
+| `IMAGE_GITHUB_TOKEN` | server-only image-repository token with Contents write access to the target repository |
+| `IMAGE_GITHUB_PATH_PREFIX` | isolated MLog prefix in the image repository, default `uploads/blog` |
+| `NEXT_PUBLIC_CDN_BASE_URL` | optional public HTTPS CDN base exposing the image-repository root; jsDelivr and GitHub Raw are also probed |
 | `PUBLIC_GITHUB_OWNER` | public code/docs repository owner |
 | `PUBLIC_GITHUB_REPO` | public code/docs repository name |
 | `PUBLIC_GITHUB_BASE_BRANCH` | public repo base branch, default `main` |
 | `PUBLIC_GITHUB_WRITE_TOKEN` | public repo write token (tutorial mirror) |
 | `ADMIN_AUTO_MERGE` | auto-merge PR after create, default `true` |
 | `CRON_SECRET` | bearer secret shared by cron routes (`/api/cron/github-hot-daily`, `/api/cron/github-hot-daily-fallback`, `/api/cron/ai-paper-daily`, `/api/cron/tutorial-sync`) |
-| `VERCEL_DEPLOY_HOOK_URL` | Vercel Deploy Hook URL; triggers production rebuild after merged content writes |
+| `VERCEL_DEPLOY_HOOK_URL` | migration compatibility only, for the legacy `public/images/uploads/**` workflow; new media, posts, drafts, repo cards, and tutorial mirrors never call it |
 | `TUTORIAL_SYNC_ENABLED` | enable tutorial sync cron, default `false` |
 | `PRIVACY_BLOCKLIST` | comma-separated sensitive words/domains for tutorial mirror blocking |
 | `AI_ENABLE` | enable server-side AI generation, default `true` |
@@ -158,9 +174,11 @@ If required fields are missing, build fails with the source file path.
 - All `/admin` pages and `/api/admin/*` APIs are admin-only (single-owner policy).
 - Publish flow:
   1. Admin edits content in `/admin/new` or `/admin/edit/[slug]`.
-  2. API writes Markdown/image changes into a new branch.
+  2. API writes Markdown changes into a new branch.
   3. API creates a PR and tries auto-merge.
-  4. If merge fails (for example branch protection), PR URL is returned for manual handling.
+  4. After a content merge, the runtime GitHub snapshot cache is invalidated; no Vercel build runs for posts, draft state, or repo cards.
+  5. If merge fails (for example branch protection), PR URL is returned for manual handling. Once merged manually, the 60-second fallback refresh applies.
+- New media flow: Admin/Agent -> validate and process -> write directly to the dedicated image repository -> availability probe -> `ready`. It creates no image PR and triggers no Vercel build. Only a URL with `status=ready` and `available=true` may be inserted into a body or cover.
 
 ### Admin APIs
 
@@ -168,11 +186,16 @@ If required fields are missing, build fails with the source file path.
 - `GET /api/admin/posts/[slug]`
 - `POST /api/admin/posts`
 - `DELETE /api/admin/posts/[slug]?locale=zh|en|all`
-- `POST /api/admin/media`
+- `GET|POST /api/admin/media`
+- `GET|DELETE /api/admin/media/[id]`
 - `GET /api/admin/automation/github-hot-daily`
 - `PUT /api/admin/automation/github-hot-daily`
 - `POST /api/admin/automation/github-hot-daily/run`
 - `GET /api/admin/automation/github-hot-daily/candidates`
+- `GET|PUT /api/admin/automation/daily-blog`
+- `POST /api/admin/automation/daily-blog/run`
+- `GET|PUT /api/admin/automation/ai-paper-daily`
+- `POST /api/admin/automation/ai-paper-daily/run`
 - `POST /api/admin/tutorials/mlog-open-source/sync`
 
 `POST /api/admin/posts` accepts optional `repoCards`:
@@ -181,6 +204,7 @@ If required fields are missing, build fails with the source file path.
 {
   "slug": "post-slug",
   "mode": "publish",
+  "expectedAction": "create",
   "changes": [],
   "repoCards": {
     "enabled": true,
@@ -189,11 +213,20 @@ If required fields are missing, build fails with the source file path.
 }
 ```
 
+`expectedAction` is required and must be `create` or `update`. Creating an existing slug returns `409`; updating a missing slug returns `404`. Agent publishing returns `200/published` only after the merge SHA is visible on the base branch and public-cache invalidation succeeds; otherwise it returns `202/pending_review` or `202/refresh_pending`.
+
+Media uploads use `multipart/form-data`: `file` is required and `alt` is optional. The upload endpoint returns `200/201`, `status=ready`, `available=true`, and non-null `url/markdown` only after an approved public URL is readable. While a CDN is propagating it returns `202 processing`, `available=false`, `url=null`, and `poll.url`. Call that URL with the same authentication according to `Retry-After` or `poll.afterMs`; do not reference the asset until the response is `ready + available=true`. Durable media state and rate-limit counters use Postgres. The runtime creates the required tables and indexes on first use, so its database role needs the corresponding DDL privileges; uploads fail closed when the database or limiter is unavailable.
+
+Historical `/images/uploads/**` URLs and build-time `content:pull` remain supported until migration finishes and a full-site zero-404 check passes. Do not remove the old files or disable the legacy asset pull early.
+
 ### Common Admin Failures
 
 - `401 UNAUTHORIZED`: not signed in.
 - `403 FORBIDDEN`: signed in account is not in `ADMIN_GITHUB_ALLOWLIST`.
 - `409 SHA_CONFLICT`: remote file changed after editor loaded; refresh editor and retry.
+- `429 MEDIA_RATE_LIMITED`: the media upload limit was exceeded; retry according to `Retry-After`.
+- `MEDIA_RATE_LIMIT_UNAVAILABLE`: Postgres or the rate-limit secret is unavailable, so the upload is rejected.
+- `MEDIA_CONFIG_INVALID`: dedicated image-repository, CDN, or media security configuration is incomplete.
 - `GITHUB_API_ERROR` with merge failure message: PR created but auto-merge blocked.
 - `AI_CONFIG_ERROR`: AI required for this submission but provider config is missing or disabled.
 - `AI_PROVIDER_UNAVAILABLE`: no configured provider found in runtime chain.
@@ -207,6 +240,7 @@ If required fields are missing, build fails with the source file path.
 ## User Center (Login + Activity)
 
 - Any signed-in GitHub user can access `/me`.
+- Only the strict administrator can create Agent API keys or call Agent write endpoints.
 - Default storage is browser localStorage.
 - The page shows recent reading history and recent comment interactions.
 - Optional cloud sync: after granting `gist` scope, history syncs to the user's private Gist (no database required).
@@ -248,7 +282,15 @@ If required fields are missing, build fails with the source file path.
   5. quality gate validates generated markdown (required H2 blocks, URL/timestamp presence, min length, fact consistency); one rewrite retry is allowed
   6. publish with existing admin publish pipeline (`mode=publish`) and auto-attach fixed tags `ai-auto`, `github-hot`
   7. EN content is auto-generated by existing translation flow
-  8. after merge, trigger Vercel deploy hook (if `VERCEL_DEPLOY_HOOK_URL` is configured)
+  8. after merge, invalidate the runtime content snapshot; no Vercel rebuild or Deploy Hook is needed
+
+## Daily Topic Automation
+
+- Trigger schedule: `Asia/Shanghai 09:00` (`0 1 * * *` UTC).
+- Disabled by default and configurable from `/admin`.
+- Supports category/custom topic pools, exclusions, body-length bounds, same-day de-duplication, and one quality rewrite.
+- Config is stored at `content/system/automation/daily-blog.json`.
+- Merged generated posts use the runtime content snapshot and do not trigger a Vercel build.
 
 ## Daily AI Paper Digest (Non-GitHub)
 
@@ -264,6 +306,7 @@ If required fields are missing, build fails with the source file path.
   - avoid historical repeats by paper hash (`arXiv id`)
 - Auto labels: `ai-paper`, `paper-daily`
 - Publish policy: AI quality gate + one rewrite retry + auto-publish on pass
+- Merged digests use the runtime content snapshot and do not trigger a Vercel build.
 
 ### Daily Writing Quality Strategy
 
@@ -316,7 +359,7 @@ If required fields are missing, build fails with the source file path.
   - candidate preview with score reasons
   - run now (manual one-shot, bypasses `enabled` switch; can be used for same-day backfill if 08:00 run failed)
   - force run now (admin-only, ignores same-day uniqueness limit for manual testing)
-  - last-run snapshot (status, reason, selected repo, slug, fixed tags, evidence completeness, quality gate result, deploy trigger result)
+  - last-run snapshot (status, reason, selected repo, slug, fixed tags, evidence completeness, quality gate result, merge/cache state)
 - Presets:
   - `mixed`, `ai_fun`, `dev_tools`, `creative_coding`, `hardcore_engineering`
   - `security`, `data_ai`, `mobile_dev`, `game_dev`, `design_ux`, `hardware_iot`, `browser_extension`, `productivity`
@@ -329,7 +372,8 @@ If required fields are missing, build fails with the source file path.
 - Whitelist slug: `mlog-open-source-deploy-guide` (fixed single item)
 - Source of truth: blog content in private content repo
 - Every tutorial sync refreshes tutorial frontmatter `updated` to current `Asia/Shanghai` date
-- When sync status is `SYNCED` and tutorial source changes are merged, the system auto-triggers `VERCEL_DEPLOY_HOOK_URL` so production picks up the new date without manual redeploy.
+- The tutorial source is normal article content: after merge, the runtime snapshot refreshes it without a rebuild.
+- Tutorial sync also writes the allowlisted files into a public repository, but it does not call the Deploy Hook. `docs/tutorials/**` is not a site build input. If that public repository is also the Vercel-connected code repository, its Git integration may still create a deployment when the mirror PR merges. Use a separate public mirror repository to eliminate that build.
 - Tutorial sync cron is disabled by default in this repo. To restore automation, add a schedule for `/api/cron/tutorial-sync` and set `TUTORIAL_SYNC_ENABLED=true`.
 - Mirror targets in public repo:
   - `docs/tutorials/mlog-open-source-deploy-guide.zh.md`
@@ -348,9 +392,10 @@ If required fields are missing, build fails with the source file path.
 ### 1) Repository bootstrap
 
 1. Create a public GitHub code repository (recommended name: `mlog`).
-2. Create a private content repository for posts/system/uploads.
-3. Push this project to `main`.
-4. Enable Discussions in the public repository (required by Giscus).
+2. Create a private content repository for posts/system; keep historical `public/images/uploads` there during migration.
+3. Prepare a public image repository, or reuse the repository currently configured for MPic, for all new uploads.
+4. Push this project to `main`.
+5. Enable Discussions in the public repository (required by Giscus).
 
 ### 2) Third-party setup
 
@@ -368,12 +413,12 @@ If required fields are missing, build fails with the source file path.
 
 ### 3) Vercel project
 
-1. Import the GitHub repo in Vercel.
+1. Import the public code repository in Vercel. Do not import or connect the private content or image repository; content commits and image writes must not create automatic Vercel deployments.
 2. Ensure framework is detected as Next.js and package manager is `pnpm`.
 3. Configure env vars for all environments (Production/Preview/Development) using `.env.example`.
-4. Strict dual-repo mode requires `CONTENT_GITHUB_*` and `PUBLIC_GITHUB_*` to be fully configured.
+4. Configure `CONTENT_GITHUB_*`, `PUBLIC_GITHUB_*`, `IMAGE_GITHUB_*`, Postgres, and `MEDIA_RATE_LIMIT_HMAC_SECRET`; keep every token and secret server-only.
 5. Add `CRON_SECRET` to Production environment.
-6. Add `VERCEL_DEPLOY_HOOK_URL` to Production environment (recommended for private-content auto refresh).
+6. Keep `VERCEL_DEPLOY_HOOK_URL` only while the legacy `public/images/uploads/**` workflow is still needed. New Admin/Agent uploads do not call it.
 7. Keep `vercel.json` committed so cron schedules are registered.
 8. Set production domain to `https://blog.<your-domain>`:
    - add domain in Vercel
@@ -385,7 +430,9 @@ If required fields are missing, build fails with the source file path.
 1. Admin signs in via `/admin/login` using allowlisted GitHub account.
 2. Admin edits in `/admin/new` or `/admin/edit/[slug]`.
 3. System creates PR and attempts auto-merge.
-4. If auto-merge is blocked, use returned PR URL for manual merge.
+4. A merged post, draft-state, or repo-cards change invalidates the runtime snapshot cache and appears without a rebuild.
+5. If auto-merge is blocked, use the returned PR URL for manual merge; the 60-second fallback then picks up the change.
+6. Upload media separately; if the API returns `202`, poll until `ready` before inserting the returned URL and publishing the post.
 
 ## Operational Checklist
 
@@ -414,6 +461,7 @@ If required fields are missing, build fails with the source file path.
 1. Rollback application:
    - In Vercel dashboard, promote a previous successful deployment to Production.
 2. Rollback content:
-   - Revert the corresponding Git commit/PR in GitHub and redeploy.
+   - Revert the corresponding commit/PR in the content repository. Normal Markdown and repo-cards rollbacks propagate through cache invalidation or the 60-second fallback without redeploying.
+   - Rebuild only when rolling back legacy `public/images/uploads/**` or application code that changes the build output. New immutable image-repository objects are not rolled back by rebuilding MLog.
 3. Rollback secrets:
-   - Rotate `AUTH_SECRET`, `AUTH_GITHUB_SECRET`, `CONTENT_GITHUB_WRITE_TOKEN`, and `PUBLIC_GITHUB_WRITE_TOKEN` if leakage is suspected.
+   - Rotate `AUTH_SECRET`, `AUTH_GITHUB_SECRET`, `CONTENT_GITHUB_WRITE_TOKEN`, `PUBLIC_GITHUB_WRITE_TOKEN`, `IMAGE_GITHUB_TOKEN`, and `MEDIA_RATE_LIMIT_HMAC_SECRET` if leakage is suspected.

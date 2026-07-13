@@ -6,6 +6,7 @@ import { listAdminPosts } from '@/lib/admin/posts-service'
 import { AdminDeleteButton } from '@/components/admin/admin-delete-button'
 import { AdminAutomationCard } from '@/components/admin/admin-automation-card'
 import { AdminAiPaperDailyCard } from '@/components/admin/admin-ai-paper-daily-card'
+import { AdminDailyBlogCard } from '@/components/admin/admin-daily-blog-card'
 import { AdminTutorialSyncCard } from '@/components/admin/admin-tutorial-sync-card'
 import { AdminHttpError } from '@/lib/admin/errors'
 import type { AdminPostSummary } from '@/types/admin'
@@ -68,6 +69,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       </section>
 
       <AdminAutomationCard />
+      <AdminDailyBlogCard />
       <AdminAiPaperDailyCard />
       <AdminTutorialSyncCard />
 

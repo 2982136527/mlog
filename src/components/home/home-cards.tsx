@@ -10,10 +10,11 @@ import { SectionTitle } from '@/components/ui/section-title'
 import { TagChip } from '@/components/ui/tag-chip'
 import { AccountEntryLink } from '@/components/auth/account-entry-link'
 import { formatDate } from '@/lib/date'
+import { PostCover } from '@/components/blog/post-cover'
 
 type HomeLatestPost = {
   slug: string
-  frontmatter: Pick<PostFrontmatter, 'title' | 'summary' | 'date'>
+  frontmatter: Pick<PostFrontmatter, 'title' | 'summary' | 'date' | 'cover'>
 }
 
 type HomeCardsProps = {
@@ -96,6 +97,11 @@ export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCar
 
           {latestPost ? (
             <div className='mt-4'>
+              <PostCover
+                src={latestPost.frontmatter.cover}
+                alt={latestPost.frontmatter.title}
+                className='mb-4 aspect-[16/9] w-full rounded-lg border border-white/70'
+              />
               <h3 className='font-title text-2xl leading-tight text-[var(--color-ink)]'>{latestPost.frontmatter.title}</h3>
               <p className='mt-3 line-clamp-3 text-sm leading-6 text-[var(--color-ink-soft)]'>{latestPost.frontmatter.summary}</p>
               <div className='mt-5 text-sm text-[var(--color-ink-soft)]'>{formatDate(latestPost.frontmatter.date, locale)}</div>

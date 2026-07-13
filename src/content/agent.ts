@@ -25,7 +25,7 @@ GET https://blog.20031104.xyz/api/agent
 读取返回内容，了解所有可用接口、参数格式和写作要求。
 
 ## 第二步：配置你的 API 密钥
-用户已为你生成了一个 API 密钥，替换下方 Authorization 头中的 <你的 API 密钥> 为实际密钥即可调用。
+站点管理员已为你生成了一个 API 密钥，替换下方 Authorization 头中的 <你的 API 密钥> 为实际密钥即可调用。
 
 ## 第三步：写作规范
 
@@ -73,7 +73,7 @@ category: "分类名称"
 - slug：英文小写字母+连字符，唯一标识
 - 内容：Markdown 格式，使用标题层级、列表、代码块等
 - 摘要：1-2句话概括文章内容
-- 文章中引用的图片需先通过 upload 接口上传
+- 文章中引用的图片需先通过 upload 接口上传；只有 \`ready\` 且 \`available=true\` 的媒体才能用于正文或封面
 
 ## 第四步：调用接口
 
@@ -106,8 +106,12 @@ POST https://blog.20031104.xyz/api/agent/upload
 Authorization: Bearer <你的 API 密钥>
 Content-Type: multipart/form-data
 file: <图片文件>
+alt: <可选的替代文本>
 
-返回: { "url": "/images/uploads/xxx.jpg" }
+图片会直接写入专用图仓，不创建图片 PR，也不触发 Vercel Deploy Hook。
+如果立即可用，接口返回 HTTP 200/201、status=ready、available=true 和非空 url/markdown。
+如果返回 HTTP 202 processing，使用相同的 Authorization，按 Retry-After 或 poll.afterMs 请求响应中的 poll.url。
+只有轮询结果为 status=ready、available=true 后，才能把返回的 url 或 markdown 写入文章。
 \`\`\`
 
 ## 第五步：任务流程
@@ -115,8 +119,8 @@ file: <图片文件>
 2. 获取你的 API 密钥
 3. 根据用户需求或自主选题确定文章主题
 4. 撰写中英文双语版本
-5. 通过 API 创建文章
-6. 如果有图片素材，先上传再引用
+5. 如果有图片素材，先上传；收到 202 时轮询到 \`ready + available=true\`
+6. 把 ready 媒体的 URL 写入正文或 cover，再通过 API 创建文章
 
 开始吧。`
 
@@ -207,6 +211,8 @@ Content-Type: application/json
 POST https://blog.20031104.xyz/api/agent/upload
 Authorization: Bearer <你的 API 密钥>
 file: <图片>
+
+如果返回 202，携带同一密钥轮询响应中的 poll.url；只有 ready 且 available=true 后才能引用 url/markdown。
 \`\`\`
 
 开始写吧。`
@@ -294,7 +300,7 @@ GET https://blog.20031104.xyz/api/agent
 Read the response to understand all available endpoints, parameter formats, and writing requirements.
 
 ## Step 2: Configure Your API Key
-Your user has already generated an API key for you. Replace <your-api-key> in the Authorization header below with the actual key before calling the API.
+The site administrator has already generated an API key for you. Replace <your-api-key> in the Authorization header below with the actual key before calling the API.
 
 ## Step 3: Writing Guidelines
 
@@ -342,7 +348,7 @@ Your training data has a cutoff date. Before writing about any specific product,
 - slug: Lowercase English letters plus hyphens, unique identifier
 - Content: Markdown format, use headings, lists, code blocks etc.
 - Summary: 1-2 sentences summarizing the post
-- Images must be uploaded via the upload endpoint first
+- Images must be uploaded first; only media with \`status=ready\` and \`available=true\` may be used in a body or cover
 
 ## Step 4: API Calls
 
@@ -375,8 +381,12 @@ POST https://blog.20031104.xyz/api/agent/upload
 Authorization: Bearer <your-api-key>
 Content-Type: multipart/form-data
 file: <image file>
+alt: <optional alternative text>
 
-Returns: { "url": "/images/uploads/xxx.jpg" }
+The file is written directly to the dedicated image repository. No image PR or Vercel Deploy Hook is created.
+An immediately available asset returns HTTP 200/201 with status=ready, available=true, and non-null url/markdown.
+For HTTP 202 processing, call the returned poll.url with the same Authorization according to Retry-After or poll.afterMs.
+Insert the returned url or markdown only after polling reports status=ready and available=true.
 \`\`\`
 
 ## Step 5: Workflow
@@ -384,8 +394,8 @@ Returns: { "url": "/images/uploads/xxx.jpg" }
 2. Get your API key
 3. Determine the topic based on user needs or your own choice
 4. Write bilingual Chinese and English versions
-5. Create the post via the API
-6. If there are images, upload them first and reference them in the content
+5. If there are images, upload them first and poll any 202 response until \`ready + available=true\`
+6. Put only ready media URLs in the body or cover, then create the post via the API
 
 Start writing.`
 
@@ -476,6 +486,8 @@ Upload an image:
 POST https://blog.20031104.xyz/api/agent/upload
 Authorization: Bearer <your-api-key>
 file: <image>
+
+For HTTP 202, call the returned poll.url with the same key. Reference url/markdown only after status=ready and available=true.
 \`\`\`
 
 Start writing.`
@@ -556,11 +568,11 @@ Go write. And no more mirrors.`
 export const agentContentByLocale: Record<Locale, AgentPageContent> = {
   zh: {
     heroTitle: 'AI Agent — 自动写文章',
-    heroSubtitle: 'MLog 提供了一套 Agent API，让 AI 可以自动撰写和发布双语博客文章。你可以把 AI 工具（Claude、OpenAI 等）连接到这个 API，让它帮你写博客。',
+    heroSubtitle: 'MLog 为站点管理员提供 Agent API，让 AI 可以自动撰写和发布双语博客文章。',
     getStartedTitle: '快速开始',
     getStartedSteps: [
-      '打开 https://blog.20031104.xyz/me，用 GitHub 登录',
-      '在「API 密钥」区域生成一个新密钥',
+      '使用站点管理员账号登录 https://blog.20031104.xyz/me',
+      '在「API 密钥」区域生成一个新密钥（普通用户无写权限）',
       '复制密钥，配置到你的 AI 工具中',
       'AI 工具通过 API 自动创建双语博客文章',
     ],
@@ -587,11 +599,11 @@ export const agentContentByLocale: Record<Locale, AgentPageContent> = {
   },
   en: {
     heroTitle: 'AI Agent — Auto-Publish Blog Posts',
-    heroSubtitle: 'MLog provides an Agent API that lets AI tools (Claude, OpenAI, etc.) automatically write and publish bilingual blog posts through your blog.',
+    heroSubtitle: 'MLog provides site administrators with an Agent API for writing and publishing bilingual blog posts.',
     getStartedTitle: 'Quick Start',
     getStartedSteps: [
-      'Open https://blog.20031104.xyz/me and sign in with GitHub',
-      'Generate an API key in the "API Keys" section',
+      'Sign in to https://blog.20031104.xyz/me with the site administrator account',
+      'Generate a key in "API Keys" (regular users cannot publish)',
       'Copy the key and configure it in your AI tool',
       'Your AI tool creates bilingual blog posts automatically via the API',
     ],

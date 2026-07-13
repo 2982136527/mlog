@@ -3,6 +3,7 @@ import {
   buildShardRepoEnv,
   getContentGithubReadEnv,
   getContentGithubReadEnvForRepo,
+  getContentGithubShardPrefix,
   getAdminGithubEnv,
   type GithubRepoEnv
 } from '@/lib/admin/env'
@@ -16,13 +17,13 @@ import {
   mergePullRequest,
   upsertFile
 } from '@/lib/admin/github-client'
-import type { GithubRepoTarget } from '@/lib/admin/github-client'
 
 const SHARD_REGISTRY_PATH = 'content/system/shards.json'
+export const MAX_CONTENT_SHARDS = 16
 
 const shardEntrySchema = z.object({
   id: z.string(),
-  repo: z.string(),
+  repo: z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/),
   status: z.enum(['active', 'archived']),
   createdAt: z.string(),
   lastSizeCheckAt: z.string(),
@@ -30,14 +31,53 @@ const shardEntrySchema = z.object({
 })
 
 const shardRegistrySchema = z.object({
-  version: z.number(),
-  shards: z.array(shardEntrySchema),
+  version: z.number().int().positive(),
+  shards: z.array(shardEntrySchema).min(1).max(MAX_CONTENT_SHARDS),
   activeShardId: z.string(),
   updatedAt: z.string()
+}).superRefine((registry, ctx) => {
+  const ids = new Set<string>()
+  const repos = new Set<string>()
+  for (const [index, shard] of registry.shards.entries()) {
+    const repoKey = shard.repo.toLowerCase()
+    if (ids.has(shard.id)) {
+      ctx.addIssue({ code: 'custom', path: ['shards', index, 'id'], message: `duplicate shard id: ${shard.id}` })
+    }
+    if (repos.has(repoKey)) {
+      ctx.addIssue({ code: 'custom', path: ['shards', index, 'repo'], message: `duplicate shard repo: ${shard.repo}` })
+    }
+    ids.add(shard.id)
+    repos.add(repoKey)
+  }
+
+  const active = registry.shards.filter(shard => shard.status === 'active')
+  if (active.length !== 1 || active[0]?.id !== registry.activeShardId) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['activeShardId'],
+      message: 'activeShardId must reference the only active shard'
+    })
+  }
 })
 
 export type ShardEntry = z.infer<typeof shardEntrySchema>
 export type ShardRegistry = z.infer<typeof shardRegistrySchema>
+
+function assertRegistryMatchesEnvironment(registry: ShardRegistry, primaryRepo: string): void {
+  const primaryCount = registry.shards.filter(shard => shard.repo.toLowerCase() === primaryRepo.toLowerCase()).length
+  if (primaryCount !== 1) {
+    throw new Error(`Shard registry must contain primary repository exactly once: ${primaryRepo}`)
+  }
+
+  const prefix = getContentGithubShardPrefix().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const shardNamePattern = new RegExp(`^${prefix}-shard-[1-9]\\d*$`)
+  for (const shard of registry.shards) {
+    const repo = shard.repo.toLowerCase()
+    if (repo !== primaryRepo.toLowerCase() && !shardNamePattern.test(repo)) {
+      throw new Error(`Shard repository is outside the configured namespace: ${shard.repo}`)
+    }
+  }
+}
 
 function buildSyntheticRegistry(): ShardRegistry {
   const primaryRepo = getAdminGithubEnv()
@@ -78,12 +118,11 @@ export async function loadShardRegistry(): Promise<ShardRegistry> {
 
   try {
     const parsed = shardRegistrySchema.parse(JSON.parse(file.content))
+    assertRegistryMatchesEnvironment(parsed, primaryEnv.repo)
     cachedRegistry = { registry: parsed, loadedAt: Date.now() }
     return parsed
-  } catch {
-    const synthetic = buildSyntheticRegistry()
-    cachedRegistry = { registry: synthetic, loadedAt: Date.now() }
-    return synthetic
+  } catch (error) {
+    throw new Error(`Invalid shard registry: ${error instanceof Error ? error.message : error}`)
   }
 }
 
@@ -91,12 +130,19 @@ export function invalidateShardRegistryCache(): void {
   cachedRegistry = null
 }
 
-export async function saveShardRegistry(registry: ShardRegistry): Promise<void> {
+export async function saveShardRegistry(registry: ShardRegistry): Promise<{
+  prNumber: number
+  prUrl: string
+  merged: boolean
+  mergeMessage: string
+}> {
+  const validatedRegistry = shardRegistrySchema.parse(registry)
   const env = getAdminGithubEnv()
+  assertRegistryMatchesEnvironment(validatedRegistry, env.repo)
   const branch = buildBranchName('automation', 'shard-registry-update')
 
   const existing = await getRepoTextFile(SHARD_REGISTRY_PATH, env.baseBranch, env)
-  const content = JSON.stringify(registry, null, 2)
+  const content = JSON.stringify(validatedRegistry, null, 2)
 
   await createBranch(branch, env)
 
@@ -105,7 +151,7 @@ export async function saveShardRegistry(registry: ShardRegistry): Promise<void> 
       path: SHARD_REGISTRY_PATH,
       contentBase64: encodeTextBase64(content),
       branch,
-      message: `Update shard registry (${registry.activeShardId})`,
+      message: `Update shard registry (${validatedRegistry.activeShardId})`,
       sha: existing?.sha
     },
     env
@@ -113,26 +159,32 @@ export async function saveShardRegistry(registry: ShardRegistry): Promise<void> 
 
   const pr = await createPullRequest(
     {
-      title: `Update shard registry: active=${registry.activeShardId}`,
-      body: `Shard registry update\n\nActive shard: ${registry.activeShardId}\nTotal shards: ${registry.shards.length}`,
+      title: `Update shard registry: active=${validatedRegistry.activeShardId}`,
+      body: `Shard registry update\n\nActive shard: ${validatedRegistry.activeShardId}\nTotal shards: ${validatedRegistry.shards.length}`,
       head: branch,
       base: env.baseBranch
     },
     env
   )
 
-  if (env.autoMerge) {
-    await mergePullRequest(pr.number, env)
-  }
+  const merge = env.autoMerge
+    ? await mergePullRequest(pr.number, env)
+    : { merged: false, message: 'Auto merge disabled' }
 
   invalidateShardRegistryCache()
+  return {
+    prNumber: pr.number,
+    prUrl: pr.html_url,
+    merged: merge.merged,
+    mergeMessage: merge.message
+  }
 }
 
 export async function getActiveShardEnv(): Promise<GithubRepoEnv> {
   const registry = await loadShardRegistry()
   const active = registry.shards.find(s => s.id === registry.activeShardId)
   if (!active) {
-    return buildShardRepoEnv(getAdminGithubEnv().repo)
+    throw new Error(`Active shard is missing from registry: ${registry.activeShardId}`)
   }
   return buildShardRepoEnv(active.repo)
 }
@@ -155,18 +207,17 @@ async function buildSlugShardMap(): Promise<Map<string, string>> {
   const map = new Map<string, string>()
 
   for (const shard of registry.shards) {
-    const shardEnv = buildShardRepoEnv(shard.repo)
     const readEnv = getContentGithubReadEnvForRepo(shard.repo)
-    try {
-      const paths = await listContentMarkdownPaths(readEnv.baseBranch, readEnv)
-      for (const p of paths) {
-        const match = p.match(/^content\/posts\/([^/]+)\/(zh|en)\.md$/)
-        if (match) {
-          map.set(match[1], shard.repo)
+    const paths = await listContentMarkdownPaths(readEnv.baseBranch, readEnv)
+    for (const p of paths) {
+      const match = p.match(/^content\/posts\/([^/]+)\/(zh|en)\.md$/)
+      if (match) {
+        const existingRepo = map.get(match[1])
+        if (existingRepo && existingRepo !== shard.repo) {
+          throw new Error(`Duplicate post slug across shards: ${match[1]} (${existingRepo}, ${shard.repo})`)
         }
+        map.set(match[1], shard.repo)
       }
-    } catch {
-      // Shard may not exist yet or be inaccessible
     }
   }
 
@@ -190,18 +241,24 @@ export async function findShardForPost(slug: string): Promise<GithubRepoEnv | nu
 export async function listAllContentMarkdownPaths(): Promise<Map<string, GithubRepoEnv>> {
   const registry = await loadShardRegistry()
   const result = new Map<string, GithubRepoEnv>()
+  const slugOwners = new Map<string, string>()
 
   for (const shard of registry.shards) {
     const readEnv = getContentGithubReadEnvForRepo(shard.repo)
-    try {
-      const paths = await listContentMarkdownPaths(readEnv.baseBranch, readEnv)
-      for (const p of paths) {
-        if (!result.has(p)) {
-          result.set(p, buildShardRepoEnv(shard.repo))
-        }
+    const paths = await listContentMarkdownPaths(readEnv.baseBranch, readEnv)
+    for (const p of paths) {
+      const match = p.match(/^content\/posts\/([^/]+)\/(zh|en)\.md$/)
+      if (!match) continue
+
+      const existingRepo = slugOwners.get(match[1])
+      if (existingRepo && existingRepo !== shard.repo) {
+        throw new Error(`Duplicate post slug across shards: ${match[1]} (${existingRepo}, ${shard.repo})`)
       }
-    } catch {
-      // Skip inaccessible shards
+      slugOwners.set(match[1], shard.repo)
+      if (result.has(p)) {
+        throw new Error(`Duplicate content path across shards: ${p}`)
+      }
+      result.set(p, buildShardRepoEnv(shard.repo))
     }
   }
 

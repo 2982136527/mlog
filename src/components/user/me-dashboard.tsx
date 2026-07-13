@@ -17,6 +17,7 @@ type MeDashboardProps = {
   login: string
   hasGistScope: boolean
   locale: Locale
+  canManageAgentKeys: boolean
 }
 
 function formatDateTime(value: string, locale: Locale): string {
@@ -61,7 +62,7 @@ function PostLinkItem({
   )
 }
 
-export function MeDashboard({ login, hasGistScope, locale }: MeDashboardProps) {
+export function MeDashboard({ login, hasGistScope, locale, canManageAgentKeys }: MeDashboardProps) {
   const copy =
     locale === 'zh'
       ? {
@@ -165,6 +166,9 @@ export function MeDashboard({ login, hasGistScope, locale }: MeDashboardProps) {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
+    if (!canManageAgentKeys) {
+      return
+    }
     let mounted = true
     fetch('/api/user/api-keys')
       .then(r => r.json())
@@ -175,7 +179,7 @@ export function MeDashboard({ login, hasGistScope, locale }: MeDashboardProps) {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [canManageAgentKeys])
 
   async function handleGenerate() {
     if (!keyName.trim()) return
@@ -397,7 +401,7 @@ export function MeDashboard({ login, hasGistScope, locale }: MeDashboardProps) {
         {message ? <p className='mt-3 rounded-xl border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm text-[var(--color-ink-soft)]'>{message}</p> : null}
       </section>
 
-      <section className='rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur'>
+      {canManageAgentKeys ? <section className='rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur'>
         <h2 className='font-title text-2xl text-[var(--color-ink)]'>{copy.apiKeyTitle}</h2>
         <p className='mt-2 text-sm text-[var(--color-ink-soft)]'>{copy.apiKeyDescription}</p>
 
@@ -489,7 +493,7 @@ export function MeDashboard({ login, hasGistScope, locale }: MeDashboardProps) {
             ))}
           </ul>
         )}
-      </section>
+      </section> : null}
 
       <section className='rounded-2xl border border-white/70 bg-white/60 p-4 backdrop-blur'>
         <h2 className='font-title text-2xl text-[var(--color-ink)]'>{copy.readTitle}</h2>

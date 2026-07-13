@@ -24,6 +24,14 @@
 .DS_Store
 *.pem
 .tmp-*.png
+/.playwright-cli/
+/output/playwright/
+/.content-pull-tmp-*
+/.media-migration/
+/content/posts.content-pull-backup-*
+/content/system.content-pull-backup-*
+/public/images/uploads.content-pull-backup-*
+/mlog
 
 # debug
 npm-debug.log*

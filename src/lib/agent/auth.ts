@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { sql } from '@vercel/postgres'
 import { AdminHttpError } from '@/lib/admin/errors'
 import { ensureUserAutomationSchema } from '@/lib/user/db'
+import { isAdminLogin } from '@/lib/admin/permissions'
 import type { NextRequest } from 'next/server'
 
 export class AgentAuthError extends AdminHttpError {
@@ -25,18 +26,20 @@ export async function validateAgentRequest(request: NextRequest): Promise<string
 
   await ensureUserAutomationSchema()
 
-  const result = await sql<{ user_login: string }>`
-    SELECT user_login FROM user_api_keys
-    WHERE key_hash = ${keyHash} AND is_active = TRUE
+  const result = await sql<{ user_login: string; status: string }>`
+    SELECT keys.user_login, profiles.status
+    FROM user_api_keys AS keys
+    INNER JOIN user_profiles AS profiles ON profiles.login = keys.user_login
+    WHERE keys.key_hash = ${keyHash} AND keys.is_active = TRUE
     LIMIT 1
   `
 
   const row = result.rows[0]
-  if (!row) {
+  if (!row || row.status !== 'active' || !isAdminLogin(row.user_login)) {
     throw new AgentAuthError('Invalid or revoked API key.')
   }
 
-  sql`UPDATE user_api_keys SET last_used_at = NOW() WHERE key_hash = ${keyHash}`.catch(() => {})
+  await sql`UPDATE user_api_keys SET last_used_at = NOW() WHERE key_hash = ${keyHash}`.catch(() => {})
 
   return row.user_login
 }
