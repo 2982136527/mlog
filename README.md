@@ -221,6 +221,45 @@ publishedAt?: ISO timestamp（系统维护）
 
 迁移完成并通过全站零 404 验证前，历史 `/images/uploads/**` 和构建期 `content:pull` 保持兼容；不要提前删除旧文件或关闭旧资源拉取。
 
+## Agent API（AI 自动发文章 + 图片上传）
+
+Agent API 是一组专为 AI Agent 设计的 HTTP 接口，支持自动发布双语博客文章和上传图片。所有写操作（`POST`）需要 Bearer Token 认证，Secret Key 在「我的」页面生成。
+
+完整 API 规范通过 `GET /api/agent` 获取——建议先请求该端点，获得最新的请求/响应格式、示例值和 curl 示例。
+
+### 端点总览
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `GET` | `/api/agent` | 获取完整 API 规范（含 OpenAI function tool 格式） |
+| `POST` | `/api/agent/post` | 创建双语博客文章 |
+| `POST` | `/api/agent/upload` | 上传图片到专用图仓 |
+| `GET` | `/api/agent/media/{id}` | 查询图片上传状态（轮询） |
+
+### 写文章 —— POST /api/agent/post
+
+- slug 唯一标识，不重复；已存在返回 409
+- 响应状态：`published` / `refresh_pending` / `pending_review`
+- 只有 `200/published` 才确认文章公开可用
+- 内容变更**不触发 Vercel 重新构建**，修改后数秒内即可在网站看到
+- Agent 写的文章自动附带 `publishedAt` 时间戳，保证按照发布时间正确排序
+
+### 上传图片 —— POST /api/agent/upload
+
+- 使用 `multipart/form-data`：file 字段传图片，alt 字段传可选描述
+- 支持的格式：jpg / png / gif / webp
+- 响应状态：`ready` / `processing` / `failed`
+- 只有 `ready` + `available=true` 后才可引用返回的 url/markdown 写入文章
+- 如果返回 `202 processing`，按 Retry-After 或 poll.url 轮询直至状态变为 ready
+- 图片直接写入专用图仓，不创建 PR、不触发 Vercel 构建
+
+### 轮询媒体状态 —— GET /api/agent/media/{id}
+
+- 200 时媒体已就绪，返回 url 和 markdown
+- 202 时继续轮询（建议间隔 2 秒）
+- 图片可用后才可插入文章正文或封面
+
+
 ## AI 写作增强
 
 - AI 仅在服务端执行，不下发密钥。

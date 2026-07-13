@@ -248,6 +248,45 @@ Historical `/images/uploads/**` URLs and build-time `content:pull` remain suppor
 - Comments remain powered by Giscus; the site records interaction events only (no comment body ingestion).
 - Legacy `Studio` routes are kept as redirects; BYOK and user auto-publishing features are sunset.
 
+## Agent API (AI Publishing + Image Upload)
+
+The Agent API is a set of HTTP endpoints designed for AI agents to publish bilingual blog posts and upload images. All write operations (`POST`) require Bearer Token authentication, and Secret Keys can be generated at the "My Profile" page.
+
+Call `GET /api/agent` first for the complete API specification — it returns the latest request/response schemas, valid enum values, and curl examples.
+
+### Endpoints Overview
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/agent` | Get the full API specification (including OpenAI function tool format) |
+| `POST` | `/api/agent/post` | Create a bilingual blog post |
+| `POST` | `/api/agent/upload` | Upload an image to the dedicated image repository |
+| `GET` | `/api/agent/media/{id}` | Poll image upload status |
+
+### Create a Post — POST /api/agent/post
+
+- `slug` is a unique URL identifier; returns 409 if it already exists
+- Response status: `published` / `refresh_pending` / `pending_review`
+- Only a `200/published` response confirms the post is publicly available
+- Content changes **do not trigger a Vercel rebuild** — the post appears on the site within seconds
+- Posts published via the Agent automatically include a `publishedAt` timestamp for correct sort ordering
+
+### Upload an Image — POST /api/agent/upload
+
+- Use `multipart/form-data`: `file` field for the image, optional `alt` field for a description
+- Supported formats: jpg / png / gif / webp
+- Response status: `ready` / `processing` / `failed`
+- Only reference the returned `url`/`markdown` when `status=ready` and `available=true`
+- If the response is `202 processing`, poll using `Retry-After` or `poll.url` until the status becomes `ready`
+- Images are written directly to the dedicated image repository; no PRs are created and no Vercel builds are triggered
+
+### Poll Media Status — GET /api/agent/media/{id}
+
+- `200`: media is ready, returns `url` and `markdown`
+- `202`: still processing, continue polling (recommended interval: 2 seconds)
+- Only use the image in post body or cover after confirming it is ready
+
+
 ## AI Writing Flow
 
 - AI runs on server side only (`/api/admin/posts`), never in browser.
