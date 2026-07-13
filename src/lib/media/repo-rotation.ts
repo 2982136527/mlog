@@ -39,19 +39,100 @@ export function getRotationConfig(): RotationConfig {
 // ---------------------------------------------------------------------------
 
 export async function ensureRepoRegistry(
-  env: { owner: string; repo: string; branch: string; pathPrefix: string },
+  env?: { owner?: string; repo?: string; branch?: string; pathPrefix?: string },
 ): Promise<void> {
-  const existing = await sql<RepoRegistryEntry>`
-    SELECT id FROM image_repo_registry
-    WHERE owner = ${env.owner} AND repo = ${env.repo}
-    LIMIT 1
-  `
-  if (existing.rows.length > 0) return
+  // If registry already has entries, nothing to do
+  const count = await sql<{ count: number }>`SELECT COUNT(*)::int AS count FROM image_repo_registry`
+  if (count.rows[0]?.count > 0) return
+
+  // Resolve credentials — prefer IMAGE_GITHUB_* but fall back to CONTENT_GITHUB_*
+  const imageToken = (process.env.IMAGE_GITHUB_TOKEN || '').trim()
+  const fallbackToken = (process.env.CONTENT_GITHUB_WRITE_TOKEN || '').trim()
+  const token = imageToken || fallbackToken
+  if (!token) {
+    throw new MediaError({
+      status: 500,
+      code: 'MEDIA_CONFIG_INVALID',
+      message: 'No GitHub token available for image repository. Set IMAGE_GITHUB_TOKEN or CONTENT_GITHUB_WRITE_TOKEN.',
+      retryable: false,
+    })
+  }
+
+  // Determine the GitHub owner (username) from the token
+  let owner = (env?.owner || process.env.IMAGE_GITHUB_OWNER || process.env.CONTENT_GITHUB_OWNER || '').trim()
+  if (!owner) {
+    try {
+      const userResp = await fetch('https://api.github.com/user', {
+        headers: { Authorization: `Bearer ${token}`, 'User-Agent': 'mlog-repo-rotation' },
+        signal: AbortSignal.timeout(10_000),
+      })
+      if (userResp.ok) {
+        const userData = (await userResp.json()) as { login?: string }
+        owner = userData.login || ''
+      }
+    } catch {
+      // fall through
+    }
+  }
+  if (!owner) {
+    throw new MediaError({
+      status: 500, code: 'MEDIA_CONFIG_INVALID',
+      message: 'Could not determine GitHub owner for image repository. Set IMAGE_GITHUB_OWNER or CONTENT_GITHUB_OWNER.',
+      retryable: false,
+    })
+  }
+
+  // Determine repo name — use configured or auto-generate
+  const config = getRotationConfig()
+  let repo = (env?.repo || process.env.IMAGE_GITHUB_REPO || '').trim()
+  if (!repo) {
+    repo = `${config.repoPrefix}-1`
+  }
+
+  const branch = (env?.branch || process.env.IMAGE_GITHUB_BRANCH || 'main').trim()
+  const pathPrefix = (env?.pathPrefix || process.env.IMAGE_GITHUB_PATH_PREFIX || 'uploads/blog').trim()
+
+  // Check if repo exists on GitHub; create it if not
+  const repoUrl = `${GITHUB_API_BASE}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`
+  const checkResp = await fetch(repoUrl, {
+    headers: { Authorization: `Bearer ${token}`, 'User-Agent': 'mlog-repo-rotation' },
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (checkResp.status === 404) {
+    const createResp = await fetch('https://api.github.com/user/repos', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`, 'User-Agent': 'mlog-repo-rotation',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: repo,
+        description: 'MLog image repository (auto-created)',
+        auto_init: true,
+        private: false,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    })
+    if (!createResp.ok) {
+      const body = await createResp.json().catch(() => ({}))
+      throw new MediaError({
+        status: 502, code: 'MEDIA_STORAGE_UNAVAILABLE',
+        message: `Failed to create image repository "${repo}". GitHub: ${(body as Record<string, unknown>)?.message || createResp.statusText}`,
+        retryable: false,
+      })
+    }
+  } else if (!checkResp.ok) {
+    throw new MediaError({
+      status: 502, code: 'MEDIA_STORAGE_UNAVAILABLE',
+      message: `GitHub API returned ${checkResp.status} when checking repository.`,
+      retryable: true,
+    })
+  }
 
   await sql`
     INSERT INTO image_repo_registry (owner, repo, branch, path_prefix, is_active)
-    VALUES (${env.owner}, ${env.repo}, ${env.branch}, ${env.pathPrefix}, true)
-    ON CONFLICT (owner, repo) DO NOTHING
+    VALUES (${owner}, ${repo}, ${branch}, ${pathPrefix}, true)
+    ON CONFLICT (owner, repo) DO UPDATE SET is_active = true, branch = ${branch}, path_prefix = ${pathPrefix}
   `
 }
 

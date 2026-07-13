@@ -48,7 +48,6 @@ describe('readMediaConfig', () => {
   })
 
   it.each([
-    ['missing token', { ...baseEnv, IMAGE_GITHUB_TOKEN: '' }],
     ['unsafe prefix', { ...baseEnv, IMAGE_GITHUB_PATH_PREFIX: '../private' }],
     ['invalid branch', { ...baseEnv, IMAGE_GITHUB_BRANCH: 'main..backup' }],
     ['plain HTTP CDN', { ...baseEnv, NEXT_PUBLIC_CDN_BASE_URL: 'http://img.example.com' }],
@@ -60,8 +59,10 @@ describe('readMediaConfig', () => {
 
   it('never includes a token value in configuration errors', () => {
     const token = 'secret-token-that-must-not-appear'
+    // Token validation is now done at upload time, not config time.
+    // This test verifies that a different field's error doesn't leak the token.
     try {
-      readMediaConfig({ ...baseEnv, IMAGE_GITHUB_TOKEN: `${token}\n` })
+      readMediaConfig({ ...baseEnv, IMAGE_GITHUB_BRANCH: 'main..backup', IMAGE_GITHUB_TOKEN: `${token}\n` })
       throw new Error('expected invalid configuration')
     } catch (error) {
       expect(error).toBeInstanceOf(MediaError)

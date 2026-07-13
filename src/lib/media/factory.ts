@@ -40,12 +40,7 @@ export function getMediaStorageFor(locator: MediaProviderLocator): GitHubMediaSt
 async function seedRepoRegistry(config: ReturnType<typeof readMediaConfig>): Promise<void> {
   try {
     await ensureRepoSchema()
-    await ensureRepoRegistry({
-      owner: config.github.owner,
-      repo: config.github.repo,
-      branch: config.github.branch,
-      pathPrefix: config.pathPrefix,
-    })
+    await ensureRepoRegistry()
   } catch {
     // Non-blocking — if the registry table isn't available, rotation can't
     // happen but regular uploads still work.

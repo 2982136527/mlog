@@ -146,14 +146,15 @@ function normalizeCdnBaseUrl(input: string | undefined): string | undefined {
 }
 
 export function readMediaConfig(env: MediaEnv = process.env): MediaConfig {
-  const owner = requiredValue(env, 'IMAGE_GITHUB_OWNER')
-  const repo = requiredValue(env, 'IMAGE_GITHUB_REPO')
-  const token = requiredValue(env, 'IMAGE_GITHUB_TOKEN')
+  // IMAGE_GITHUB_* is preferred; fall back to CONTENT_GITHUB_* for zero-config.
+  const owner = (env.IMAGE_GITHUB_OWNER || env.CONTENT_GITHUB_OWNER || '').trim()
+  const token = (env.IMAGE_GITHUB_TOKEN || env.CONTENT_GITHUB_WRITE_TOKEN || '').trim()
+  const repo = (env.IMAGE_GITHUB_REPO || '').trim()
 
-  if (!OWNER_RE.test(owner)) {
+  if (owner && !OWNER_RE.test(owner)) {
     throw mediaConfigError('IMAGE_GITHUB_OWNER is invalid.')
   }
-  if (!REPO_RE.test(repo) || repo === '.' || repo === '..') {
+  if (repo && (!REPO_RE.test(repo) || repo === '.' || repo === '..')) {
     throw mediaConfigError('IMAGE_GITHUB_REPO is invalid.')
   }
   const configuredMaxBytes = Number(env.IMAGE_GITHUB_MAX_REPOSITORY_BYTES || DEFAULT_MAX_REPOSITORY_BYTES)
