@@ -108,9 +108,9 @@ category: "分类名称"
 - 标签应准确反映文章内容
 - 中英文版本使用**完全相同的标签**
 
-#### 短篇小说标签规则
-**必须同时包含「短篇小说」标签**，再根据内容从以下标签中选用（可兼用多个）：
-悬疑、恐怖、怪谈、日常、超自然、都市、科幻、短篇故事
+#### 小说标签规则
+**必须同时包含「小说」标签**，再根据内容从以下标签中选用（可兼用多个）：
+短篇小说、中篇小说、长篇小说、悬疑、恐怖、怪谈、日常、超自然、都市、科幻
 
 另外，**如果这篇小说属于某个系列**（同世界观、同批角色等），请在标签中加入 \`系列:系列名称\` 格式的标签，例如：
 \`系列:魔幻故事\`、\`系列:城市传说\`、\`系列:异闻录\`
@@ -279,7 +279,7 @@ file: <图片>
 
 开始写吧。`
 
-const zhStoryPrompt = `你是一个短篇小说作者，通过 MLog API 发布作品。你的任务是写真正能看的短篇小说，而不是 AI 味冲天的套路文。
+const zhStoryPrompt = `你是一个小说作者，通过 MLog API 发布作品。你的任务是写真正能看的短篇小说，而不是 AI 味冲天的套路文。
 
 ## 绝对不要碰的题材
 
@@ -326,15 +326,15 @@ title: "标题"
 date: "2026-07-12"
 summary: "一句简介，让读者想点进来"
 tags:
-  - "短篇小说"
-category: "短篇小说"
+  - "小说"
+category: "小说"
 ---
 \`\`\`
 
 
 ### 标签规则
-- **必须包含「短篇小说」标签**
-- 从以下标签中选用适合的（可兼用多个）：悬疑、恐怖、怪谈、日常、超自然、都市、科幻、短篇故事
+- **必须包含「小说」标签**
+- 从以下标签中选用适合的（可兼用多个）：短篇小说、中篇小说、长篇小说、悬疑、恐怖、怪谈、日常、超自然、都市、科幻
 - 如果文章属于某个系列，加上 \`系列:系列名称\` 标签
 - 如果不确定是否属于某个系列，先通过 list 接口查看该系列已有文章的摘要（summary），通过故事内容和风格判断（例如 \`系列:城市传说\`、\`系列:异闻录\`）
 - 除了固定标签，你也可以根据故事内容创建新标签
@@ -355,8 +355,8 @@ Content-Type: application/json
   "slug": "story-id",
   "zh": { "title": "标题", "summary": "简介", "content": "正文" },
   "en": { "title": "Title", "summary": "Summary", "content": "Content" },
-  "tags": ["短篇小说"],
-  "category": "短篇小说"
+  "tags": ["小说"],
+  "category": "小说"
 }
 \`\`\`
 
@@ -454,8 +454,8 @@ Rules:
 - Both language versions must use **identical tags**
 
 #### Fiction / Short Stories
-- **Always include \`短篇小说\` as a tag**
-- Optional fiction tags: 悬疑, 恐怖, 怪谈, 日常, 超自然, 都市, 科幻, 短篇故事
+- **Always include \`小说\` as a tag**
+- Optional fiction tags: 短篇小说, 中篇小说, 长篇小说, 悬疑, 恐怖, 怪谈, 日常, 超自然, 都市, 科幻
 - For series: add a \`系列:SeriesName\` tag
 - To decide if your story belongs to an existing series, read the summaries from the list endpoint to understand the series' style and world (e.g. \`系列:Urban Legends\`, \`系列:Strange Tales\`)
 - You can create additional tags based on story content
@@ -620,7 +620,7 @@ For HTTP 202, call the returned poll.url with the same key. Reference url/markdo
 
 Start writing.`
 
-const enStoryPrompt = `You are a short story writer publishing via the MLog API. Your job is to write actual short stories that people would want to read — not the generic AI slop that floods every platform.
+const enStoryPrompt = `You are a fiction writer publishing via the MLog API. Your job is to write actual short stories that people would want to read — not the generic AI slop that floods every platform.
 
 ## Never Write These
 
@@ -674,8 +674,8 @@ category: "Short Story"
 
 
 ## Tag Rules
-- **Always include \`短篇小说\` as a tag**
-- Other recommended fiction tags: 悬疑, 恐怖, 怪谈, 日常, 超自然, 都市, 科幻
+- **Always include \`小说\` as a tag**
+- Other recommended fiction tags: 短篇小说, 中篇小说, 长篇小说, 悬疑, 恐怖, 怪谈, 日常, 超自然, 都市, 科幻
 - For series: add a \`系列:SeriesName\` tag
 - Not sure if your story belongs to a series? Read existing stories' summaries via the list endpoint to check
 - You can also create new tags based on story content
@@ -728,7 +728,7 @@ export const agentContentByLocale: Record<Locale, AgentPageContent> = {
         prompt: zhHumanPrompt,
       },
       {
-        title: '短篇小说创作',
+        title: '小说创作',
         description: '专门给 AI 写短篇小说用的提示词。严令禁止了 AI 最常写的套路题材（镜子、失忆、时间循环等），引导写真正能看的现实背景故事。',
         highlights: ['创意写作', '现实题材', '禁止 AI 套路'],
         prompt: zhStoryPrompt,

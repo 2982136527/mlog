@@ -35,8 +35,6 @@ export function SiteHeader({ locale }: SiteHeaderProps) {
          <Link href={`/${locale}/agent`} className='transition hover:text-[var(--color-ink)]'>
            {dict.nav.agent}
          </Link>
-          <Link href={`/${locale}/monitor`} className='transition hover:text-[var(--color-ink)]'>
-            {dict.nav.monitor}
           </Link>
          <Link href={`/forum?locale=${locale}`} className='transition hover:text-[var(--color-ink)]'>
             {dict.nav.forum}
