@@ -15,24 +15,14 @@ import { PUBLIC_CONTENT_CACHE_TAG, PUBLIC_CONTENT_REVALIDATE_SECONDS } from '@/l
 import { parseRepoCardsConfigOrDefault } from '@/lib/blog/repo-cards-config'
 
 const GITHUB_API_BASE = 'https://api.github.com'
+const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com'
 const ARCHIVE_TIMEOUT_MS = 20_000
-const MAX_ARCHIVE_BYTES = 25 * 1024 * 1024
-const MAX_EXPANDED_ARCHIVE_BYTES = 128 * 1024 * 1024
-const MAX_TOTAL_ARCHIVE_BYTES = 50 * 1024 * 1024
-const MAX_TOTAL_EXPANDED_ARCHIVE_BYTES = 256 * 1024 * 1024
-const MAX_ENTRY_BYTES = 8 * 1024 * 1024
-const MAX_SNAPSHOT_CONTENT_BYTES = 8 * 1024 * 1024
-const MAX_ARCHIVE_ENTRIES = 20_000
-const MAX_TOTAL_ARCHIVE_ENTRIES = 40_000
-const MAX_SNAPSHOT_FILES = 10_000
+const SNAPSHOT_TIMEOUT_MS = 45_000
+const MAX_SERIALIZED_SNAPSHOT_BYTES = 64 * 1024 * 1024
 const MAX_SHARDS = 16
 const MAX_FETCH_ATTEMPTS = 3
-const MAX_SERIALIZED_SNAPSHOT_BYTES = 64 * 1024 * 1024
-const SNAPSHOT_TIMEOUT_MS = 45_000
-const POST_FILE_RE = /^content\/posts\/([a-z0-9-]+)\/(zh|en)\.md$/
-const REPO_CARDS_FILE_RE = /^content\/posts\/([a-z0-9-]+)\/repo-cards\.json$/
-const SHARD_REGISTRY_PATH = 'content/system/shards.json'
-const POST_SLUG_PATH_RE = /^content\/posts\/([a-z0-9-]+)\//
+const FETCH_CONCURRENCY = 30
+const MAX_CONTENT_FILE_SIZE = 10 * 1024 * 1024
 
 const repoNameSchema = z.string().trim().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/, 'invalid GitHub repository name')
 const shardRegistrySchema = z.object({
@@ -47,22 +37,27 @@ type GithubContentConfig = {
   token: string
 }
 
-type GithubRefResponse = {
-  object?: {
-    sha?: unknown
-  }
-}
-
-type ArchiveBudget = {
-  compressedBytes: number
-  expandedBytes: number
-  entries: number
-  deadline: number
+type TreeEntry = {
+  path: string
+  mode: string
+  type: string
+  sha: string
+  size: number
+  url: string
 }
 
 export type RemoteContentSnapshot = {
   posts: Post[]
   repoCardsBySlug: Record<string, RepoCardsConfig>
+}
+
+const POST_FILE_RE = /^content\/posts\/([a-z0-9-]+)\/(zh|en)\.md$/
+const REPO_CARDS_FILE_RE = /^content\/posts\/([a-z0-9-]+)\/repo-cards\.json$/
+const POST_SLUG_PATH_RE = /^content\/posts\/([a-z0-9-]+)\//
+const SHARD_REGISTRY_PATH = 'content/system/shards.json'
+
+function isContentFilePath(path: string): boolean {
+  return POST_FILE_RE.test(path) || REPO_CARDS_FILE_RE.test(path) || path === SHARD_REGISTRY_PATH
 }
 
 function readGithubContentConfig(): GithubContentConfig | null {
@@ -86,72 +81,8 @@ function readGithubContentConfig(): GithubContentConfig | null {
   return { owner, primaryRepo, shardPrefix, branch: branch || 'main', token }
 }
 
-class ArchiveValidationError extends Error {}
-
-function retryDelayMs(response: Response, attempt: number): number {
-  const retryAfter = Number(response.headers.get('retry-after'))
-  if (Number.isFinite(retryAfter) && retryAfter > 0) {
-    return Math.min(retryAfter * 1000, 5_000)
-  }
-  return 300 * 2 ** attempt
-}
-
-function shouldRetryStatus(status: number): boolean {
-  return status === 408 || status === 429 || status >= 500
-}
-
-function encodeGithubPathSegments(value: string): string {
-  return value.split('/').map(segment => encodeURIComponent(segment)).join('/')
-}
-
-async function wait(ms: number): Promise<void> {
-  await new Promise(resolve => setTimeout(resolve, ms))
-}
-
-async function readResponseBuffer(response: Response, repo: string, budget: ArchiveBudget): Promise<Buffer> {
-  if (!response.body) {
-    throw new ArchiveValidationError(`GitHub archive response has no body for ${repo}.`)
-  }
-
-  const reader = response.body.getReader()
-  const chunks: Buffer[] = []
-  let totalBytes = 0
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) {
-        break
-      }
-
-      const chunk = Buffer.from(value)
-      totalBytes += chunk.length
-      budget.compressedBytes += chunk.length
-      if (totalBytes > MAX_ARCHIVE_BYTES || budget.compressedBytes > MAX_TOTAL_ARCHIVE_BYTES || Date.now() > budget.deadline) {
-        await reader.cancel().catch(() => {})
-        throw new ArchiveValidationError(`GitHub archive download exceeded its resource budget at ${repo}.`)
-      }
-      chunks.push(chunk)
-    }
-  } finally {
-    reader.releaseLock()
-  }
-
-  return Buffer.concat(chunks, totalBytes)
-}
-
-async function resolveRepoHead(config: GithubContentConfig, repo: string, budget: ArchiveBudget): Promise<string> {
-  const url = `${GITHUB_API_BASE}/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(repo)}/git/ref/heads/${encodeGithubPathSegments(config.branch)}`
-  let lastError: unknown
-
-  for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt += 1) {
-    const remainingMs = budget.deadline - Date.now()
-    if (remainingMs <= 0) {
-      throw new ArchiveValidationError('Remote content snapshot timed out.')
-    }
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), Math.min(ARCHIVE_TIMEOUT_MS, remainingMs))
-
+async function githubApiFetch<T>(url: string, config: GithubContentConfig, signal?: AbortSignal): Promise<T> {
+  for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt++) {
     try {
       const response = await fetch(url, {
         headers: {
@@ -161,278 +92,79 @@ async function resolveRepoHead(config: GithubContentConfig, repo: string, budget
           'User-Agent': 'mlog-public-content'
         },
         cache: 'no-store',
-        signal: controller.signal
+        signal
       })
 
       if (!response.ok) {
-        if (attempt + 1 < MAX_FETCH_ATTEMPTS && shouldRetryStatus(response.status)) {
-          await response.body?.cancel().catch(() => {})
-          await wait(retryDelayMs(response, attempt))
+        if (attempt + 1 < MAX_FETCH_ATTEMPTS && (response.status === 408 || response.status === 429 || response.status >= 500)) {
+          await new Promise(r => setTimeout(r, 300 * 2 ** attempt))
           continue
         }
-        throw new ArchiveValidationError(`GitHub ref request failed for ${repo} (${response.status}).`)
+        throw new Error(`GitHub API request failed: ${url} (${response.status})`)
       }
 
-      const payload = await response.json() as GithubRefResponse
-      const sha = typeof payload.object?.sha === 'string' ? payload.object.sha.trim() : ''
-      if (!/^[0-9a-f]{40}$/i.test(sha)) {
-        throw new ArchiveValidationError(`GitHub ref response is invalid for ${repo}.`)
-      }
-      return sha
+      return response.json() as Promise<T>
     } catch (error) {
-      if (error instanceof ArchiveValidationError) {
-        throw error
-      }
-      lastError = error
-      if (Date.now() >= budget.deadline) {
-        throw new ArchiveValidationError('Remote content snapshot timed out.')
-      }
-      if (attempt + 1 < MAX_FETCH_ATTEMPTS) {
-        await wait(300 * 2 ** attempt)
-        continue
-      }
-    } finally {
-      clearTimeout(timeout)
+      if (error instanceof Error && 'status' in error && typeof (error as any).status === 'number') throw error
+      if (attempt + 1 >= MAX_FETCH_ATTEMPTS) throw error
+      await new Promise(r => setTimeout(r, 300 * 2 ** attempt))
     }
   }
-
-  throw lastError instanceof Error ? lastError : new Error(`GitHub ref request failed for ${repo}.`)
+  throw new Error(`Max attempts exceeded for ${url}`)
 }
 
-async function downloadRepoArchive(config: GithubContentConfig, repo: string, ref: string, budget: ArchiveBudget): Promise<Buffer> {
-  const url = `${GITHUB_API_BASE}/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(repo)}/tarball/${encodeURIComponent(ref)}`
-  let lastError: unknown
-
-  for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt += 1) {
-    const remainingMs = budget.deadline - Date.now()
-    if (remainingMs <= 0) {
-      throw new ArchiveValidationError('Remote content snapshot timed out.')
-    }
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), Math.min(ARCHIVE_TIMEOUT_MS, remainingMs))
-
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${config.token}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-          'User-Agent': 'mlog-public-content'
-        },
-        cache: 'no-store',
-        signal: controller.signal
-      })
-
-      if (!response.ok) {
-        if (attempt + 1 < MAX_FETCH_ATTEMPTS && shouldRetryStatus(response.status)) {
-          await response.body?.cancel().catch(() => {})
-          await wait(retryDelayMs(response, attempt))
-          continue
-        }
-        throw new ArchiveValidationError(`GitHub archive request failed for ${repo} (${response.status}).`)
-      }
-
-      const contentLength = Number(response.headers.get('content-length'))
-      if (
-        Number.isFinite(contentLength) &&
-        (contentLength > MAX_ARCHIVE_BYTES || budget.compressedBytes + contentLength > MAX_TOTAL_ARCHIVE_BYTES)
-      ) {
-        await response.body?.cancel().catch(() => {})
-        throw new ArchiveValidationError(`GitHub archive is too large for ${repo}.`)
-      }
-
-      return await readResponseBuffer(response, repo, budget)
-    } catch (error) {
-      if (error instanceof ArchiveValidationError) {
-        throw error
-      }
-      lastError = error
-      if (Date.now() >= budget.deadline) {
-        throw new ArchiveValidationError('Remote content snapshot timed out.')
-      }
-      if (attempt + 1 < MAX_FETCH_ATTEMPTS) {
-        await wait(300 * 2 ** attempt)
-        continue
-      }
-    } finally {
-      clearTimeout(timeout)
-    }
+async function resolveCommitSha(config: GithubContentConfig, repo: string): Promise<string> {
+  const url = `${GITHUB_API_BASE}/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(repo)}/git/ref/heads/${encodeURIComponent(config.branch)}`
+  const data = await githubApiFetch<{ object: { sha: string; url: string } }>(url, config)
+  const sha = typeof data.object?.sha === 'string' ? data.object.sha.trim() : ''
+  if (!/^[0-9a-f]{40}$/i.test(sha)) {
+    throw new Error(`Invalid commit SHA for ${repo}`)
   }
-
-  throw lastError instanceof Error ? lastError : new Error(`GitHub archive request failed for ${repo}.`)
+  return sha
 }
 
-function createExpandedArchiveLimiter(repo: string, budget: ArchiveBudget): Transform {
-  let expandedBytes = 0
-  return new Transform({
-    transform(chunk: Buffer, _encoding, callback) {
-      expandedBytes += chunk.length
-      budget.expandedBytes += chunk.length
-      if (
-        expandedBytes > MAX_EXPANDED_ARCHIVE_BYTES ||
-        budget.expandedBytes > MAX_TOTAL_EXPANDED_ARCHIVE_BYTES ||
-        Date.now() > budget.deadline
-      ) {
-        callback(new ArchiveValidationError(`Expanded GitHub archive exceeded its resource budget at ${repo}.`))
-        return
-      }
-      callback(null, chunk)
-    }
-  })
-}
-
-function repoRelativePath(archivePath: string): string | null {
-  const separatorIndex = archivePath.indexOf('/')
-  if (separatorIndex < 0) {
-    return null
-  }
-
-  const relativePath = archivePath.slice(separatorIndex + 1)
-  if (!relativePath || relativePath.startsWith('/') || relativePath.split('/').includes('..')) {
-    return null
-  }
-  return relativePath
-}
-
-function shouldReadArchivePath(repoPath: string, includeSystem: boolean): boolean {
-  return POST_FILE_RE.test(repoPath) || REPO_CARDS_FILE_RE.test(repoPath) || (includeSystem && repoPath === SHARD_REGISTRY_PATH)
-}
-
-async function extractContentFiles(
-  archive: Buffer,
-  includeSystem: boolean,
-  repo: string,
-  contentBudget: { bytes: number; files: number },
-  archiveBudget: ArchiveBudget
-): Promise<Map<string, Buffer>> {
-  const extract = tar.extract()
-  const files = new Map<string, Buffer>()
-  let archiveEntries = 0
-  let selectedBytes = 0
-
-  extract.on('entry', (header, stream, next) => {
-    archiveEntries += 1
-    archiveBudget.entries += 1
-    if (
-      archiveEntries > MAX_ARCHIVE_ENTRIES ||
-      archiveBudget.entries > MAX_TOTAL_ARCHIVE_ENTRIES ||
-      Date.now() > archiveBudget.deadline
-    ) {
-      stream.resume()
-      extract.destroy(new ArchiveValidationError(`GitHub archive has too many entries for ${repo}.`))
-      return
-    }
-
-    const repoPath = repoRelativePath(header.name)
-    if (header.type !== 'file' || !repoPath || !shouldReadArchivePath(repoPath, includeSystem)) {
-      stream.on('end', next)
-      stream.on('error', error => extract.destroy(error))
-      stream.resume()
-      return
-    }
-
-    if (files.has(repoPath) || files.size >= contentBudget.files) {
-      stream.resume()
-      extract.destroy(new ArchiveValidationError(
-        files.has(repoPath)
-          ? `Duplicate content path in ${repo}: ${repoPath}`
-          : `GitHub archive has too many content files for ${repo}.`
-      ))
-      return
-    }
-
-    if (Number(header.size) > MAX_ENTRY_BYTES) {
-      stream.resume()
-      extract.destroy(new ArchiveValidationError(`Content archive entry is too large: ${repoPath}`))
-      return
-    }
-
-    const chunks: Buffer[] = []
-    let entryBytes = 0
-    let failed = false
-    stream.on('data', chunk => {
-      if (failed) {
-        return
-      }
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-      entryBytes += buffer.length
-      selectedBytes += buffer.length
-      if (entryBytes > MAX_ENTRY_BYTES || selectedBytes > contentBudget.bytes) {
-        failed = true
-        extract.destroy(new ArchiveValidationError(
-          entryBytes > MAX_ENTRY_BYTES
-            ? `Content archive entry is too large: ${repoPath}`
-            : `GitHub archive content is too large for ${repo}.`
-        ))
-        return
-      }
-      chunks.push(buffer)
-    })
-    stream.on('end', () => {
-      if (failed || extract.destroyed) {
-        return
-      }
-      files.set(repoPath, Buffer.concat(chunks))
-      next()
-    })
-    stream.on('error', error => extract.destroy(error))
-  })
-
-  await pipeline(
-    Readable.from([archive]),
-    createGunzip(),
-    createExpandedArchiveLimiter(repo, archiveBudget),
-    extract
+async function getRecursiveTree(config: GithubContentConfig, repo: string, commitSha: string): Promise<TreeEntry[]> {
+  const commit = await githubApiFetch<{ tree: { sha: string } }>(
+    `${GITHUB_API_BASE}/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(repo)}/git/commits/${commitSha}`,
+    config
   )
-  return files
-}
 
-function parsePost(raw: Buffer, slug: string, locale: Locale, label: string): Post {
-  try {
-    const parsed = parsePostMatter(raw.toString('utf8'))
-    const validated = postFrontmatterSchema.safeParse(parsed.data)
-    if (!validated.success) {
-      const issues = validated.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ')
-      throw new Error(`Invalid remote frontmatter in ${label}: ${issues}`)
-    }
+  const tree = await githubApiFetch<{ tree: TreeEntry[]; truncated: boolean }>(
+    `${GITHUB_API_BASE}/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(repo)}/git/trees/${commit.tree.sha}?recursive=1`,
+    config
+  )
 
-    return {
-      slug,
-      locale,
-      frontmatter: validated.data as PostFrontmatter,
-      content: parsed.content,
-      readingTime: Math.max(1, Math.ceil(readingTime(parsed.content).minutes))
-    }
-  } catch (error) {
-    throw error instanceof Error ? error : new Error(`Invalid remote markdown in ${label}.`)
-  }
-}
-
-function isAllowedShardRepo(config: GithubContentConfig, repo: string): boolean {
-  const candidate = repo.toLowerCase()
-  const primary = config.primaryRepo.toLowerCase()
-  if (candidate === primary) {
-    return true
+  if (tree.truncated) {
+    throw new Error(`Git tree truncated for ${repo}: ${tree.tree.length} entries. Use tarball fallback for large repos.`)
   }
 
-  const prefix = config.shardPrefix.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return new RegExp(`^${prefix}-shard-[1-9]\\d*$`).test(candidate)
+  return tree.tree
 }
 
-function readShardRepos(config: GithubContentConfig, primaryFiles: Map<string, Buffer>): string[] {
-  const registryFile = primaryFiles.get(SHARD_REGISTRY_PATH)
-  if (!registryFile) {
+async function readShardReposFromRegistry(
+  config: GithubContentConfig,
+  primarySha: string
+): Promise<string[]> {
+  const url = `${GITHUB_RAW_BASE}/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.primaryRepo)}/${primarySha}/${SHARD_REGISTRY_PATH}`
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${config.token}` },
+    cache: 'no-store'
+  })
+
+  if (!response.ok) {
     return [config.primaryRepo]
   }
 
+  const text = await response.text()
   try {
-    const registry = shardRegistrySchema.parse(JSON.parse(registryFile.toString('utf8')))
+    const registry = shardRegistrySchema.parse(JSON.parse(text))
     const repos = [config.primaryRepo]
     const seen = new Set([config.primaryRepo.toLowerCase()])
+    const prefix = config.shardPrefix.toLowerCase().replace(/[.*+?^{}()|[\]\\]/g, '\\$&')
+    const allowedPattern = new RegExp(`^${prefix}-shard-[1-9]\\\\d*$`)
+
     for (const shard of registry.shards) {
-      if (!isAllowedShardRepo(config, shard.repo)) {
-        throw new Error(`repository is outside the configured shard namespace: ${shard.repo}`)
-      }
+      if (!allowedPattern.test(shard.repo.toLowerCase())) continue
       const key = shard.repo.toLowerCase()
       if (!seen.has(key)) {
         seen.add(key)
@@ -440,76 +172,166 @@ function readShardRepos(config: GithubContentConfig, primaryFiles: Map<string, B
       }
     }
     return repos
-  } catch (error) {
-    throw new Error(`Invalid remote shard registry: ${error instanceof Error ? error.message : error}`)
+  } catch {
+    return [config.primaryRepo]
   }
 }
 
-async function loadRemoteContentSnapshot(): Promise<RemoteContentSnapshot | null> {
-  const config = readGithubContentConfig()
-  if (!config) {
-    return null
-  }
+async function fetchFileContent(
+  config: GithubContentConfig,
+  repo: string,
+  commitSha: string,
+  path: string
+): Promise<string> {
+  const pathSegments = path.split('/').map(encodeURIComponent).join('/')
+  const url = `${GITHUB_RAW_BASE}/${encodeURIComponent(config.owner)}/${encodeURIComponent(repo)}/${commitSha}/${pathSegments}`
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), ARCHIVE_TIMEOUT_MS)
 
-  const archiveBudget: ArchiveBudget = {
-    compressedBytes: 0,
-    expandedBytes: 0,
-    entries: 0,
-    deadline: Date.now() + SNAPSHOT_TIMEOUT_MS
-  }
+  try {
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${config.token}` },
+      signal: controller.signal,
+      cache: 'no-store'
+    })
 
-  const primaryRef = await resolveRepoHead(config, config.primaryRepo, archiveBudget)
-  const primaryArchive = await downloadRepoArchive(config, config.primaryRepo, primaryRef, archiveBudget)
-  const primaryFiles = await extractContentFiles(primaryArchive, true, config.primaryRepo, {
-    bytes: MAX_SNAPSHOT_CONTENT_BYTES,
-    files: MAX_SNAPSHOT_FILES
-  }, archiveBudget)
-  const repos = readShardRepos(config, primaryFiles)
-  const files = new Map(primaryFiles)
-  const slugOwners = new Map<string, string>()
-  for (const repoPath of primaryFiles.keys()) {
-    const slug = repoPath.match(POST_SLUG_PATH_RE)?.[1]
-    if (slug) slugOwners.set(slug, config.primaryRepo)
+    if (!response.ok) {
+      throw new Error(`Fetch failed: ${path} (${response.status})`)
+    }
+
+    const text = await response.text()
+    if (Buffer.byteLength(text, 'utf8') > MAX_CONTENT_FILE_SIZE) {
+      throw new Error(`File too large: ${path} (${text.length} bytes)`)
+    }
+
+    return text
+  } finally {
+    clearTimeout(timeout)
   }
-  let totalContentBytes = Array.from(primaryFiles.values()).reduce((total, content) => total + content.length, 0)
-  for (const repo of repos.slice(1)) {
-    const ref = await resolveRepoHead(config, repo, archiveBudget)
-    const archive = await downloadRepoArchive(config, repo, ref, archiveBudget)
-    const entries = await extractContentFiles(archive, false, repo, {
-      bytes: MAX_SNAPSHOT_CONTENT_BYTES - totalContentBytes,
-      files: MAX_SNAPSHOT_FILES - files.size
-    }, archiveBudget)
-    for (const [repoPath, content] of entries) {
-      const slug = repoPath.match(POST_SLUG_PATH_RE)?.[1]
-      const existingOwner = slug ? slugOwners.get(slug) : undefined
-      if (slug && existingOwner && existingOwner !== repo) {
-        throw new Error(`Post slug is split across shards: ${slug} (${existingOwner}, ${repo})`)
+}
+
+async function batchFetchFiles(
+  config: GithubContentConfig,
+  repo: string,
+  commitSha: string,
+  entries: TreeEntry[]
+): Promise<Map<string, string>> {
+  const results = new Map<string, string>()
+
+  for (let i = 0; i < entries.length; i += FETCH_CONCURRENCY) {
+    const batch = entries.slice(i, i + FETCH_CONCURRENCY)
+    const fetched = await Promise.allSettled(
+      batch.map(entry => fetchFileContent(config, repo, commitSha, entry.path))
+    )
+
+    for (let j = 0; j < fetched.length; j++) {
+      const result = fetched[j]
+      const entry = batch[j]
+      if (result.status === 'fulfilled') {
+        results.set(entry.path, result.value)
+      } else {
+        console.warn('[content][fetch-warn]', entry.path, (result.reason as Error)?.message || result.reason)
       }
-      if (files.has(repoPath)) {
-        throw new Error(`Duplicate content path across shards: ${repoPath}`)
-      }
-      totalContentBytes += content.length
-      if (files.size >= MAX_SNAPSHOT_FILES || totalContentBytes > MAX_SNAPSHOT_CONTENT_BYTES) {
-        throw new Error('Remote content snapshot exceeds its configured size limits.')
-      }
-      files.set(repoPath, content)
-      if (slug) slugOwners.set(slug, repo)
     }
   }
 
+  return results
+}
+
+function parsePost(raw: string, slug: string, locale: Locale, label: string): Post {
+  const parsed = parsePostMatter(raw)
+  const validated = postFrontmatterSchema.safeParse(parsed.data)
+  if (!validated.success) {
+    const issues = validated.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ')
+    throw new Error(`Invalid remote frontmatter in ${label}: ${issues}`)
+  }
+
+  return {
+    slug,
+    locale,
+    frontmatter: validated.data as PostFrontmatter,
+    content: parsed.content,
+    readingTime: Math.max(1, Math.ceil(readingTime(parsed.content).minutes))
+  }
+}
+
+async function loadRemoteContentSnapshotTree(): Promise<RemoteContentSnapshot | null> {
+  const config = readGithubContentConfig()
+  if (!config) return null
+
+  const deadline = Date.now() + SNAPSHOT_TIMEOUT_MS
+
+  // 1. Get primary repo tree
+  const primarySha = await resolveCommitSha(config, config.primaryRepo)
+  if (Date.now() > deadline) throw new Error('Remote content snapshot timed out.')
+
+  const primaryTree = await getRecursiveTree(config, config.primaryRepo, primarySha)
+  if (Date.now() > deadline) throw new Error('Remote content snapshot timed out.')
+
+  // 2. Read shard registry
+  const repos = await readShardReposFromRegistry(config, primarySha)
+  if (Date.now() > deadline) throw new Error('Remote content snapshot timed out.')
+
+  // 3. Collect content files from all repos
+  const slugOwners = new Map<string, string>()
+  const fileInfos: Array<{ path: string; sha: string; repo: string; commitSha: string }> = []
+  const seenPaths = new Set<string>()
+
+  for (const repo of repos) {
+    const sha = repo === config.primaryRepo ? primarySha : await resolveCommitSha(config, repo)
+    if (Date.now() > deadline) throw new Error('Remote content snapshot timed out.')
+
+    const tree = repo === config.primaryRepo ? primaryTree : await getRecursiveTree(config, repo, sha)
+    if (Date.now() > deadline) throw new Error('Remote content snapshot timed out.')
+
+    for (const entry of tree) {
+      if (entry.type !== 'blob' || !isContentFilePath(entry.path)) continue
+      if (seenPaths.has(entry.path)) continue
+      seenPaths.add(entry.path)
+
+      const slug = entry.path.match(POST_SLUG_PATH_RE)?.[1]
+      if (slug) {
+        const existingOwner = slugOwners.get(slug)
+        if (existingOwner && existingOwner !== repo) {
+          throw new Error(`Post slug is split across shards: ${slug} (${existingOwner}, ${repo})`)
+        }
+        slugOwners.set(slug, repo)
+      }
+
+      fileInfos.push({ path: entry.path, sha: entry.sha, repo, commitSha: sha })
+    }
+  }
+  if (Date.now() > deadline) throw new Error('Remote content snapshot timed out.')
+
+  // 4. Fetch file contents (group by repo for efficient fetching)
+  const fileContents = new Map<string, string>()
+  for (const repo of [...new Set(fileInfos.map(f => f.repo))]) {
+    const repoFiles = fileInfos.filter(f => f.repo === repo)
+    const repoCommitSha = repoFiles[0].commitSha
+    const fetched = await batchFetchFiles(
+      config, repo, repoCommitSha,
+      repoFiles.map(f => ({ path: f.path, sha: f.sha, mode: '', type: 'blob', size: 0, url: '' }))
+    )
+    for (const [path, content] of fetched) {
+      fileContents.set(path, content)
+    }
+    if (Date.now() > deadline) throw new Error('Remote content snapshot timed out.')
+  }
+
+  // 5. Parse into snapshot
   const posts: Post[] = []
   const repoCardsBySlug: Record<string, RepoCardsConfig> = {}
 
-  for (const [repoPath, content] of files) {
-    const postMatch = repoPath.match(POST_FILE_RE)
+  for (const [path, content] of fileContents) {
+    const postMatch = path.match(POST_FILE_RE)
     if (postMatch) {
-      posts.push(parsePost(content, postMatch[1], postMatch[2] as Locale, repoPath))
+      posts.push(parsePost(content, postMatch[1], postMatch[2] as Locale, path))
       continue
     }
 
-    const repoCardsMatch = repoPath.match(REPO_CARDS_FILE_RE)
+    const repoCardsMatch = path.match(REPO_CARDS_FILE_RE)
     if (repoCardsMatch) {
-      repoCardsBySlug[repoCardsMatch[1]] = parseRepoCardsConfigOrDefault(content.toString('utf8'))
+      repoCardsBySlug[repoCardsMatch[1]] = parseRepoCardsConfigOrDefault(content)
     }
   }
 
@@ -518,13 +340,12 @@ async function loadRemoteContentSnapshot(): Promise<RemoteContentSnapshot | null
 
 const getCompressedRemoteContentSnapshot = unstable_cache(
   async (): Promise<string | null> => {
-    const snapshot = await loadRemoteContentSnapshot()
-    if (!snapshot) {
-      return null
-    }
+    const snapshot = await loadRemoteContentSnapshotTree()
+    if (!snapshot) return null
+
     const serialized = JSON.stringify(snapshot)
     if (Buffer.byteLength(serialized, 'utf8') > MAX_SERIALIZED_SNAPSHOT_BYTES) {
-      throw new ArchiveValidationError('Serialized remote content snapshot exceeds its configured size limit.')
+      throw new Error('Serialized remote content snapshot exceeds its configured size limit.')
     }
     return gzipSync(serialized).toString('base64')
   },
@@ -541,9 +362,7 @@ export async function getRemoteContentSnapshot(): Promise<RemoteContentSnapshot 
   }
 
   const compressed = await getCompressedRemoteContentSnapshot()
-  if (!compressed) {
-    return null
-  }
+  if (!compressed) return null
 
   const serialized = gunzipSync(Buffer.from(compressed, 'base64'), {
     maxOutputLength: MAX_SERIALIZED_SNAPSHOT_BYTES
@@ -552,8 +371,6 @@ export async function getRemoteContentSnapshot(): Promise<RemoteContentSnapshot 
 }
 
 export async function getRemoteContentSnapshotUncached(): Promise<RemoteContentSnapshot | null> {
-  if (process.env.NEXT_PHASE === 'phase-production-build') {
-    return null
-  }
-  return loadRemoteContentSnapshot()
+  if (process.env.NEXT_PHASE === 'phase-production-build') return null
+  return loadRemoteContentSnapshotTree()
 }
