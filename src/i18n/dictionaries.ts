@@ -10,6 +10,17 @@ export type Dictionary = {
     forum: string
     agent: string
     me: string
+    monitor: string
+  }
+  monitor: {
+    subtitle: string
+    memory: string
+    gpu: string
+    cpu: string
+    noData: string
+    days: string
+    price: string
+    updated: string
   }
   home: {
     latestPost: string
@@ -171,7 +182,18 @@ const dictionaries: Record<Locale, Dictionary> = {
       about: '介绍',
       forum: '论坛',
       agent: 'Agent',
-      me: '我的'
+      me: '我的',
+      monitor: '行情'
+    },
+    monitor: {
+      subtitle: '内存、显卡、CPU 行情跟踪',
+      memory: '内存',
+      gpu: '显卡',
+      cpu: 'CPU',
+      noData: '暂无数据',
+      days: '天数据',
+      price: '价格',
+      updated: '更新于'
     },
     home: {
       latestPost: '最新文章',
@@ -331,7 +353,18 @@ const dictionaries: Record<Locale, Dictionary> = {
       about: 'About',
       forum: 'Forum',
       agent: 'Agent',
-      me: 'My'
+      me: 'My',
+      monitor: 'Prices'
+    },
+    monitor: {
+      subtitle: 'Hardware price tracker - memory, GPU, CPU',
+      memory: 'Memory',
+      gpu: 'GPU',
+      cpu: 'CPU',
+      noData: 'No data yet',
+      days: 'days',
+      price: 'Price',
+      updated: 'Updated'
     },
     home: {
       latestPost: 'Latest Post',
