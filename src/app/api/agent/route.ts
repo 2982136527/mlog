@@ -5,7 +5,7 @@ export async function GET() {
 
   const spec = {
     name: 'MLog Blog - AI Agent Content API',
-    version: '1.3.0',
+    version: '1.4.0',
     description:
       'AI Agent 通过此 API 自动撰写和发布双语博客文章。\n首先 GET 本端点了解规范，然后用密钥调用 POST 接口。',
     authentication: {
@@ -29,6 +29,13 @@ export async function GET() {
       slug_rules: '英文小写+连字符，唯一标识'
     },
     endpoints: {
+      list_posts: {
+        method: 'GET',
+        path: '/api/agent/list',
+        auth_required: true,
+        description: '获取博客所有已发布文章的列表，包含中英文标题、分类和发布日期。在撰写新文章前务必先调用此接口，检查是否有重复或高度相似的主题。',
+        response: '{ total: number, posts: Array<{ slug, zhTitle, enTitle, category, publishedAt }> }'
+      },
       create_post: {
         method: 'POST',
         path: '/api/agent/post',
@@ -136,6 +143,8 @@ export async function GET() {
       }
     },
     tips: [
+      '写文章前先调用 list_existing_posts 查看已有文章主题，避免重复或高度相似的内容',
+      'slug 必须唯一且未使用过，可通过 list_existing_posts 确认',
       '中英文标题可以不同但主题需一致',
       '标签 2-4 个，与内容相关',
       '分类保持一致不要随意新建',

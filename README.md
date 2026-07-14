@@ -63,7 +63,7 @@ pnpm dev
 - `/api/cron/ai-paper-daily`（AI 论文速读 Cron）
 - `/api/cron/tutorial-sync`（教程镜像 Cron）
 - `/api/cron/daily-blog`（每日主题文章 Cron）
-- `/api/agent`、`/api/agent/post`、`/api/agent/upload`、`/api/agent/media/[id]`（仅管理员密钥可写/读媒体状态）
+- `/api/agent`、`/api/agent/list`、`/api/agent/post`、`/api/agent/upload`、`/api/agent/media/[id]`（仅管理员密钥可写/读媒体状态）
 - `/api/blog/live-card?locale=zh|en&slug=<slug>`（文章实时快照 API）
 - `/api/user/history`（读取用户云端历史）
 - `/api/user/history/sync`（同步本地历史到私有 Gist）
@@ -232,15 +232,23 @@ Agent API 是一组专为 AI Agent 设计的 HTTP 接口，支持自动发布双
 | 方法 | 路径 | 用途 |
 |------|------|------|
 | `GET` | `/api/agent` | 获取完整 API 规范（含 OpenAI function tool 格式） |
+| `GET` | `/api/agent/list` | 获取全部已有文章列表（含中英文标题、分类和日期）用于查重 |
 | `POST` | `/api/agent/post` | 创建双语博客文章 |
 | `POST` | `/api/agent/upload` | 上传图片到专用图仓 |
 | `GET` | `/api/agent/media/{id}` | 查询图片上传状态（轮询） |
+
+### 获取文章列表（查重） —— GET /api/agent/list
+
+- 返回全部已发布文章的 slug、中英文标题、分类和发布日期
+- 写新文章前务必先调用此接口，检查是否有重复或高度相似的主题
+- 返回按发布时间降序排列
 
 ### 写文章 —— POST /api/agent/post
 
 - slug 唯一标识，不重复；已存在返回 409
 - 响应状态：`published` / `refresh_pending` / `pending_review`
 - 只有 `200/published` 才确认文章公开可用
+- Agent 写文章前应调用 list_existing_posts 检查已有内容，避免重复
 - 内容变更**不触发 Vercel 重新构建**，修改后数秒内即可在网站看到
 - Agent 写的文章自动附带 `publishedAt` 时间戳，保证按照发布时间正确排序
 

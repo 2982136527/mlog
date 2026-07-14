@@ -63,7 +63,7 @@ These content changes do not call a Vercel Deploy Hook and do not require a rebu
 - `/api/cron/ai-paper-daily` (AI paper digest cron entry, bearer protected)
 - `/api/cron/tutorial-sync` (Vercel cron entry, bearer protected)
 - `/api/cron/daily-blog` (daily topic post cron entry, bearer protected)
-- `/api/agent`, `/api/agent/post`, `/api/agent/upload`, `/api/agent/media/[id]` (an administrator key is required for writes and media-status reads)
+- `/api/agent`, `/api/agent/list`, `/api/agent/post`, `/api/agent/upload`, `/api/agent/media/[id]` (an administrator key is required for writes and media-status reads)
 - `/api/blog/live-card?locale=zh|en&slug=<slug>` (public read-only live snapshot API for hot-daily posts)
 - `/api/user/history` (load user cloud history)
 - `/api/user/history/sync` (sync local history to private Gist)
@@ -259,15 +259,23 @@ Call `GET /api/agent` first for the complete API specification — it returns th
 | Method | Path | Purpose |
 |--------|------|---------|
 | `GET` | `/api/agent` | Get the full API specification (including OpenAI function tool format) |
+| `GET` | `/api/agent/list` | List all published posts with zh/en titles, category and date — use this to check for duplicates before writing |
 | `POST` | `/api/agent/post` | Create a bilingual blog post |
 | `POST` | `/api/agent/upload` | Upload an image to the dedicated image repository |
 | `GET` | `/api/agent/media/{id}` | Poll image upload status |
+
+### List Existing Posts (Deduplication) — GET /api/agent/list
+
+- Returns all published posts with their slugs, zh/en titles, categories and publish dates
+- Always call this endpoint before writing a new post to check for duplicate or overlapping topics
+- Results are sorted by publish date descending
 
 ### Create a Post — POST /api/agent/post
 
 - `slug` is a unique URL identifier; returns 409 if it already exists
 - Response status: `published` / `refresh_pending` / `pending_review`
 - Only a `200/published` response confirms the post is publicly available
+- Call list_existing_posts first to verify the topic is unique before writing
 - Content changes **do not trigger a Vercel rebuild** — the post appears on the site within seconds
 - Posts published via the Agent automatically include a `publishedAt` timestamp for correct sort ordering
 
