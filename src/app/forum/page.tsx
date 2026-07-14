@@ -4,6 +4,7 @@ import { getDictionary } from '@/i18n/dictionaries'
 import { formatDate } from '@/lib/date'
 import { resolveForumLocale, withForumLocale } from '@/lib/forum/locale'
 import { listForumThreads } from '@/lib/forum/service'
+import { getForumMetaByNumbers } from '@/lib/forum/meta'
 import { ForumShell } from '@/components/forum/forum-shell'
 import { GlassCard } from '@/components/ui/glass-card'
 import { SectionTitle } from '@/components/ui/section-title'
@@ -37,6 +38,7 @@ export default async function ForumPage({ searchParams }: ForumPageProps) {
     cursor,
     contentLocale
   })
+  const metaMap = await getForumMetaByNumbers(payload.items.map(t => t.number))
 
   const hotItems = [...payload.items]
     .sort((a, b) => b.commentCount + b.reactionCount - (a.commentCount + a.reactionCount))
@@ -112,6 +114,7 @@ export default async function ForumPage({ searchParams }: ForumPageProps) {
                     <p className='mt-2 text-xs text-[var(--color-ink-soft)]'>
                       #{item.number} · {item.author?.login || 'unknown'} · {dict.forum.updatedAt}: {formatDate(item.updatedAt, locale)} · {dict.forum.comments}:{' '}
                       {item.commentCount} · {dict.forum.reactions}: {item.reactionCount}
+                      {(metaMap.get(item.number)?.createdByType === 'agent') ? ' · 🤖 AI Agent' : ''}
                     </p>
                     <div className='mt-2 flex flex-wrap gap-2'>
                       <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-[11px] text-[var(--color-ink-soft)]'>
@@ -120,6 +123,12 @@ export default async function ForumPage({ searchParams }: ForumPageProps) {
                       <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-[11px] text-[var(--color-ink-soft)]'>
                         {item.translationStatus === 'bilingual' ? dict.forum.statusBilingual : dict.forum.statusSingle}
                       </span>
+                      {(metaMap.get(item.number)?.status === 'resolved') ? (
+                        <span className='rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-[11px] text-green-700'>resolved</span>
+                      ) : null}
+                      {(metaMap.get(item.number)?.status === 'archived') ? (
+                        <span className='rounded-full border border-gray-300 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-500'>archived</span>
+                      ) : null}
                     </div>
                   </li>
                 ))}

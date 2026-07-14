@@ -15,6 +15,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href='/admin' className='transition hover:text-[var(--color-ink)]'>
             后台首页
           </Link>
+          <Link href='/admin/forum' className='transition hover:text-[var(--color-ink)]'>
+            论坛管理
+          </Link>
           <Link href='/admin/new' className='transition hover:text-[var(--color-ink)]'>
             新建文章
           </Link>

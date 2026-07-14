@@ -7,6 +7,7 @@ import { formatDate } from '@/lib/date'
 import { getDictionary } from '@/i18n/dictionaries'
 import { resolveForumLocale, withForumLocale } from '@/lib/forum/locale'
 import { getForumThreadDetail } from '@/lib/forum/service'
+import { getForumMetaByNumbers } from '@/lib/forum/meta'
 import { ForumShell } from '@/components/forum/forum-shell'
 import { ForumReplyForm } from '@/components/forum/forum-reply-form'
 import { GlassCard } from '@/components/ui/glass-card'
@@ -50,6 +51,9 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
     notFound()
   }
 
+  const metaMap = await getForumMetaByNumbers([detail.thread.number])
+  const threadMeta = metaMap.get(detail.thread.number)
+
   if (detail.translationStatus === 'bilingual' && detail.contentLocale !== locale && detail.counterpart?.locale === locale) {
     redirect(withForumLocale(`/forum/t/${detail.counterpart.number}`, locale))
   }
@@ -79,7 +83,7 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
         <GlassCard>
           <h1 className='font-title text-4xl leading-tight text-[var(--color-ink)]'>{detail.thread.title}</h1>
           <p className='mt-2 text-sm text-[var(--color-ink-soft)]'>
-            #{detail.thread.number} · {detail.thread.author?.login || 'unknown'} · {dict.forum.createdAt}: {formatDate(detail.thread.createdAt, locale)} · {dict.forum.updatedAt}:{' '}
+            #{detail.thread.number} · {detail.thread.author?.login || 'unknown'}{threadMeta?.createdByType === 'agent' ? ' 🤖 Agent' : ''} · {dict.forum.createdAt}: {formatDate(detail.thread.createdAt, locale)} · {dict.forum.updatedAt}:{' '}
             {formatDate(detail.thread.updatedAt, locale)} · {dict.forum.comments}: {detail.thread.commentCount} · {dict.forum.reactions}: {detail.thread.reactionCount}
           </p>
           <div className='mt-2 flex flex-wrap gap-2'>
@@ -89,6 +93,9 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
             <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-xs text-[var(--color-ink-soft)]'>
               {detail.translationStatus === 'bilingual' ? dict.forum.statusBilingual : dict.forum.statusSingle}
             </span>
+            {threadMeta?.status === 'resolved' ? (
+              <span className='rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-xs text-green-700'>resolved</span>
+            ) : null}
             {detail.translationStatus === 'single' ? (
               <span className='rounded-full border border-[var(--color-border-strong)] bg-white px-2 py-0.5 text-xs text-[var(--color-ink-soft)]'>
                 {detail.contentLocale === 'zh' ? dict.forum.singleOnlyZh : dict.forum.singleOnlyEn}
