@@ -12,8 +12,6 @@ export type Dictionary = {
     me: string
   }
   home: {
-    introTitle: string
-    introBody: string
     latestPost: string
     browseByCategory: string
     quickLinks: string
@@ -176,8 +174,6 @@ const dictionaries: Record<Locale, Dictionary> = {
       me: '我的'
     },
     home: {
-      introTitle: '暖色玻璃态博客',
-      introBody: '我们把内容放在第一位，用轻量动效与分层卡片构建有记忆点的阅读体验。',
       latestPost: '最新文章',
       browseByCategory: '按分类浏览',
       quickLinks: '快速入口',
@@ -338,8 +334,6 @@ const dictionaries: Record<Locale, Dictionary> = {
       me: 'My'
     },
     home: {
-      introTitle: 'Warm Glassmorphism Blog',
-      introBody: 'Content comes first, supported by layered cards and restrained motion for a distinct reading feel.',
       latestPost: 'Latest Post',
       browseByCategory: 'Browse by Category',
       quickLinks: 'Quick Links',

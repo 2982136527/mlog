@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: LocaleHomeProps): Promise<Met
   return createLocaleMetadata({
     locale,
     title: dict.siteName,
-    description: dict.siteTagline,
+    description: `MLog — ${dict.blog.description}`,
     path: `/${locale}`
   })
 }

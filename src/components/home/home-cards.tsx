@@ -7,7 +7,6 @@ import { getDictionary } from '@/i18n/dictionaries'
 import type { PostFrontmatter } from '@/types/content'
 import { GlassCard } from '@/components/ui/glass-card'
 import { SectionTitle } from '@/components/ui/section-title'
-import { TagChip } from '@/components/ui/tag-chip'
 import { AccountEntryLink } from '@/components/auth/account-entry-link'
 import { formatDate } from '@/lib/date'
 import { PostCover } from '@/components/blog/post-cover'
@@ -80,18 +79,6 @@ export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCar
       animate='show'
       className='mx-auto grid w-full max-w-6xl grid-cols-1 gap-5 px-5 pt-5 sm:grid-cols-12 sm:px-8'>
       <motion.div variants={item} className='sm:col-span-7'>
-        <GlassCard className='h-full'>
-          <SectionTitle>{dict.home.introTitle}</SectionTitle>
-          <p className='mt-4 max-w-xl text-base leading-7 text-[var(--color-ink-soft)]'>{dict.home.introBody}</p>
-          <div className='mt-7 flex flex-wrap gap-2'>
-            <TagChip>Next.js 16</TagChip>
-            <TagChip>Tailwind v4</TagChip>
-            <TagChip>Glassmorphism</TagChip>
-          </div>
-        </GlassCard>
-      </motion.div>
-
-      <motion.div variants={item} className='sm:col-span-5'>
         <GlassCard className='h-full'>
           <SectionTitle>{dict.home.latestPost}</SectionTitle>
 

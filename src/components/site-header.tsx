@@ -19,7 +19,6 @@ export function SiteHeader({ locale }: SiteHeaderProps) {
         <Link href={`/${locale}`} className='font-title text-3xl leading-none tracking-tight text-[var(--color-ink)]'>
           {dict.siteName}
         </Link>
-        <p className='mt-1 text-sm text-[var(--color-ink-soft)]'>{dict.siteTagline}</p>
       </div>
 
       <div className='flex items-center gap-3'>
