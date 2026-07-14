@@ -26,7 +26,34 @@ export async function GET() {
         cover: '封面图路径，可选'
       },
       content_format: 'Markdown 格式',
-      slug_rules: '英文小写+连字符，唯一标识'
+      slug_rules: '英文小写+连字符，唯一标识',
+      tag_guide: {
+        general: {
+          rule: '中英文版本使用完全相同的标签',
+          min_tags: 2,
+          max_tags: 4,
+          dynamic_tags: true,
+          description: '优先从固定标签列表中选取，没有合适标签时允许自行创建'
+        },
+        tech_tags: {
+          common_tags: [
+            'AI开发工具', 'AI基础设施', 'AI智能体', 'AI智能体框架', 'AI 编程辅助', 'AI自动化工具',
+            '开源项目', '开发者工具', '效率工具', '性能优化', '安全', '教程',
+            'TypeScript', 'Rust', 'Go', 'Python', 'Next.js', 'React', 'Node.js', '前端',
+            'LLM', 'MCP', 'RAG', 'Agent', 'AI Agent', '编程', '工程化'
+          ]
+        },
+        fiction_tags: {
+          required_tag: '短篇小说',
+          optional_tags: ['悬疑', '恐怖', '怪谈', '日常', '超自然', '都市', '科幻', '短篇故事'],
+          series_format: '\`系列:系列名称\`',
+          series_examples: [
+            '\`系列:魔幻故事\`',
+            '\`系列:城市传说\`',
+            '\`系列:异闻录\`'
+          ]
+        }
+      }
     },
     endpoints: {
       list_posts: {
