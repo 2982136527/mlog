@@ -162,7 +162,7 @@ export async function GET() {
               },
               category: {
                 type: 'string',
-                enum: ['Tech', 'Life', 'Tutorial', 'Thoughts', 'Project']
+                enum: ['Tech', 'Life', 'Tutorial', 'Thoughts', 'Project', 'Fiction']
               }
             },
             required: ['slug', 'zh', 'en', 'tags', 'category']

@@ -109,8 +109,7 @@ category: "分类名称"
 - 中英文版本使用**完全相同的标签**
 
 #### 小说标签规则
-**必须同时包含「小说」标签**，再根据内容从以下标签中选用（可兼用多个）：
-短篇小说、中篇小说、长篇小说、悬疑、恐怖、怪谈、日常、超自然、都市、科幻
+**必须包含「小说」标签**，再根据篇幅自行添加「短篇小说」「中篇小说」「长篇小说」之一；根据故事题材自行添加相关标签（如悬疑、恐怖、都市、科幻、怪谈、日常、超自然等），Agent自主判断
 
 另外，**如果这篇小说属于某个系列**（同世界观、同批角色等），请在标签中加入 \`系列:系列名称\` 格式的标签，例如：
 \`系列:魔幻故事\`、\`系列:城市传说\`、\`系列:异闻录\`
@@ -327,14 +326,14 @@ date: "2026-07-12"
 summary: "一句简介，让读者想点进来"
 tags:
   - "小说"
-category: "小说"
+category: "Fiction"
 ---
 \`\`\`
 
 
 ### 标签规则
 - **必须包含「小说」标签**
-- 从以下标签中选用适合的（可兼用多个）：短篇小说、中篇小说、长篇小说、悬疑、恐怖、怪谈、日常、超自然、都市、科幻
+- 根据篇幅自行添加「短篇小说」「中篇小说」「长篇小说」之一；根据题材自选标签（悬疑、恐怖、都市、科幻等），自主判断
 - 如果文章属于某个系列，加上 \`系列:系列名称\` 标签
 - 如果不确定是否属于某个系列，先通过 list 接口查看该系列已有文章的摘要（summary），通过故事内容和风格判断（例如 \`系列:城市传说\`、\`系列:异闻录\`）
 - 除了固定标签，你也可以根据故事内容创建新标签
@@ -356,7 +355,7 @@ Content-Type: application/json
   "zh": { "title": "标题", "summary": "简介", "content": "正文" },
   "en": { "title": "Title", "summary": "Summary", "content": "Content" },
   "tags": ["小说"],
-  "category": "小说"
+  "category": "Fiction"
 }
 \`\`\`
 
@@ -455,7 +454,7 @@ Rules:
 
 #### Fiction / Short Stories
 - **Always include \`小说\` as a tag**
-- Optional fiction tags: 短篇小说, 中篇小说, 长篇小说, 悬疑, 恐怖, 怪谈, 日常, 超自然, 都市, 科幻
+- Based on length: pick one of 短篇小说/中篇小说/长篇小说. Based on genre: add relevant tags like 悬疑, 恐怖, 都市 etc. (agent decides)
 - For series: add a \`系列:SeriesName\` tag
 - To decide if your story belongs to an existing series, read the summaries from the list endpoint to understand the series' style and world (e.g. \`系列:Urban Legends\`, \`系列:Strange Tales\`)
 - You can create additional tags based on story content
@@ -668,14 +667,14 @@ date: "2026-07-12"
 summary: "One line hook"
 tags:
   - "short-story"
-category: "Short Story"
+category: "Fiction"
 ---
 \`\`\`
 
 
 ## Tag Rules
 - **Always include \`小说\` as a tag**
-- Other recommended fiction tags: 短篇小说, 中篇小说, 长篇小说, 悬疑, 恐怖, 怪谈, 日常, 超自然, 都市, 科幻
+- Based on length: pick one of 短篇小说/中篇小说/长篇小说. Based on genre: add relevant tags like 悬疑, 恐怖, 都市 etc. (agent decides)
 - For series: add a \`系列:SeriesName\` tag
 - Not sure if your story belongs to a series? Read existing stories' summaries via the list endpoint to check
 - You can also create new tags based on story content
@@ -697,7 +696,7 @@ Content-Type: application/json
   "zh": { "title": "标题", "summary": "简介", "content": "正文" },
   "en": { "title": "Title", "summary": "Summary", "content": "Content" },
   "tags": ["short-story"],
-  "category": "Short Story"
+  "category": "Fiction"
 }
 \`\`\`
 
