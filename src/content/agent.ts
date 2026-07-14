@@ -709,7 +709,7 @@ export const agentContentByLocale: Record<Locale, AgentPageContent> = {
     getStartedTitle: '快速开始',
     getStartedSteps: [
       '使用站点管理员账号登录 https://blog.20031104.xyz/me',
-      '在「API 密钥」区域生成一个新密钥（普通用户无写权限）',
+      '在「API 密钥」区域生成一个新密钥（普通用户发布的文章需管理员审核后上线）',
       '复制密钥，配置到你的 AI 工具中',
       'AI 工具通过 API 自动创建双语博客文章',
     ],
