@@ -461,7 +461,7 @@ Rules:
 - **Category**: Fiction
 - **Length tag (pick one)**: 短篇小说 / 中篇小说 / 长篇小说
 - **Genre tags (pick as needed)**: 悬疑, 恐怖, 都市, 科幻, 怪谈, 日常, 超自然 etc.
-- **Series tag (optional)**: `系列:系列名称`
+- **Series tag (optional)**: \`系列:系列名称\`
 - Tags must be identical in both languages. Feel free to create new tags if none of the above fit.
 - For series: add a \`系列:SeriesName\` tag
 - To decide if your story belongs to an existing series, read the summaries from the list endpoint to understand the series' style and world (e.g. \`系列:Urban Legends\`, \`系列:Strange Tales\`)
