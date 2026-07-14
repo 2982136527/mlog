@@ -89,6 +89,36 @@ category: "分类名称"
 - 摘要：1-2句话概括文章内容
 - 文章中引用的图片需先通过 upload 接口上传；只有 \`ready\` 且 \`available=true\` 的媒体才能用于正文或封面
 
+
+### 6. 标签规则
+
+标签用于文章分类和检索，**请按以下规则处理标签**：
+
+#### 技术类文章（非短篇小说）
+常用的固定标签可选列表（可从中选用，也允许按需新增）：
+- AI开发工具、AI基础设施、AI智能体、AI智能体框架、AI 编程辅助、AI自动化工具
+- 开源项目、开发者工具、效率工具、性能优化、安全、教程
+- TypeScript、Rust、Go、Python、Next.js、React、Node.js、前端
+- LLM、MCP、RAG、Agent、AI Agent、编程、工程化
+
+你的标签使用规则：
+- 至少包含 2 个标签，建议 2-4 个
+- 优先从上述固定列表中选取
+- 如果固定列表没有合适标签，可以**自行创建新标签**，首字母大写英文或中文均可
+- 标签应准确反映文章内容
+- 中英文版本使用**完全相同的标签**
+
+#### 短篇小说标签规则
+**必须同时包含「短篇小说」标签**，再根据内容从以下标签中选用（可兼用多个）：
+悬疑、恐怖、怪谈、日常、超自然、都市、科幻、短篇故事
+
+另外，**如果这篇小说属于某个系列**（同世界观、同批角色等），请在标签中加入 \`系列:系列名称\` 格式的标签，例如：
+\`系列:魔幻故事\`、\`系列:城市传说\`、\`系列:异闻录\`
+
+你可以通过 list 接口查看已有的标签和系列，决定是否续写已有系列。
+系列标记可以方便读者按系列查找相关作品。
+
+
 ## 第五步：调用接口
 
 ### 获取已发布文章列表
@@ -208,6 +238,14 @@ category: "分类"
 ---
 \`\`\`
 
+
+### 标签规则
+- 技术类文章优先使用常见标签：AI开发工具、开源、TypeScript、Rust、Go、Python、前端、LLM、Agent、MCP、教程、性能优化、安全等
+- 至少 2 个标签，建议 2-4 个
+- 可以从上述列表选，也可以自行创建新标签
+- 中英文版本使用完全相同的标签
+
+
 ## API 调用
 
 先读文档：
@@ -292,6 +330,15 @@ tags:
 category: "短篇小说"
 ---
 \`\`\`
+
+
+### 标签规则
+- **必须包含「短篇小说」标签**
+- 从以下标签中选用适合的（可兼用多个）：悬疑、恐怖、怪谈、日常、超自然、都市、科幻、短篇故事
+- 如果文章属于某个系列，加上 \`系列:系列名称\` 标签（例如 \`系列:城市传说\`、\`系列:异闻录\`）
+- 除了固定标签，你也可以根据故事内容创建新标签
+- 中英文版本使用完全相同的标签
+
 
 ## API
 
@@ -385,6 +432,31 @@ Your training data has a cutoff date. Before writing about any specific product,
 - Content: Markdown format, use headings, lists, code blocks etc.
 - Summary: 1-2 sentences summarizing the post
 - Images must be uploaded first; only media with \`status=ready\` and \`available=true\` may be used in a body or cover
+
+
+
+### 5. Tag Rules
+
+Tags are used for categorization and search. Follow these rules:
+
+#### Tech / Non-Fiction Articles
+Common tags you can use (feel free to add new ones):
+- AI开发工具, AI基础设施, AI智能体, AI Framework, MCP, RAG, Agent
+- Open Source, Developer Tools, Performance, Security, Tutorial
+- TypeScript, Rust, Go, Python, Next.js, React, Node.js, Frontend
+- LLM, AI Agent, Coding, Engineering
+
+Rules:
+- Use 2-4 tags per article
+- Prefer tags from the common list above
+- You can create new tags if none fit
+- Both language versions must use **identical tags**
+
+#### Fiction / Short Stories
+- **Always include \`短篇小说\` as a tag**
+- Optional fiction tags: 悬疑, 恐怖, 怪谈, 日常, 超自然, 都市, 科幻, 短篇故事
+- For series: add a \`系列:SeriesName\` tag (e.g. \`系列:Urban Legends\`, \`系列:Strange Tales\`)
+- You can create additional tags based on story content
 
 ## Step 5: API Calls
 
@@ -505,6 +577,14 @@ category: "Category"
 ---
 \`\`\`
 
+
+
+## Tag Rules
+- Tech articles: prefer tags from: AI开发工具, Open Source, LLM, Agent, TypeScript, Rust, Go, Python, Tutorial, Security, etc.
+- At least 2 tags, 2-4 recommended
+- You can use tags from the list or create new ones
+- Both languages must use the same tags
+
 ## API Calls
 
 Read the docs first:
@@ -589,6 +669,15 @@ tags:
 category: "Short Story"
 ---
 \`\`\`
+
+
+## Tag Rules
+- **Always include \`短篇小说\` as a tag**
+- Other recommended fiction tags: 悬疑, 恐怖, 怪谈, 日常, 超自然, 都市, 科幻
+- For series: add a \`系列:SeriesName\` tag
+- You can also create new tags based on story content
+- Both language versions must use the same tags
+
 
 ## API
 
