@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 /**
  * Price Monitor Scraper
  * 
@@ -64,6 +65,7 @@ async function fetchExchangeRate() {
 // ── Scrape Newegg Prices ────────────────────────────────────────────
 async function scrapeNeweggPrices(browser) {
   const page = await browser.newPage();
+  page.setDefaultTimeout(12000);
   const results = [];
 
   for (const product of PRODUCTS) {
@@ -73,7 +75,7 @@ async function scrapeNeweggPrices(browser) {
       });
       await page.waitForTimeout(1500);
 
-      const items = await page.evaluate(({ isGPU, keyword }) => {
+      const items = await page.evaluate(({ isGPU, categoryFilter, keyword }) => {
         const results = [];
         const cells = document.querySelectorAll('.item-cell');
         
@@ -120,12 +122,15 @@ async function scrapeNeweggPrices(browser) {
           scrapedName: best.name
         });
         console.log(`  ✓ ${product.name}: $${best.price} USD`);
+        try { fs.appendFileSync('/tmp/price-scraper-progress.log', `✓ ${product.name}: $${best.price}\n`); } catch(e) {}
       } else {
         results.push({ productId: product.id, name: product.name, category: product.category, spec: product.spec, priceUSD: null, source: 'newegg' });
         console.log(`  ✗ ${product.name}: no price found`);
+        try { fs.appendFileSync('/tmp/price-scraper-progress.log', `✗ ${product.name}: no price\n`); } catch(e) {}
       }
     } catch (err) {
       console.log(`  ✗ ${product.name}: ERROR - ${err.message?.slice(0, 80)}`);
+      try { fs.appendFileSync('/tmp/price-scraper-progress.log', `✗ ${product.name}: ERROR ${err.message?.slice(0,60)}\n`); } catch(e) {}
       results.push({ productId: product.id, name: product.name, category: product.category, spec: product.spec, priceUSD: null, source: 'newegg' });
     }
   }
@@ -148,10 +153,10 @@ async function storePrices(pool, results, exchangeRate) {
       id SERIAL PRIMARY KEY,
       product_id TEXT NOT NULL REFERENCES price_monitor_products(product_id),
       price NUMERIC(10, 2) NOT NULL,
-      price_usd NUMERIC(10, 2),
       recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE price_monitor_history ADD COLUMN IF NOT EXISTS price_usd NUMERIC(10,2)`).catch(() => {});
   await pool.query(`
     CREATE INDEX IF NOT EXISTS price_monitor_history_product_idx 
     ON price_monitor_history(product_id, recorded_at DESC)
@@ -197,6 +202,7 @@ async function main() {
 
     const found = results.filter(r => r.priceUSD);
     console.log(`\nResults: ${found.length}/${results.length} found`);
+    try { fs.appendFileSync('/tmp/price-scraper-progress.log', `Results: ${found.length}/${results.length} found\n`); } catch(e) {}
     found.forEach(r => {
       const cny = (r.priceUSD * exchangeRate).toFixed(2);
       console.log(`  ${r.name}: $${r.priceUSD} = ¥${cny}`);
@@ -228,6 +234,21 @@ async function main() {
   } finally {
     await browser.close();
   }
+  
+  // Also write to log file
+  try {
+    const fs = require('fs');
+    fs.writeFileSync('/tmp/price-scraper-last.json', JSON.stringify({
+      timestamp: new Date().toISOString(),
+      exchangeRate,
+      found: found.length,
+      total: results.length,
+      prices: found.map(r => ({
+        id: r.productId, name: r.name, priceUSD: r.priceUSD, 
+        priceCNY: Math.round(r.priceUSD * exchangeRate * 100) / 100
+      }))
+    }, null, 2));
+  } catch(e) {}
 }
 
 if (require.main === module) main().catch(err => { console.error('FATAL:', err); process.exit(1); });
