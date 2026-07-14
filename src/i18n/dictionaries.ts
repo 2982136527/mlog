@@ -332,17 +332,7 @@ const dictionaries: Record<Locale, Dictionary> = {
       forum: 'Forum',
       agent: 'Agent',
       me: 'My',
-      monitor: 'Prices'
-    },
-    monitor: {
-      subtitle: 'Hardware price tracker - memory, GPU, CPU',
-      memory: 'Memory',
-      gpu: 'GPU',
-      cpu: 'CPU',
-      noData: 'No data yet',
-      days: 'days',
-      price: 'Price',
-      updated: 'Updated'
+ 
     },
     home: {
       latestPost: 'Latest Post',
