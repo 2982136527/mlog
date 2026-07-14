@@ -90,7 +90,12 @@ category: "分类名称"
 - 文章中引用的图片需先通过 upload 接口上传；只有 \`ready\` 且 \`available=true\` 的媒体才能用于正文或封面
 
 
-### 6. 标签规则
+### 6. 正文格式要求
+- **正文不要以 # 标题开头**：页面已独立显示文章标题，正文直接写内容即可
+- 不要在正文开头重复标题或写「正文」二字
+- Markdown 正文直接从内容开始，用二级标题 ## 划分章节
+
+### 7. 标签规则
 
 标签用于文章分类和检索，**请按以下规则处理标签**：
 
@@ -440,7 +445,12 @@ Your training data has a cutoff date. Before writing about any specific product,
 
 
 
-### 5. Tag Rules
+### 5. Content Format
+- **Do NOT start content with a # title heading** — the page title is shown separately
+- Start the content directly without repeating the title
+- Use ## subheadings for section breaks
+
+### 6. Tag Rules
 
 Tags are used for categorization and search. Follow these rules:
 

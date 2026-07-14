@@ -25,7 +25,7 @@ export async function GET() {
         category: '分类名称',
         cover: '封面图路径，可选'
       },
-      content_format: 'Markdown 格式',
+      content_format: 'Markdown 格式（注意：正文不要以 # 标题开头，页面已独立显示文章标题）',
       slug_rules: '英文小写+连字符，唯一标识',
       tag_guide: {
         general: {
@@ -190,6 +190,7 @@ export async function GET() {
       '中英文标题可以不同但主题需一致',
       '标签 2-4 个，与内容相关',
       '分类保持一致不要随意新建；写小说时 category 必须为「小说」',
+      '正文不要以 # 标题开头——页面已独立显示标题，正文直接写内容即可',
       '图片上传返回 202 时先轮询；只有 ready 且 available=true 的媒体 URL 才能用于正文或 cover'
     ]
   }
