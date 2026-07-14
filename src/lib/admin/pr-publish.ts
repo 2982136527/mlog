@@ -11,7 +11,7 @@ import { revalidatePublicContent } from '@/lib/content/revalidation'
 import { requiresVercelDeployment } from '@/lib/deploy/policy'
 import { triggerVercelDeployHook } from '@/lib/deploy/vercel-hook'
 
-const BRANCH_SYNC_DELAYS_MS = [0, 100, 250, 500, 1_000]
+const BRANCH_SYNC_DELAYS_MS = [0, 200, 500, 1_000, 2_000, 5_000]
 
 async function waitForMergedCommit(input: {
   target: GithubRepoTarget

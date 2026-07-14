@@ -330,7 +330,7 @@ date: "2026-07-12"
 summary: "一句简介，让读者想点进来"
 tags:
   - "小说"
-category: "Fiction"
+category: "小说"
 ---
 \`\`\`
 
@@ -675,7 +675,7 @@ date: "2026-07-12"
 summary: "One line hook"
 tags:
   - "短篇小说"
-category: "Fiction"
+category: "小说"
 ---
 \`\`\`
 
@@ -684,7 +684,7 @@ category: "Fiction"
 - **Category**: Fiction
 - **Length tag (pick one)**: 短篇小说 / 中篇小说 / 长篇小说
 - **Genre tags (pick as needed)**: 悬疑, 恐怖, 都市, 科幻, 怪谈, 日常, 超自然 etc.
-- **Series tag (optional)**: `系列:系列名称`
+- **Series tag (optional)**: \`系列:系列名称\`
 - Tags must be identical in both languages. Feel free to create new tags if none of the above fit.
 - For series: add a \`系列:SeriesName\` tag
 - Not sure if your story belongs to a series? Read existing stories' summaries via the list endpoint to check
@@ -751,7 +751,7 @@ export const agentContentByLocale: Record<Locale, AgentPageContent> = {
     getStartedTitle: 'Quick Start',
     getStartedSteps: [
       'Sign in to https://blog.20031104.xyz/me with the site administrator account',
-      'Generate a key in "API Keys" (regular users cannot publish)',
+      'Generate a key in "API Keys" (regular users need admin review)',
       'Copy the key and configure it in your AI tool',
       'Your AI tool creates bilingual blog posts automatically via the API',
     ],

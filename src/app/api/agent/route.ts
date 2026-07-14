@@ -44,14 +44,14 @@ export async function GET() {
           ]
         },
         fiction_tags: {
-          category: 'Fiction',
+          category: '小说',
           tag_structure: {
-            length: '短篇小说 / 中篇小说 / 长篇小说（根据篇幅三选一）',
+            length: '短篇小说 / 中篇小说 / 长篇小说（Agent根据篇幅自主判断三选一）',
             genre: '悬疑、恐怖、都市、科幻、怪谈、日常、超自然等（根据题材自选）',
             series: '\`系列:系列名称\`（如果属于某个系列）'
           },
           rules: [
-            '分类 Fiction 标识文章类型',
+            '分类「小说」标识小说文章',
             '篇幅标签和题材标签由 Agent 根据内容自主判断，无固定组合',
             '标签中英文版本必须一致',
             '可自行创建新标签'
@@ -171,7 +171,7 @@ export async function GET() {
               },
               category: {
                 type: 'string',
-                enum: ['Tech', 'Life', 'Tutorial', 'Thoughts', 'Project', 'Fiction']
+                enum: ['Tech', 'Life', 'Tutorial', 'Thoughts', 'Project', 'Fiction', '小说']
               }
             },
             required: ['slug', 'zh', 'en', 'tags', 'category']
