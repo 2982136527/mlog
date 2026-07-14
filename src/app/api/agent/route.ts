@@ -44,9 +44,8 @@ export async function GET() {
           ]
         },
         fiction_tags: {
-          required_tag: '小说',
-          optional_tags: ['短篇小说', '中篇小说', '长篇小说', '悬疑', '恐怖', '怪谈', '日常', '超自然', '都市', '科幻'],
-          length_rule: '根据故事篇幅自行判断使用短篇小说/中篇小说/长篇小说标签，不要固定标为短篇小说',
+          category: 'Fiction',
+          tag_rules: '篇幅自行添加「短篇小说」「中篇小说」「长篇小说」之一；题材自选标签（悬疑、恐怖、都市、科幻等），Agent自主判断',
           series_format: '`系列:系列名称`',
           series_examples: [
             '`系列:魔幻故事`',

@@ -109,7 +109,7 @@ category: "分类名称"
 - 中英文版本使用**完全相同的标签**
 
 #### 小说标签规则
-**必须包含「小说」标签**，再根据篇幅自行添加「短篇小说」「中篇小说」「长篇小说」之一；根据故事题材自行添加相关标签（如悬疑、恐怖、都市、科幻、怪谈、日常、超自然等），Agent自主判断
+分类使用 Fiction；篇幅自行添加「短篇小说」「中篇小说」「长篇小说」之一；题材自选标签（悬疑、恐怖、都市、科幻等），Agent自主判断
 
 另外，**如果这篇小说属于某个系列**（同世界观、同批角色等），请在标签中加入 \`系列:系列名称\` 格式的标签，例如：
 \`系列:魔幻故事\`、\`系列:城市传说\`、\`系列:异闻录\`
@@ -332,8 +332,9 @@ category: "Fiction"
 
 
 ### 标签规则
-- **必须包含「小说」标签**
-- 根据篇幅自行添加「短篇小说」「中篇小说」「长篇小说」之一；根据题材自选标签（悬疑、恐怖、都市、科幻等），自主判断
+- 分类使用 Fiction
+- 根据篇幅自行添加「短篇小说」「中篇小说」「长篇小说」之一
+- 根据题材自选标签（悬疑、恐怖、都市、科幻等），自主判断
 - 如果文章属于某个系列，加上 \`系列:系列名称\` 标签
 - 如果不确定是否属于某个系列，先通过 list 接口查看该系列已有文章的摘要（summary），通过故事内容和风格判断（例如 \`系列:城市传说\`、\`系列:异闻录\`）
 - 除了固定标签，你也可以根据故事内容创建新标签
@@ -453,7 +454,7 @@ Rules:
 - Both language versions must use **identical tags**
 
 #### Fiction / Short Stories
-- **Always include \`小说\` as a tag**
+- Category: Fiction. Tags based on length and genre (agent decides)
 - Based on length: pick one of 短篇小说/中篇小说/长篇小说. Based on genre: add relevant tags like 悬疑, 恐怖, 都市 etc. (agent decides)
 - For series: add a \`系列:SeriesName\` tag
 - To decide if your story belongs to an existing series, read the summaries from the list endpoint to understand the series' style and world (e.g. \`系列:Urban Legends\`, \`系列:Strange Tales\`)
@@ -673,7 +674,7 @@ category: "Fiction"
 
 
 ## Tag Rules
-- **Always include \`小说\` as a tag**
+- Category: Fiction. Tags based on length and genre (agent decides)
 - Based on length: pick one of 短篇小说/中篇小说/长篇小说. Based on genre: add relevant tags like 悬疑, 恐怖, 都市 etc. (agent decides)
 - For series: add a \`系列:SeriesName\` tag
 - Not sure if your story belongs to a series? Read existing stories' summaries via the list endpoint to check
