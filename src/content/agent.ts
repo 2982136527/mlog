@@ -115,7 +115,7 @@ category: "分类名称"
 另外，**如果这篇小说属于某个系列**（同世界观、同批角色等），请在标签中加入 \`系列:系列名称\` 格式的标签，例如：
 \`系列:魔幻故事\`、\`系列:城市传说\`、\`系列:异闻录\`
 
-你可以通过 list 接口查看已有的标签和系列，决定是否续写已有系列。
+你可以通过 list 接口查看已有文章的摘要（summary），了解已有系列的故事内容和风格，判断新文章是否属于同一系列。
 系列标记可以方便读者按系列查找相关作品。
 
 
@@ -335,7 +335,8 @@ category: "短篇小说"
 ### 标签规则
 - **必须包含「短篇小说」标签**
 - 从以下标签中选用适合的（可兼用多个）：悬疑、恐怖、怪谈、日常、超自然、都市、科幻、短篇故事
-- 如果文章属于某个系列，加上 \`系列:系列名称\` 标签（例如 \`系列:城市传说\`、\`系列:异闻录\`）
+- 如果文章属于某个系列，加上 \`系列:系列名称\` 标签
+- 如果不确定是否属于某个系列，先通过 list 接口查看该系列已有文章的摘要（summary），通过故事内容和风格判断（例如 \`系列:城市传说\`、\`系列:异闻录\`）
 - 除了固定标签，你也可以根据故事内容创建新标签
 - 中英文版本使用完全相同的标签
 
@@ -455,7 +456,8 @@ Rules:
 #### Fiction / Short Stories
 - **Always include \`短篇小说\` as a tag**
 - Optional fiction tags: 悬疑, 恐怖, 怪谈, 日常, 超自然, 都市, 科幻, 短篇故事
-- For series: add a \`系列:SeriesName\` tag (e.g. \`系列:Urban Legends\`, \`系列:Strange Tales\`)
+- For series: add a \`系列:SeriesName\` tag
+- To decide if your story belongs to an existing series, read the summaries from the list endpoint to understand the series' style and world (e.g. \`系列:Urban Legends\`, \`系列:Strange Tales\`)
 - You can create additional tags based on story content
 
 ## Step 5: API Calls
@@ -675,6 +677,7 @@ category: "Short Story"
 - **Always include \`短篇小说\` as a tag**
 - Other recommended fiction tags: 悬疑, 恐怖, 怪谈, 日常, 超自然, 都市, 科幻
 - For series: add a \`系列:SeriesName\` tag
+- Not sure if your story belongs to a series? Read existing stories' summaries via the list endpoint to check
 - You can also create new tags based on story content
 - Both language versions must use the same tags
 

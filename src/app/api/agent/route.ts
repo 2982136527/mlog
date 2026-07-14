@@ -60,8 +60,8 @@ export async function GET() {
         method: 'GET',
         path: '/api/agent/list',
         auth_required: true,
-        description: '获取博客所有已发布文章的列表，包含中英文标题、分类和发布日期。在撰写新文章前务必先调用此接口，检查是否有重复或高度相似的主题。',
-        response: '{ total: number, posts: Array<{ slug, zhTitle, enTitle, category, publishedAt }> }'
+        description: '获取博客所有已发布文章的列表，包含中英文标题、摘要、分类、标签和发布日期。在撰写新文章前务必先调用此接口，检查是否有重复或高度相似的主题；写小说系列时可通过摘要判断新故事是否属于已有系列。',
+        response: '{ total: number, posts: Array<{ slug, zhTitle, enTitle, zhSummary, enSummary, category, tags, publishedAt }>, availableTags: string[] }'
       },
       create_post: {
         method: 'POST',

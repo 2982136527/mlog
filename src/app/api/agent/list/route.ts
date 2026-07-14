@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
       slug: string
       zhTitle: string | null
       enTitle: string | null
+      zhSummary: string | null
+      enSummary: string | null
       category: string
       publishedAt: string
       tags: string[]
@@ -25,6 +27,8 @@ export async function GET(request: NextRequest) {
       if (existing) {
         if (post.locale === 'zh') existing.zhTitle = post.frontmatter.title
         if (post.locale === 'en') existing.enTitle = post.frontmatter.title
+        if (post.locale === 'zh') existing.zhSummary = post.frontmatter.summary
+        if (post.locale === 'en') existing.enSummary = post.frontmatter.summary
         // Merge tags from all locales
         for (const tag of post.frontmatter.tags) {
           if (!existing.tags.includes(tag)) existing.tags.push(tag)
@@ -34,6 +38,8 @@ export async function GET(request: NextRequest) {
           slug: post.slug,
           zhTitle: post.locale === 'zh' ? post.frontmatter.title : null,
           enTitle: post.locale === 'en' ? post.frontmatter.title : null,
+          zhSummary: post.locale === 'zh' ? post.frontmatter.summary : null,
+          enSummary: post.locale === 'en' ? post.frontmatter.summary : null,
           category: post.frontmatter.category,
           publishedAt: post.frontmatter.publishedAt || post.frontmatter.date,
           tags: [...post.frontmatter.tags]
