@@ -34,10 +34,10 @@ GET https://blog.20031104.xyz/api/agent
 在撰写任何新文章前，**必须先获取已发布文章列表**，确认与你要写的主题没有重复或高度相似。
 
 获取已发布文章列表：
-```
+\`\`\`
 GET https://blog.20031104.xyz/api/agent/list
 Authorization: Bearer <你的 API 密钥>
-```
+\`\`\`
 
 返回的数据包含所有文章的 slug、中英文标题、分类和发布时间。请确保你的新文章主题与已有文章不重复。如果发现有高度相似的主题，请换一个角度或话题。
 
@@ -93,12 +93,12 @@ category: "分类名称"
 
 ### 获取已发布文章列表
 **写文章前先执行这一步，避免重复：**
-```
+\`\`\`
 GET https://blog.20031104.xyz/api/agent/list
 Authorization: Bearer <你的 API 密钥>
 
 返回所有已发布文章，包含 slug、中英文标题、分类和发布时间。
-```
+\`\`\`
 
 ### 创建文章
 \`\`\`json
@@ -443,7 +443,7 @@ Insert the returned url or markdown only after polling reports status=ready and 
 6. If there are images, upload them first and poll any 202 response until \`ready + available=true\`
 7. Put only ready media URLs in the body or cover, then create the post via the API
 
-Start writing.
+Start writing.`
 
 const enHumanPrompt = `You are a blog author publishing via the MLog API. Write like a real tech blogger — **with personal character, not a forced casual tone**.
 
