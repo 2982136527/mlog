@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { randomUUID, createHash } from 'node:crypto'
 import { sql } from '@vercel/postgres'
 import { AdminHttpError } from '@/lib/admin/errors'
-import { requireAdminSession } from '@/lib/admin/session'
+import { requireUserSession } from '@/lib/user/session'
 import { createRequestId, fail, ok } from '@/lib/admin/response'
 import { ensureUserAutomationSchema } from '@/lib/user/db'
 import { ensureUserProfile } from '@/lib/user/db'
@@ -11,7 +11,7 @@ export async function GET() {
   const requestId = createRequestId()
 
   try {
-    const { login } = await requireAdminSession()
+    const { login } = await requireUserSession()
 
     await ensureUserAutomationSchema()
 
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   const requestId = createRequestId()
 
   try {
-    const { login } = await requireAdminSession()
+    const { login } = await requireUserSession()
 
     const body = await request.json().catch(() => ({}))
     const name = typeof body.name === 'string' ? body.name.trim().slice(0, 100) : ''
@@ -89,7 +89,7 @@ export async function DELETE(request: NextRequest) {
   const requestId = createRequestId()
 
   try {
-    const { login } = await requireAdminSession()
+    const { login } = await requireUserSession()
 
     const id = request.nextUrl.searchParams.get('id')
 

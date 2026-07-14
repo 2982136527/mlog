@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   const requestId = createRequestId()
 
   try {
-    const userLogin = await validateAgentRequest(request)
+    const { login: userLogin, isAdmin } = await validateAgentRequest(request)
 
     const body = await request.json().catch(() => {
       throw new AdminHttpError(400, 'INVALID_JSON', 'Request body must be valid JSON.')
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     const result = await publishPostChanges({
       slug: parsed.slug,
-      mode: 'publish',
+      mode: isAdmin ? 'publish' as const : 'draft' as const,
       changes: [
         {
           locale: 'zh' as const,

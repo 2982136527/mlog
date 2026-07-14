@@ -12,8 +12,8 @@ export async function GET() {
       type: 'Bearer Token',
       description: '所有写操作(POST)需要认证',
       header: 'Authorization: Bearer <your-api-key>',
-      how_to_get: '仅站点管理员可在「我的」页面中生成 API 密钥。',
-      note: 'GET 本端点不需要认证'
+      how_to_get: '所有登录用户可在「我的」页面中生成 API 密钥。普通用户密钥发布的文章需要管理员审核；管理员密钥可直接发布。',
+      note: 'GET 本端点不需要认证。普通用户密钥（非管理员）发布的文章会自动标记为草稿，需要在后台审核后发布。'
     },
     writing_standards: {
       bilingual_requirement: '必须同时提供中文(zh)和英文(en)两个版本',

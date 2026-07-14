@@ -28,5 +28,5 @@ export default async function MePage({ searchParams }: MePageProps) {
     redirect(`/me/login?${query.toString()}`)
   }
 
-  return <MeDashboard login={login} hasGistScope={Boolean(session.user.hasGistScope)} locale={locale} canManageAgentKeys={isAdminLogin(login)} />
+  return <MeDashboard login={login} hasGistScope={Boolean(session.user.hasGistScope)} locale={locale} canManageAgentKeys={true} />
 }

@@ -9,7 +9,7 @@ import { mediaPoll } from '@/lib/media/poll'
 export async function POST(request: NextRequest) {
   const requestId = createRequestId()
   try {
-    const login = await validateAgentRequest(request)
+    const { login } = await validateAgentRequest(request)
     assertMediaRequestSize(request)
     const reservation = await getMediaUploadService().reserve({
       actor: login,

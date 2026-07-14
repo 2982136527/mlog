@@ -11,7 +11,7 @@ export class AgentAuthError extends AdminHttpError {
   }
 }
 
-export async function validateAgentRequest(request: NextRequest): Promise<string> {
+export async function validateAgentRequest(request: NextRequest): Promise<{ login: string; isAdmin: boolean }> {
   const authHeader = request.headers.get('authorization')
   if (!authHeader) {
     throw new AgentAuthError('Missing Authorization header. Use: Authorization: Bearer <your-api-key>')
@@ -26,8 +26,8 @@ export async function validateAgentRequest(request: NextRequest): Promise<string
 
   await ensureUserAutomationSchema()
 
-  const result = await sql<{ user_login: string; status: string }>`
-    SELECT keys.user_login, profiles.status
+  const result = await sql<{ user_login: string; status: string; role: string }>`
+    SELECT keys.user_login, profiles.status, profiles.role
     FROM user_api_keys AS keys
     INNER JOIN user_profiles AS profiles ON profiles.login = keys.user_login
     WHERE keys.key_hash = ${keyHash} AND keys.is_active = TRUE
@@ -35,11 +35,11 @@ export async function validateAgentRequest(request: NextRequest): Promise<string
   `
 
   const row = result.rows[0]
-  if (!row || row.status !== 'active' || !isAdminLogin(row.user_login)) {
+  if (!row || row.status !== 'active') {
     throw new AgentAuthError('Invalid or revoked API key.')
   }
 
   await sql`UPDATE user_api_keys SET last_used_at = NOW() WHERE key_hash = ${keyHash}`.catch(() => {})
 
-  return row.user_login
+  return { login: row.user_login, isAdmin: isAdminLogin(row.user_login) }
 }
