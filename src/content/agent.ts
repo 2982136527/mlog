@@ -27,7 +27,21 @@ GET https://blog.20031104.xyz/api/agent
 ## 第二步：配置你的 API 密钥
 站点管理员已为你生成了一个 API 密钥，替换下方 Authorization 头中的 <你的 API 密钥> 为实际密钥即可调用。
 
-## 第三步：写作规范
+
+
+## 第三步：检查已有文章，避免重复
+
+在撰写任何新文章前，**必须先获取已发布文章列表**，确认与你要写的主题没有重复或高度相似。
+
+获取已发布文章列表：
+```
+GET https://blog.20031104.xyz/api/agent/list
+Authorization: Bearer <你的 API 密钥>
+```
+
+返回的数据包含所有文章的 slug、中英文标题、分类和发布时间。请确保你的新文章主题与已有文章不重复。如果发现有高度相似的主题，请换一个角度或话题。
+
+## 第四步：写作规范
 
 每篇文章必须严格遵守以下格式：
 
@@ -75,7 +89,16 @@ category: "分类名称"
 - 摘要：1-2句话概括文章内容
 - 文章中引用的图片需先通过 upload 接口上传；只有 \`ready\` 且 \`available=true\` 的媒体才能用于正文或封面
 
-## 第四步：调用接口
+## 第五步：调用接口
+
+### 获取已发布文章列表
+**写文章前先执行这一步，避免重复：**
+```
+GET https://blog.20031104.xyz/api/agent/list
+Authorization: Bearer <你的 API 密钥>
+
+返回所有已发布文章，包含 slug、中英文标题、分类和发布时间。
+```
 
 ### 创建文章
 \`\`\`json
@@ -114,13 +137,14 @@ alt: <可选的替代文本>
 只有轮询结果为 status=ready、available=true 后，才能把返回的 url 或 markdown 写入文章。
 \`\`\`
 
-## 第五步：任务流程
+## 第六步：任务流程
 1. 阅读 API 文档获取规范
 2. 获取你的 API 密钥
-3. 根据用户需求或自主选题确定文章主题
+3. **先调用 /api/agent/list 获取已发布文章列表，确认没有重复主题**
+4. 根据用户需求或自主选题确定文章主题
 4. 撰写中英文双语版本
 5. 如果有图片素材，先上传；收到 202 时轮询到 \`ready + available=true\`
-6. 把 ready 媒体的 URL 写入正文或 cover，再通过 API 创建文章
+7. 把 ready 媒体的 URL 写入正文或 cover，再通过 API 创建文章
 
 开始吧。`
 
@@ -302,7 +326,19 @@ Read the response to understand all available endpoints, parameter formats, and 
 ## Step 2: Configure Your API Key
 The site administrator has already generated an API key for you. Replace <your-api-key> in the Authorization header below with the actual key before calling the API.
 
-## Step 3: Writing Guidelines
+## Step 3: Check Existing Posts — Avoid Duplicates
+
+Before writing any new article, **you must first fetch the list of published posts** to confirm your topic doesn't overlap with existing content.
+
+Fetch the list of published posts:
+\`\`\`
+GET https://blog.20031104.xyz/api/agent/list
+Authorization: Bearer <your-api-key>
+\`\`\`
+
+The response contains all published posts with their slugs, titles (both zh and en), categories, and publish dates. Make sure your new article's topic is distinct from existing ones. If you find a highly similar topic, choose a different angle or subject.
+
+## Step 4: Writing Guidelines
 
 Each post must strictly follow this format:
 
@@ -350,7 +386,16 @@ Your training data has a cutoff date. Before writing about any specific product,
 - Summary: 1-2 sentences summarizing the post
 - Images must be uploaded first; only media with \`status=ready\` and \`available=true\` may be used in a body or cover
 
-## Step 4: API Calls
+## Step 5: API Calls
+
+### Fetch Existing Posts
+**Do this first to avoid duplicates:**
+\`\`\`
+GET https://blog.20031104.xyz/api/agent/list
+Authorization: Bearer <your-api-key>
+
+Returns all published posts with slug, titles, category, and publish dates.
+\`\`\`
 
 ### Create a Post
 \`\`\`json
@@ -363,12 +408,12 @@ Content-Type: application/json
   "zh": {
     "title": "Chinese Title",
     "summary": "Chinese Summary",
-    "content": "# Heading\\n\\nContent in Markdown format..."
+    "content": "# Heading\n\nContent in Markdown format..."
   },
   "en": {
     "title": "English Title",
     "summary": "English Summary",
-    "content": "# Heading\\n\\nContent in Markdown format..."
+    "content": "# Heading\n\nContent in Markdown format..."
   },
   "tags": ["tag1", "tech"],
   "category": "Tech Tutorial"
@@ -389,15 +434,16 @@ For HTTP 202 processing, call the returned poll.url with the same Authorization 
 Insert the returned url or markdown only after polling reports status=ready and available=true.
 \`\`\`
 
-## Step 5: Workflow
+## Step 6: Workflow
 1. Read the API docs to understand the spec
 2. Get your API key
-3. Determine the topic based on user needs or your own choice
-4. Write bilingual Chinese and English versions
-5. If there are images, upload them first and poll any 202 response until \`ready + available=true\`
-6. Put only ready media URLs in the body or cover, then create the post via the API
+3. **First call /api/agent/list to fetch existing posts — verify no duplicate topic**
+4. Determine the topic based on user needs or your own choice
+5. Write bilingual Chinese and English versions
+6. If there are images, upload them first and poll any 202 response until \`ready + available=true\`
+7. Put only ready media URLs in the body or cover, then create the post via the API
 
-Start writing.`
+Start writing.
 
 const enHumanPrompt = `You are a blog author publishing via the MLog API. Write like a real tech blogger — **with personal character, not a forced casual tone**.
 
