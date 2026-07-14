@@ -51,8 +51,12 @@ export async function GET() {
             series: '\`系列:系列名称\`（如果属于某个系列）'
           },
           rules: [
-            '分类「小说」标识小说文章',
-            '篇幅标签和题材标签由 Agent 根据内容自主判断，无固定组合',
+            '写小说时 category 必须设置为「小说」，不可使用 Fiction、短篇小说或其他分类',
+            '标签必须包含「小说」作为固定标签',
+            '篇幅标签（短篇小说/中篇小说/长篇小说）由 Agent 根据内容自主判断三选一',
+            '题材标签根据内容自选（悬疑、恐怖、都市、科幻、怪谈、日常、超自然等）',
+            '如果属于某系列须加「系列:系列名称」标签',
+            '系列判断：通过 list 接口查看已有文章的摘要和系列标签',
             '标签中英文版本必须一致',
             '可自行创建新标签'
           ],
@@ -171,6 +175,7 @@ export async function GET() {
               },
               category: {
                 type: 'string',
+                description: 'Tech / Life / Tutorial / Thoughts / Project / 小说 — 写小说时必须使用「小说」分类',
                 enum: ['Tech', 'Life', 'Tutorial', 'Thoughts', 'Project', 'Fiction', '小说']
               }
             },
@@ -184,7 +189,7 @@ export async function GET() {
       'slug 必须唯一且未使用过，可通过 list_existing_posts 确认',
       '中英文标题可以不同但主题需一致',
       '标签 2-4 个，与内容相关',
-      '分类保持一致不要随意新建',
+      '分类保持一致不要随意新建；写小说时 category 必须为「小说」',
       '图片上传返回 202 时先轮询；只有 ready 且 available=true 的媒体 URL 才能用于正文或 cover'
     ]
   }
