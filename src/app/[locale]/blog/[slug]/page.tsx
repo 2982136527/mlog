@@ -2,13 +2,12 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { isLocale, locales } from '@/i18n/config'
-import fs from 'node:fs'
-import path from 'node:path'
 import { getDictionary } from '@/i18n/dictionaries'
 import {
   getLocalizedPostAsync,
   getPostAsync,
   getPostNeighborsAsync,
+  getPostContentAsync,
   getRepoCardsConfigAsync
 } from '@/lib/content'
 import { createLocaleMetadata } from '@/lib/metadata'
@@ -63,13 +62,17 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
     notFound()
   }
 
-  const [repoCardsConfig, zhSource, neighbors] = await Promise.all([
+  const [repoCardsConfig, zhSource, neighbors, content] = await Promise.all([
     getRepoCardsConfigAsync(post.slug),
     getPostAsync('zh', post.slug),
-    getPostNeighborsAsync(post.locale, post.slug)
+    getPostNeighborsAsync(post.locale, post.slug),
+    getPostContentAsync(slug, locale).then(c => c || '')
   ])
   const isHotDaily = isHotDailyTags(post.frontmatter.tags)
   const showRepoCards = isHotDaily || repoCardsConfig.enabled
+
+  // For hot daily articles, get the zh source content
+  const zhContent = isHotDaily && zhSource ? await getPostContentAsync(slug, 'zh') : null
 
   const staticSnapshot = (() => {
     const fromConfig = toPostStaticSnapshotFromRepoCards(repoCardsConfig)
@@ -81,11 +84,11 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
       return null
     }
 
-    const sourcePost = zhSource || post
-    return extractHotDailyStaticSnapshot(sourcePost.content, sourcePost.frontmatter.updated || sourcePost.frontmatter.date)
+    const sourceContent = locale === 'zh' ? content : (zhContent || content)
+    return extractHotDailyStaticSnapshot(sourceContent, (zhSource || post).frontmatter.updated || post.frontmatter.date)
   })()
 
-  const renderInput = showRepoCards ? stripConfirmedFactsSection(post.content).markdown : post.content
+  const renderInput = showRepoCards ? stripConfirmedFactsSection(content).markdown : content
   const { html, toc } = await renderMarkdown(renderInput)
 
   return (
@@ -128,25 +131,6 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
   )
 }
 
-export async function generateStaticParams(): Promise<Array<{ locale: string; slug: string }>> {
-  const contentRoot = path.join(process.cwd(), 'content', 'posts')
-  let slugs: string[] = []
-  try {
-    slugs = fs
-      .readdirSync(contentRoot, { withFileTypes: true })
-      .filter(entry => entry.isDirectory())
-      .map(entry => entry.name)
-  } catch {
-    return []
-  }
 
-  const result: Array<{ locale: string; slug: string }> = []
-  for (const locale of locales) {
-    for (const slug of slugs) {
-      result.push({ locale, slug })
-    }
-  }
-  return result
-}
 
 export const revalidate = 60

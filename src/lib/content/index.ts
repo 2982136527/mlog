@@ -69,29 +69,27 @@ const getAllLocalPosts = cache(readAllLocalPosts)
  * and is always available at runtime even when content/posts/ is not.
  */
 function readPostsFromSnapshot(): Post[] | null {
-  const snapshotPath = path.join(process.cwd(), 'public', '__content__.json')
-  if (!fs.existsSync(snapshotPath)) return null
+  // Read from __index__.json (frontmatter only, built at deploy time)
+  // Content is loaded separately via getPostContentAsync() for detail pages.
+  const indexPath = path.join(process.cwd(), 'public', '__index__.json')
+  if (!fs.existsSync(indexPath)) return null
 
-  const data = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'))
-  if (!data || !Array.isArray(data.files)) return null
+  const data = JSON.parse(fs.readFileSync(indexPath, 'utf8'))
+  if (!data || !Array.isArray(data.posts)) return null
 
   const posts: Post[] = []
-  for (const file of data.files) {
-    const match = typeof file.p === 'string' ? file.p.match(/^([a-z0-9-]+)\/([a-z]+)\.md$/) : null
-    if (!match) continue
-    const locale = match[2] as Locale
+  for (const entry of data.posts) {
+    const locale = entry.locale as Locale
     if (!isLocale(locale)) continue
     try {
-      const raw = String(file.c || '')
-      const parsed = parsePostMatter(raw)
-      const validated = postFrontmatterSchema.safeParse(parsed.data)
+      const validated = postFrontmatterSchema.safeParse(entry.frontmatter)
       if (!validated.success) continue
       posts.push({
-        slug: match[1],
+        slug: entry.slug,
         locale,
         frontmatter: validated.data as PostFrontmatter,
-        content: parsed.content,
-        readingTime: Math.max(1, Math.ceil(readingTime(parsed.content).minutes))
+        content: '',  // content loaded separately by getPostContentAsync
+        readingTime: entry.readingTime
       })
     } catch {
       // skip invalid posts silently
@@ -138,6 +136,39 @@ const getPublicContentSnapshot = cache(async (): Promise<PublicContentSnapshot> 
   // 4. Ultimate fallback: empty
   return { posts: [], repoCardsBySlug: {}, remote: false }
 })
+
+export async function getPostContentAsync(slug: string, locale: Locale): Promise<string | null> {
+  // 1. Try individual content file (public/__content__/{slug}/{locale}.json)
+  const contentPath = path.join(process.cwd(), 'public', '__content__', slug, `${locale}.json`)
+  try {
+    if (fs.existsSync(contentPath)) {
+      const data = JSON.parse(fs.readFileSync(contentPath, 'utf8'))
+      if (data && typeof data.content === 'string') {
+        return data.content
+      }
+    }
+  } catch { /* fall through */ }
+
+  // 2. Try local content/posts/ directory
+  const mdPath = path.join(CONTENT_ROOT, slug, `${locale}.md`)
+  try {
+    if (fs.existsSync(mdPath)) {
+      const raw = fs.readFileSync(mdPath, 'utf8')
+      return parsePostMatter(raw).content
+    }
+  } catch { /* fall through */ }
+
+  // 3. Fallback: fetch from GitHub API (via remote snapshot)
+  try {
+    const remote = await getRemoteContentSnapshot()
+    if (remote) {
+      const post = remote.posts.find(p => p.slug === slug && p.locale === locale)
+      if (post) return post.content
+    }
+  } catch { /* fall through */ }
+
+  return null
+}
 
 export async function getAllPostsAsync(): Promise<Post[]> {
   return (await getPublicContentSnapshot()).posts.filter(isPublicPost)
