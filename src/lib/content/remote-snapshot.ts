@@ -444,3 +444,77 @@ export async function fetchSinglePostContentFromGitHub(slug: string, locale: str
     return null
   }
 }
+
+
+/**
+ * Fetch all (slug, locale) pairs from the GitHub content repo tree.
+ * Makes 2 API calls: get commit SHA + get recursive tree.
+ * Fast (~300ms) because it doesn't fetch file contents, just the tree.
+ */
+export async function getAllPostSlugsFromGitHub(): Promise<Array<{slug: string; locale: string}>> {
+  if (process.env.NEXT_PHASE === 'phase-production-build') return []
+
+  const config = readGithubContentConfig()
+  if (!config) return []
+
+  try {
+    const commitSha = await resolveCommitSha(config, config.primaryRepo)
+    const tree = await getRecursiveTree(config, config.primaryRepo, commitSha)
+
+    const results: Array<{slug: string; locale: string}> = []
+    const seen = new Set<string>()
+
+    for (const entry of tree) {
+      if (entry.type !== 'blob') continue
+      const match = entry.path.match(POST_FILE_RE)
+      if (!match) continue
+      const key = `${match[1]}:${match[2]}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      results.push({ slug: match[1], locale: match[2] })
+    }
+
+    return results
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Given the build-time snapshot posts, fetch any missing posts from GitHub
+ * that were published after the last snapshot build.
+ *
+ * Strategy:
+ * 1. Get all (slug, locale) pairs from the GitHub repo tree (fast, ~300ms)
+ * 2. Find pairs not in the snapshot
+ * 3. Fetch individual markdown files for those pairs (~200ms each)
+ * 4. Return only the new posts
+ */
+export async function fetchMissingPostsFromGitHub(snapshotPosts: Post[]): Promise<Post[]> {
+  const allSlugs = await getAllPostSlugsFromGitHub()
+  if (allSlugs.length === 0) return []
+
+  // Build set of existing (slug, locale) from snapshot
+  const existingKeys = new Set(snapshotPosts.map(p => `${p.slug}:${p.locale}`))
+
+  // Find new posts
+  const newSlugs = allSlugs.filter(s => !existingKeys.has(`${s.slug}:${s.locale}`))
+  if (newSlugs.length === 0) return []
+
+  // Fetch each new post's frontmatter in parallel (limit concurrency)
+  const results: Post[] = []
+  const batchSize = 10
+  for (let i = 0; i < newSlugs.length; i += batchSize) {
+    const batch = newSlugs.slice(i, i + batchSize)
+    const fetched = await Promise.allSettled(
+      batch.map(s => fetchSinglePostFromGitHub(s.slug, s.locale))
+    )
+    for (const result of fetched) {
+      if (result.status === 'fulfilled' && result.value) {
+        results.push(result.value)
+      }
+    }
+  }
+
+  return results
+}

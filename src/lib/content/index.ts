@@ -8,7 +8,7 @@ import type { RepoCardsConfig } from '@/types/repo-cards'
 import { unique } from '@/lib/utils'
 import { postFrontmatterSchema } from '@/lib/content/schema'
 import { parsePostMatter } from '@/lib/content/frontmatter'
-import { getRemoteContentSnapshot, fetchSinglePostFromGitHub, fetchSinglePostContentFromGitHub } from '@/lib/content/remote-snapshot'
+import { getRemoteContentSnapshot, fetchSinglePostFromGitHub, fetchSinglePostContentFromGitHub, fetchMissingPostsFromGitHub } from '@/lib/content/remote-snapshot'
 import { buildDefaultRepoCardsConfig, getRepoCardsConfigFromLocal } from '@/lib/blog/repo-cards-config'
 
 const CONTENT_ROOT = path.join(process.cwd(), 'content', 'posts')
@@ -177,7 +177,33 @@ export async function getPostContentAsync(slug: string, locale: Locale): Promise
 }
 
 export async function getAllPostsAsync(): Promise<Post[]> {
-  return (await getPublicContentSnapshot()).posts.filter(isPublicPost)
+  // 1. Read from build-time snapshot (covers all articles at last build)
+  const snapshot = await getPublicContentSnapshot()
+  const snapPosts = snapshot.posts.filter(isPublicPost)
+
+  // 2. Check for new articles published after the last snapshot build
+  //    Uses tree API (fast, ~300ms) + individual fetches for new articles only
+  if (snapshot.remote) {
+    // Already from GitHub remote, no need to fetch more
+    return snapPosts
+  }
+
+  try {
+    const remotePosts = await fetchMissingPostsFromGitHub(snapPosts)
+    if (remotePosts.length === 0) return snapPosts
+
+    // Merge: snapshot posts + new remote posts, filter public, sort by date
+    const existingKeys = new Set(snapPosts.map(p => `${p.slug}:${p.locale}`))
+    const merged = [...snapPosts]
+    for (const rp of remotePosts) {
+      if (!existingKeys.has(`${rp.slug}:${rp.locale}`)) {
+        merged.push(rp)
+      }
+    }
+    return sortPostsByDateDesc(merged)
+  } catch {
+    return snapPosts
+  }
 }
 
 export async function getPostAsync(locale: Locale, slug: string): Promise<Post | null> {
