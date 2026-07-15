@@ -56,4 +56,3 @@ public/images/uploads/**
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-public/__content__.json
