@@ -371,3 +371,76 @@ export async function getRemoteContentSnapshotUncached(): Promise<RemoteContentS
   if (process.env.NEXT_PHASE === 'phase-production-build') return null
   return loadRemoteContentSnapshotTree()
 }
+
+/**
+ * Fetch a single post's frontmatter from raw.githubusercontent.com.
+ * Fast (~200ms per fetch) because it fetches ONE markdown file, not all 258.
+ * Used as fallback when a post is not yet in the build-time snapshot.
+ */
+export async function fetchSinglePostFromGitHub(slug: string, locale: string): Promise<Post | null> {
+  if (process.env.NEXT_PHASE === 'phase-production-build') return null
+
+  const config = readGithubContentConfig()
+  if (!config) return null
+
+  const url = `${GITHUB_RAW_BASE}/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.primaryRepo)}/${config.branch}/content/posts/${encodeURIComponent(slug)}/${encodeURIComponent(locale)}.md`
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${config.token}` },
+      signal: controller.signal,
+      cache: 'no-store'
+    })
+
+    clearTimeout(timeout)
+
+    if (!response.ok) return null
+
+    const raw = await response.text()
+    if (Buffer.byteLength(raw, 'utf8') > MAX_CONTENT_FILE_SIZE) return null
+
+    return parsePost(raw, slug, locale as Locale, `${slug}/${locale}`)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Fetch a single post's body content from raw.githubusercontent.com.
+ * Returns just the markdown body (without frontmatter).
+ * Fast because it fetches ONE file.
+ */
+export async function fetchSinglePostContentFromGitHub(slug: string, locale: string): Promise<string | null> {
+  if (process.env.NEXT_PHASE === 'phase-production-build') return null
+
+  const config = readGithubContentConfig()
+  if (!config) return null
+
+  const url = `${GITHUB_RAW_BASE}/${encodeURIComponent(config.owner)}/${encodeURIComponent(config.primaryRepo)}/${config.branch}/content/posts/${encodeURIComponent(slug)}/${encodeURIComponent(locale)}.md`
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${config.token}` },
+      signal: controller.signal,
+      cache: 'no-store'
+    })
+
+    clearTimeout(timeout)
+
+    if (!response.ok) return null
+
+    const raw = await response.text()
+    if (Buffer.byteLength(raw, 'utf8') > MAX_CONTENT_FILE_SIZE) return null
+
+    const parsed = parsePostMatter(raw)
+    return parsed.content.trimStart()
+  } catch {
+    return null
+  }
+}

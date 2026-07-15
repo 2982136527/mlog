@@ -8,7 +8,7 @@ import type { RepoCardsConfig } from '@/types/repo-cards'
 import { unique } from '@/lib/utils'
 import { postFrontmatterSchema } from '@/lib/content/schema'
 import { parsePostMatter } from '@/lib/content/frontmatter'
-import { getRemoteContentSnapshot } from '@/lib/content/remote-snapshot'
+import { getRemoteContentSnapshot, fetchSinglePostFromGitHub, fetchSinglePostContentFromGitHub } from '@/lib/content/remote-snapshot'
 import { buildDefaultRepoCardsConfig, getRepoCardsConfigFromLocal } from '@/lib/blog/repo-cards-config'
 
 const CONTENT_ROOT = path.join(process.cwd(), 'content', 'posts')
@@ -158,7 +158,13 @@ export async function getPostContentAsync(slug: string, locale: Locale): Promise
     }
   } catch { /* fall through */ }
 
-  // 3. Fallback: fetch from GitHub API (via remote snapshot)
+  // 3. Fallback: fetch single article from GitHub raw (fast, individual file fetch)
+  try {
+    const content = await fetchSinglePostContentFromGitHub(slug, locale)
+    if (content) return content
+  } catch { /* fall through */ }
+
+  // 4. Last resort: fetch entire snapshot from GitHub API (slow, but comprehensive)
   try {
     const remote = await getRemoteContentSnapshot()
     if (remote) {
@@ -175,7 +181,18 @@ export async function getAllPostsAsync(): Promise<Post[]> {
 }
 
 export async function getPostAsync(locale: Locale, slug: string): Promise<Post | null> {
-  return (await getAllPostsAsync()).find(post => post.slug === slug && post.locale === locale) ?? null
+  // 1. Check snapshot (fast, all articles from last build)
+  const posts = await getAllPostsAsync()
+  const found = posts.find(post => post.slug === slug && post.locale === locale)
+  if (found) return found
+
+  // 2. Try single-article fetch from GitHub raw (for articles published after last build)
+  try {
+    const remotePost = await fetchSinglePostFromGitHub(slug, locale)
+    if (remotePost) return remotePost
+  } catch { /* fall through */ }
+
+  return null
 }
 
 export async function getLocalizedPostAsync(locale: Locale, slug: string): Promise<LocalizedPost | null> {
