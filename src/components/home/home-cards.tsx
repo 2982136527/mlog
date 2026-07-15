@@ -78,7 +78,7 @@ export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCar
       initial='hidden'
       animate='show'
       className='mx-auto grid w-full max-w-6xl grid-cols-1 gap-5 px-5 pt-5 sm:grid-cols-12 sm:px-8'>
-      <motion.div variants={item} className='sm:col-span-7'>
+      <motion.div variants={item} className='sm:col-span-8'>
         <GlassCard className='h-full'>
           <SectionTitle>{dict.home.latestPost}</SectionTitle>
 
@@ -122,7 +122,7 @@ export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCar
         </GlassCard>
       </motion.div>
 
-      <motion.div variants={item} className='sm:col-span-4'>
+      <motion.div variants={item} className='sm:col-span-6'>
         <GlassCard className='flex h-full flex-col'>
           <SectionTitle>{dict.home.quickLinks}</SectionTitle>
           <p className='mt-2 text-sm leading-6 text-[var(--color-ink-soft)]'>{dict.home.quickHubSubtitle}</p>
@@ -205,7 +205,7 @@ export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCar
         </GlassCard>
       </motion.div>
 
-      <motion.div variants={item} className='sm:col-span-4'>
+      <motion.div variants={item} className='sm:col-span-6'>
         <GlassCard className='h-full'>
           <SectionTitle>{dict.home.tagCloud}</SectionTitle>
           {topTags.length > 0 ? (
