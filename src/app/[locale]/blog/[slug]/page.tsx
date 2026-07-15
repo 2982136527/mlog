@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { isLocale } from '@/i18n/config'
+import { isLocale, locales } from '@/i18n/config'
+import fs from 'node:fs'
+import path from 'node:path'
 import { getDictionary } from '@/i18n/dictionaries'
 import {
   getLocalizedPostAsync,
@@ -124,6 +126,27 @@ export default async function BlogDetailPage({ params }: BlogDetailProps) {
       <GiscusComments locale={locale} slug={post.slug} title={post.frontmatter.title} />
     </div>
   )
+}
+
+export async function generateStaticParams(): Promise<Array<{ locale: string; slug: string }>> {
+  const contentRoot = path.join(process.cwd(), 'content', 'posts')
+  let slugs: string[] = []
+  try {
+    slugs = fs
+      .readdirSync(contentRoot, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => entry.name)
+  } catch {
+    return []
+  }
+
+  const result: Array<{ locale: string; slug: string }> = []
+  for (const locale of locales) {
+    for (const slug of slugs) {
+      result.push({ locale, slug })
+    }
+  }
+  return result
 }
 
 export const revalidate = 60
