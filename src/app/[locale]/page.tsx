@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import type { Locale } from '@/i18n/config'
-import { isLocale } from '@/i18n/config'
+import { isLocale, locales } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
 import { getCategoryCountsAsync, getLatestPostAsync, getTagCountsAsync } from '@/lib/content'
 import { createLocaleMetadata } from '@/lib/metadata'
@@ -52,6 +52,10 @@ export default async function LocaleHomePage({ params }: LocaleHomeProps) {
       }
     : null
   return <HomeCards locale={locale as Locale} latestPost={latestPostCard} categories={categories} tagCounts={tagCounts} />
+}
+
+export async function generateStaticParams(): Promise<Array<{ locale: string }>> {
+  return locales.map(locale => ({ locale }))
 }
 
 export const revalidate = 60

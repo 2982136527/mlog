@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { isLocale } from '@/i18n/config'
+import { isLocale, locales } from '@/i18n/config'
 import { getDictionary } from '@/i18n/dictionaries'
 import { getLocaleCategoriesAsync, getLocaleTagsAsync, getPostsByLocaleAsync, paginatePosts } from '@/lib/content'
 import { createLocaleMetadata } from '@/lib/metadata'
@@ -100,6 +100,10 @@ export default async function BlogListPage({ params, searchParams }: BlogListPro
       />
     </div>
   )
+}
+
+export async function generateStaticParams(): Promise<Array<{ locale: string }>> {
+  return locales.map(locale => ({ locale }))
 }
 
 export const revalidate = 60
