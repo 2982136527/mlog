@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import readingTime from 'reading-time'
 import { cache } from 'react'
-import { defaultLocale, type Locale, locales } from '@/i18n/config'
+import { defaultLocale, type Locale, locales, isLocale } from '@/i18n/config'
 import type { LocalizedPost, Post, PostFrontmatter } from '@/types/content'
 import type { RepoCardsConfig } from '@/types/repo-cards'
 import { unique } from '@/lib/utils'
@@ -63,6 +63,44 @@ function readAllLocalPosts(): Post[] {
 
 const getAllLocalPosts = cache(readAllLocalPosts)
 
+/**
+ * Read posts from build-time snapshot file (public/__content__.json).
+ * This file is created during build by save-content-snapshot.mjs
+ * and is always available at runtime even when content/posts/ is not.
+ */
+function readPostsFromSnapshot(): Post[] | null {
+  const snapshotPath = path.join(process.cwd(), 'public', '__content__.json')
+  if (!fs.existsSync(snapshotPath)) return null
+
+  const data = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'))
+  if (!data || !Array.isArray(data.files)) return null
+
+  const posts: Post[] = []
+  for (const file of data.files) {
+    const match = typeof file.p === 'string' ? file.p.match(/^([a-z0-9-]+)\/([a-z]+)\.md$/) : null
+    if (!match) continue
+    const locale = match[2] as Locale
+    if (!isLocale(locale)) continue
+    try {
+      const raw = String(file.c || '')
+      const parsed = parsePostMatter(raw)
+      const validated = postFrontmatterSchema.safeParse(parsed.data)
+      if (!validated.success) continue
+      posts.push({
+        slug: match[1],
+        locale,
+        frontmatter: validated.data as PostFrontmatter,
+        content: parsed.content,
+        readingTime: Math.max(1, Math.ceil(readingTime(parsed.content).minutes))
+      })
+    } catch {
+      // skip invalid posts silently
+    }
+  }
+
+  return posts.length > 0 ? posts : null
+}
+
 type PublicContentSnapshot = {
   posts: Post[]
   repoCardsBySlug: Record<string, RepoCardsConfig>
@@ -70,35 +108,36 @@ type PublicContentSnapshot = {
 }
 
 const getPublicContentSnapshot = cache(async (): Promise<PublicContentSnapshot> => {
-  // Fast path: serve from local filesystem if available (populated by content:pull at build time)
+  // 1. Try snapshot file first (public/__content__.json, always deployed with static assets)
+  try {
+    const snapPosts = readPostsFromSnapshot()
+    if (snapPosts) {
+      // Warm the unstable_cache in background
+      getRemoteContentSnapshot().catch(() => {})
+      return { posts: snapPosts, repoCardsBySlug: {}, remote: false }
+    }
+  } catch { /* fall through */ }
+
+  // 2. Try local content/posts/ directory (populated by content:pull at build time)
   try {
     const local = {
       posts: getAllLocalPosts(),
       repoCardsBySlug: {},
       remote: false
     }
-
-    // Background: populate the unstable_cache from GitHub for subsequent requests
-    getRemoteContentSnapshot()
-      .then(remote => { if (remote) { /* cache populated */ } })
-      .catch(() => { /* ignore */ })
-
+    // Warm the unstable_cache in background
+    getRemoteContentSnapshot().catch(() => {})
     return local
-  } catch {
-    // Local content not available (not deployed or content:pull failed)
-    // Fall through to remote fetch with mutable_cache
-  }
+  } catch { /* fall through */ }
 
+  // 3. Fallback: fetch from GitHub (with unstable_cache)
   const remote = await getRemoteContentSnapshot()
   if (remote) {
     return { ...remote, remote: true }
   }
 
-  return {
-    posts: getAllLocalPosts(),
-    repoCardsBySlug: {},
-    remote: false
-  }
+  // 4. Ultimate fallback: empty
+  return { posts: [], repoCardsBySlug: {}, remote: false }
 })
 
 export async function getAllPostsAsync(): Promise<Post[]> {
