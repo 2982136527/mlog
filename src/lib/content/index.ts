@@ -70,16 +70,26 @@ type PublicContentSnapshot = {
 }
 
 const getPublicContentSnapshot = cache(async (): Promise<PublicContentSnapshot> => {
-  const remote = await getRemoteContentSnapshot()
-  if (remote) {
-    return { ...remote, remote: true }
-  }
-
-  return {
+  // Fast path: always serve from local filesystem first (populated by content:pull at build time)
+  const local = {
     posts: getAllLocalPosts(),
     repoCardsBySlug: {},
     remote: false
   }
+
+  // Background: populate the unstable_cache from GitHub for subsequent requests
+  // This runs asynchronously and doesn't block the current request
+  getRemoteContentSnapshot()
+    .then(remote => {
+      if (remote) {
+        // Cache populated — next call to getRemoteContentSnapshot() returns instantly
+      }
+    })
+    .catch(() => {
+      // Silently ignore failures; local content is the fallback
+    })
+
+  return local
 })
 
 export async function getAllPostsAsync(): Promise<Post[]> {
