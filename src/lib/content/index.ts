@@ -109,6 +109,7 @@ type PublicContentSnapshot = {
 
 const getPublicContentSnapshot = cache(async (): Promise<PublicContentSnapshot> => {
   // 1. Try snapshot file first (public/__content__.json, always deployed with static assets)
+  //    This is a 1.8MB local file containing all 258 articles. Fast, no network.
   try {
     const snapPosts = readPostsFromSnapshot()
     if (snapPosts) {
@@ -126,7 +127,9 @@ const getPublicContentSnapshot = cache(async (): Promise<PublicContentSnapshot> 
     return local
   } catch { /* fall through */ }
 
-  // 3. Fallback: fetch from GitHub (with unstable_cache)
+  // 3. Fallback: fetch from GitHub (with unstable_cache, but limited to 2MB — too small for 258 articles)
+  //    This path is only reached when the snapshot file AND local files are both unavailable.
+  //    In production on Vercel, this never happens because the snapshot is always deployed.
   const remote = await getRemoteContentSnapshot()
   if (remote) {
     return { ...remote, remote: true }
