@@ -58,4 +58,4 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [...staticPages, ...postPages]
 }
 
-export const revalidate = 60
+export const revalidate = 3600

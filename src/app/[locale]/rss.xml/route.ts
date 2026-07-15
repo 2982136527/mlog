@@ -31,4 +31,4 @@ export async function GET(_: Request, { params }: { params: Promise<{ locale: st
   })
 }
 
-export const revalidate = 60
+export const revalidate = 3600

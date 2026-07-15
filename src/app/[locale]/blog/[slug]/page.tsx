@@ -149,4 +149,3 @@ export async function generateStaticParams(): Promise<Array<{ locale: string; sl
   return result
 }
 
-export const revalidate = 60

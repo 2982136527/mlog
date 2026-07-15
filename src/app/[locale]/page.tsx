@@ -58,4 +58,3 @@ export async function generateStaticParams(): Promise<Array<{ locale: string }>>
   return locales.map(locale => ({ locale }))
 }
 
-export const revalidate = 60

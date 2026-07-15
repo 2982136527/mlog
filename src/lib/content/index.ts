@@ -112,8 +112,6 @@ const getPublicContentSnapshot = cache(async (): Promise<PublicContentSnapshot> 
   try {
     const snapPosts = readPostsFromSnapshot()
     if (snapPosts) {
-      // Warm the unstable_cache in background
-      getRemoteContentSnapshot().catch(() => {})
       return { posts: snapPosts, repoCardsBySlug: {}, remote: false }
     }
   } catch { /* fall through */ }
@@ -125,8 +123,6 @@ const getPublicContentSnapshot = cache(async (): Promise<PublicContentSnapshot> 
       repoCardsBySlug: {},
       remote: false
     }
-    // Warm the unstable_cache in background
-    getRemoteContentSnapshot().catch(() => {})
     return local
   } catch { /* fall through */ }
 
