@@ -66,6 +66,7 @@ const item: Variants = {
 export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCardsProps) {
   const dict = getDictionary(locale)
   const topTags = tagCounts.slice(0, 12)
+  const showAllTags = tagCounts.slice(0, 15)
   const quickPickTags = tagCounts.slice(0, 3)
   const maxTagCount = topTags[0]?.count ?? 0
   const postCount = categories.reduce((sum, category) => sum + category.count, 0)
@@ -163,7 +164,7 @@ export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCar
 
           <div className='mt-5'>
             <p className='text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-ink-soft)]'>{dict.home.quickStatsTitle}</p>
-            <div className='mt-2 flex flex-wrap gap-2'>
+            <div className='mt-2 grid grid-cols-3 gap-2'>
               <span className='inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/55 px-3 py-1 text-xs text-[var(--color-ink)]'>
                 <span>{dict.home.quickStatPosts}</span>
                 <strong>{postCount}</strong>
@@ -208,9 +209,9 @@ export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCar
       <motion.div variants={item} className='sm:col-span-6'>
         <GlassCard className='h-full'>
           <SectionTitle>{dict.home.tagCloud}</SectionTitle>
-          {topTags.length > 0 ? (
+          {showAllTags.length > 0 ? (
             <ul className='mt-4 flex flex-wrap gap-2'>
-              {topTags.map(tag => (
+              {showAllTags.map(tag => (
                 <li key={tag.name}>
                   <Link
                     href={`/${locale}/blog?tag=${encodeURIComponent(tag.name)}`}
@@ -222,8 +223,15 @@ export function HomeCards({ locale, latestPost, categories, tagCounts }: HomeCar
               ))}
             </ul>
           ) : (
-            <p className='mt-4 text-sm text-[var(--color-ink-soft)]'>{dict.home.tagCloudEmpty}</p>
+            <p className="mt-3 text-sm text-[var(--color-ink-soft)]">{dict.home.tagCloudEmpty}</p>
           )}
+          <div className="mt-5 text-right">
+            <Link
+              href={`/${locale}/blog`}
+              className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-brand)] transition hover:text-[var(--color-brand-strong)]">
+              查看全部标签 →
+            </Link>
+          </div>
         </GlassCard>
       </motion.div>
     </motion.div>
