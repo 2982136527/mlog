@@ -5,6 +5,11 @@ const CONTENT_ROOT = path.join(process.cwd(), 'content', 'posts')
 const SNAPSHOT_FILE = path.join(process.cwd(), 'public', '__content__.json')
 
 if (!fs.existsSync(CONTENT_ROOT)) {
+  // Keep existing snapshot (from git or previous build) if content/posts is gone
+  if (fs.existsSync(SNAPSHOT_FILE)) {
+    console.warn('[snapshot] content/posts not found, keeping existing snapshot')
+    process.exit(0)
+  }
   console.warn('[snapshot] content/posts not found, skipping')
   process.exit(0)
 }
